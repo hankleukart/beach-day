@@ -277,16 +277,50 @@
   {% endif %}
 {% endif %}
 
-{% comment %} Overall status check {% endcomment %}
+{% comment %} Determine 6 distinct states {% endcomment %}
+
+{% comment %} State 1: Beach Day {% endcomment %}
 {% assign is_beach_day = false %}
 {% if cond_temp and cond_precip and cond_wind and cond_forecast and cond_time %}
   {% assign is_beach_day = true %}
 {% endif %}
 
-{% comment %} Rain Day status check {% endcomment %}
+{% comment %} State 2: Night Time {% endcomment %}
+{% assign is_night_time = false %}
+{% if cond_time == false %}
+  {% assign is_night_time = true %}
+{% endif %}
+
+{% comment %} State 3: Rainy Day {% endcomment %}
 {% assign is_rain_day = false %}
-{% if precip >= 20 or forecast_lower contains "rain" or forecast_lower contains "shower" or forecast_lower contains "drizzle" or forecast_lower contains "storm" or forecast_lower contains "thunderstorm" %}
-  {% assign is_rain_day = true %}
+{% if is_beach_day == false and is_night_time == false %}
+  {% if precip >= 20 or forecast_lower contains "rain" or forecast_lower contains "shower" or forecast_lower contains "drizzle" or forecast_lower contains "storm" or forecast_lower contains "thunderstorm" %}
+    {% assign is_rain_day = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} State 4: Windy Day {% endcomment %}
+{% assign is_windy_day = false %}
+{% if is_beach_day == false and is_night_time == false and is_rain_day == false %}
+  {% if cond_wind == false %}
+    {% assign is_windy_day = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} State 5: Chilly Day {% endcomment %}
+{% assign is_chilly_day = false %}
+{% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false %}
+  {% if cond_temp == false %}
+    {% assign is_chilly_day = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} State 6: Grey Day {% endcomment %}
+{% assign is_grey_day = false %}
+{% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false and is_chilly_day == false %}
+  {% if cond_forecast == false %}
+    {% assign is_grey_day = true %}
+  {% endif %}
 {% endif %}
 
 {% comment %} Format time display strings {% endcomment %}
@@ -364,8 +398,17 @@
       <div class="hero-title">Beach<br/>Day!</div>
       <div class="hero-subtitle">Pack the car</div>
     </div>
+  {% elsif is_night_time %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Crescent Moon SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+      </svg>
+      <div class="hero-title">Night<br/>Time</div>
+      <div class="hero-subtitle">Beach is closed</div>
+    </div>
   {% elsif is_rain_day %}
-    <div class="hero-panel hero-panel--rain">
+    <div class="hero-panel hero-panel--no">
       <!-- Rain Cloud SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
@@ -376,13 +419,41 @@
       <div class="hero-title">Rainy<br/>Day</div>
       <div class="hero-subtitle">Stay dry</div>
     </div>
-  {% else %}
+  {% elsif is_windy_day %}
     <div class="hero-panel hero-panel--no">
-      <!-- Cloudy (Hoodie Day) SVG Icon -->
+      <!-- Wind lines SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" />
+      </svg>
+      <div class="hero-title">Windy<br/>Day</div>
+      <div class="hero-subtitle">Hold your towel</div>
+    </div>
+  {% elsif is_chilly_day %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Cloudy (Chilly Day) SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
       </svg>
-      <div class="hero-title">Hoodie<br/>Day</div>
+      <div class="hero-title">Chilly<br/>Day</div>
+      <div class="hero-subtitle">Not warm enough</div>
+    </div>
+  {% elsif is_grey_day %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Overlapping Clouds SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
+        <path d="M22 15a4 4 0 0 0-3.3-3.9 4.5 4.5 0 0 0-8.2-3.8 5 5 0 0 0-2.5 6.7" />
+      </svg>
+      <div class="hero-title">Grey<br/>Day</div>
+      <div class="hero-subtitle">No sunscreen</div>
+    </div>
+  {% else %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Default fallback: Simple Cloud SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
+      </svg>
+      <div class="hero-title">Chilly<br/>Day</div>
       <div class="hero-subtitle">Not beachy</div>
     </div>
   {% endif %}
