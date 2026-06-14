@@ -1,0 +1,488 @@
+<style>
+  /* Fluid Sizing for TRMNL OG (800x480) & TRMNL X (1872x1404) compatibility */
+  .hero-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 5;
+    padding: 6cqh 4cqw;
+    border-radius: 1.5cqh;
+    text-align: center;
+    box-sizing: border-box;
+    height: 100%;
+  }
+
+  .hero-panel--yes {
+    background-color: #000000;
+    color: #ffffff;
+    border: 0.8cqh solid #000000;
+  }
+
+  .hero-panel--no,
+  .hero-panel--rain {
+    background-color: #ffffff;
+    color: #000000;
+    border: 0.8cqh solid #000000;
+  }
+
+  .hero-icon {
+    width: 28cqh;
+    height: 28cqh;
+    margin-bottom: 4cqh;
+  }
+
+  .hero-title {
+    font-size: 11cqh;
+    font-weight: 800;
+    line-height: 1.1;
+    text-transform: uppercase;
+    letter-spacing: 0.4cqw;
+  }
+
+  .hero-subtitle {
+    font-size: 4.2cqh;
+    margin-top: 2cqh;
+    opacity: 0.8;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.2cqw;
+  }
+
+  .details-panel {
+    display: flex;
+    flex-direction: column;
+    flex: 7;
+    padding: 6cqh 5cqw;
+    box-sizing: border-box;
+    background-color: #ffffff;
+    border: 0.8cqh solid #000000;
+    border-radius: 1.5cqh;
+    height: 100%;
+  }
+
+  .details-header {
+    font-size: 4.5cqh;
+    font-weight: 800;
+    border-bottom: 0.8cqh solid #000000;
+    padding-bottom: 1.5cqh;
+    margin-bottom: 1cqh;
+    text-transform: uppercase;
+    letter-spacing: 0.2cqw;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .conditions-table {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-between;
+    margin-top: 2cqh;
+  }
+
+  .condition-row {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    padding: 2cqh 1cqw;
+    border-bottom: 0.2cqh dashed #000000;
+  }
+
+  .condition-row:last-child {
+    border-bottom: none;
+  }
+
+  .condition-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+  }
+
+  .condition-name {
+    font-size: 3.8cqh;
+    font-weight: 700;
+    color: #000000;
+  }
+
+  .condition-threshold {
+    font-size: 2.7cqh;
+    color: #555555;
+    margin-top: 0.4cqh;
+    font-weight: 500;
+  }
+
+  .condition-value {
+    font-size: 4.2cqh;
+    font-weight: 800;
+    text-align: right;
+    margin-right: 2cqw;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  }
+
+  .condition-status {
+    width: 6cqh;
+    height: 6cqh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .status-icon {
+    width: 5cqh;
+    height: 5cqh;
+  }
+
+  .status-icon--pass {
+    color: #000000;
+  }
+
+  .status-icon--fail {
+    color: #888888;
+    stroke-dasharray: 4;
+  }
+</style>
+
+<!-- Liquid Conditional Evaluation Logic -->
+{% assign temp = temperatureHi | default: temperature_hi | default: temperature | plus: 0 %}
+{% assign precip = probablityofPrecipitation | default: probability_of_precipitation | default: precipitation | plus: 0 %}
+{% assign wind = windspeedHi | default: wind_speed_hi | default: wind_speed | plus: 0 %}
+{% assign forecast_val = detailedForecast | default: detailed_forecast | default: forecast | downcase %}
+
+
+{% comment %} Determine current time dynamically from the device update timestamp {% endcomment %}
+{% assign time_source = "now" %}
+
+{% comment %} Parse sunrise and sunset values to minutes of the day {% endcomment %}
+{% assign sunrise_str = sunrise | append: "" %}
+{% assign sunrise_parts = sunrise_str | split: " " %}
+{% assign sunrise_time_part = "" %}
+{% assign sunrise_ampm_part = "" %}
+{% for part in sunrise_parts %}
+  {% if part contains ":" %}
+    {% assign sunrise_time_part = part %}
+  {% endif %}
+  {% assign part_lower = part | downcase %}
+  {% if part_lower == "am" or part_lower == "pm" %}
+    {% assign sunrise_ampm_part = part_lower %}
+  {% endif %}
+{% endfor %}
+{% if sunrise_time_part != "" %}
+  {% assign sunrise_time_parts = sunrise_time_part | split: ":" %}
+  {% assign sunrise_h = sunrise_time_parts[0] | plus: 0 %}
+  {% assign sunrise_m = sunrise_time_parts[1] | plus: 0 %}
+  {% if sunrise_ampm_part == "pm" and sunrise_h < 12 %}
+    {% assign sunrise_h = sunrise_h | plus: 12 %}
+  {% elsif sunrise_ampm_part == "am" and sunrise_h == 12 %}
+    {% assign sunrise_h = 0 %}
+  {% endif %}
+  {% assign sunrise_val = sunrise_h | times: 60 | plus: sunrise_m %}
+{% else %}
+  {% assign sunrise_num = sunrise | plus: 0 %}
+  {% if sunrise_num > 86400 %}
+    {% assign sunrise_h = sunrise_num | date: "%H" | plus: 0 %}
+    {% assign sunrise_m = sunrise_num | date: "%M" | plus: 0 %}
+    {% assign sunrise_val = sunrise_h | times: 60 | plus: sunrise_m %}
+  {% else %}
+    {% assign sunrise_val = sunrise_num %}
+  {% endif %}
+{% endif %}
+
+{% assign sunset_str = sunset | append: "" %}
+{% assign sunset_parts = sunset_str | split: " " %}
+{% assign sunset_time_part = "" %}
+{% assign sunset_ampm_part = "" %}
+{% for part in sunset_parts %}
+  {% if part contains ":" %}
+    {% assign sunset_time_part = part %}
+  {% endif %}
+  {% assign part_lower = part | downcase %}
+  {% if part_lower == "am" or part_lower == "pm" %}
+    {% assign sunset_ampm_part = part_lower %}
+  {% endif %}
+{% endfor %}
+{% if sunset_time_part != "" %}
+  {% assign sunset_time_parts = sunset_time_part | split: ":" %}
+  {% assign sunset_h = sunset_time_parts[0] | plus: 0 %}
+  {% assign sunset_m = sunset_time_parts[1] | plus: 0 %}
+  {% if sunset_ampm_part == "pm" and sunset_h < 12 %}
+    {% assign sunset_h = sunset_h | plus: 12 %}
+  {% elsif sunset_ampm_part == "am" and sunset_h == 12 %}
+    {% assign sunset_h = 0 %}
+  {% endif %}
+  {% assign sunset_val = sunset_h | times: 60 | plus: sunset_m %}
+{% else %}
+  {% assign sunset_num = sunset | plus: 0 %}
+  {% if sunset_num > 86400 %}
+    {% assign sunset_h = sunset_num | date: "%H" | plus: 0 %}
+    {% assign sunset_m = sunset_num | date: "%M" | plus: 0 %}
+    {% assign sunset_val = sunset_h | times: 60 | plus: sunset_m %}
+  {% else %}
+    {% assign sunset_val = sunset_num %}
+  {% endif %}
+{% endif %}
+
+{% comment %} Parse current local time from the device update timestamp and timezone offset {% endcomment %}
+{% assign offset = trmnl.user.utc_offset | default: -25200 %}
+{% assign local_time_epoch = time_source | date: "%s" | plus: offset %}
+{% assign time_h = local_time_epoch | date: "%H" | plus: 0 %}
+{% assign time_m = local_time_epoch | date: "%M" | plus: 0 %}
+{% assign time_val = time_h | times: 60 | plus: time_m %}
+
+{% comment %} Sunset limit is 60 minutes before sunset {% endcomment %}
+{% assign sunset_limit = sunset_val | minus: 60 %}
+
+{% comment %} Evaluate condition rules {% endcomment %}
+{% assign cond_temp = false %}
+{% if temp >= 74 %}
+  {% assign cond_temp = true %}
+{% endif %}
+
+{% assign cond_precip = false %}
+{% if precip < 20.0 %}
+  {% assign cond_precip = true %}
+{% endif %}
+
+{% assign cond_wind = false %}
+{% if wind <= 16.0 %}
+  {% assign cond_wind = true %}
+{% endif %}
+
+{% comment %} Forecast check {% endcomment %}
+{% assign cond_forecast = false %}
+{% assign forecast_lower = forecast_val | downcase %}
+{% if forecast_lower contains "sunny" %}
+  {% assign cond_forecast = true %}
+{% endif %}
+
+{% comment %} Time check {% endcomment %}
+{% assign cond_time = false %}
+{% if sunrise_val == 0 or sunset_val == 0 %}
+  {% assign cond_time = true %}
+{% else %}
+  {% if time_val >= sunrise_val and time_val <= sunset_limit %}
+    {% assign cond_time = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} Overall status check {% endcomment %}
+{% assign is_beach_day = false %}
+{% if cond_temp and cond_precip and cond_wind and cond_forecast and cond_time %}
+  {% assign is_beach_day = true %}
+{% endif %}
+
+{% comment %} Rain Day status check {% endcomment %}
+{% assign is_rain_day = false %}
+{% if precip >= 20 or forecast_lower contains "rain" or forecast_lower contains "shower" or forecast_lower contains "drizzle" or forecast_lower contains "storm" or forecast_lower contains "thunderstorm" %}
+  {% assign is_rain_day = true %}
+{% endif %}
+
+{% comment %} Format time display strings {% endcomment %}
+{% if sunrise_val == 0 or sunset_val == 0 %}
+  {% assign time_str = "Always" %}
+{% else %}
+  {% assign time_str = local_time_epoch | date: "%I:%M %p" %}
+{% endif %}
+
+{% comment %} Calculate sunlight / night hours and format times {% endcomment %}
+{% if sunrise_val > 0 and sunset_val > 0 %}
+  {% if time_val >= sunrise_val and time_val < sunset_val %}
+    {% assign minutes_left = sunset_val | minus: time_val %}
+    {% assign hours_left = minutes_left | divided_by: 60.0 | floor %}
+  {% else %}
+    {% if time_val >= sunset_val %}
+      {% assign minutes_until_sunrise = 1440 | minus: time_val | plus: sunrise_val %}
+    {% else %}
+      {% assign minutes_until_sunrise = sunrise_val | minus: time_val %}
+    {% endif %}
+    {% assign hours_until_sunrise = minutes_until_sunrise | divided_by: 60.0 | floor %}
+  {% endif %}
+
+  {% comment %} Format Sunrise Time {% endcomment %}
+  {% assign sr_h = sunrise_val | divided_by: 60 %}
+  {% assign sr_m = sunrise_val | modulo: 60 %}
+  {% assign sr_ampm = "AM" %}
+  {% if sr_h >= 12 %}
+    {% assign sr_ampm = "PM" %}
+    {% if sr_h > 12 %}
+      {% assign sr_h = sr_h | minus: 12 %}
+    {% endif %}
+  {% elsif sr_h == 0 %}
+    {% assign sr_h = 12 %}
+  {% endif %}
+  {% if sr_m < 10 %}
+    {% assign sr_m_str = "0" | append: sr_m %}
+  {% else %}
+    {% assign sr_m_str = sr_m %}
+  {% endif %}
+  {% assign sunrise_formatted = sr_h | append: ":" | append: sr_m_str | append: " " | append: sr_ampm %}
+
+  {% comment %} Format Sunset Time {% endcomment %}
+  {% assign ss_h = sunset_val | divided_by: 60 %}
+  {% assign ss_m = sunset_val | modulo: 60 %}
+  {% assign ss_ampm = "AM" %}
+  {% if ss_h >= 12 %}
+    {% assign ss_ampm = "PM" %}
+    {% if ss_h > 12 %}
+      {% assign ss_h = ss_h | minus: 12 %}
+    {% endif %}
+  {% elsif ss_h == 0 %}
+    {% assign ss_h = 12 %}
+  {% endif %}
+  {% if ss_m < 10 %}
+    {% assign ss_m_str = "0" | append: ss_m %}
+  {% else %}
+    {% assign ss_m_str = ss_m %}
+  {% endif %}
+  {% assign sunset_formatted = ss_h | append: ":" | append: ss_m_str | append: " " | append: ss_ampm %}
+{% endif %}
+
+<div class="layout layout--row gap--medium" style="height: 100%;">
+  
+  <!-- Left Side: Hero Banner -->
+  {% if is_beach_day %}
+    <div class="hero-panel hero-panel--yes">
+      <!-- Sunny Beach SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="10" r="4" fill="#ffffff" />
+        <path d="M12 2v2M12 16v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 10h2M20 10h2M6.34 15.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+        <path d="M2 20c4-1 6-1 10 0s6 1 10 0" stroke-width="2" />
+        <path d="M2 22c4-1 6-1 10 0s6 1 10 0" stroke-width="2" />
+      </svg>
+      <div class="hero-title">Beach<br/>Day!</div>
+      <div class="hero-subtitle">Pack the car</div>
+    </div>
+  {% elsif is_rain_day %}
+    <div class="hero-panel hero-panel--rain">
+      <!-- Rain Cloud SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
+        <line x1="12" y1="18" x2="12" y2="22" stroke-width="2" />
+        <line x1="8" y1="18" x2="8" y2="22" stroke-width="2" />
+        <line x1="16" y1="18" x2="16" y2="22" stroke-width="2" />
+      </svg>
+      <div class="hero-title">Rainy<br/>Day</div>
+      <div class="hero-subtitle">Stay dry</div>
+    </div>
+  {% else %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Cloudy (Hoodie Day) SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
+      </svg>
+      <div class="hero-title">Hoodie<br/>Day</div>
+      <div class="hero-subtitle">Not beachy</div>
+    </div>
+  {% endif %}
+
+  <div class="details-panel">
+    <div class="details-header">
+      <span>{{ local_time_epoch | date: "%A" }}</span>
+    </div>
+
+    <div class="conditions-table">
+      
+      <!-- Temperature -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">High Temp</span>
+          <span class="condition-threshold">is above 74&deg;F?</span>
+        </div>
+        <span class="condition-value">{{ temp }}&deg;F</span>
+        <div class="condition-status">
+          {% if cond_temp %}
+            <!-- Pass Checkmark SVG -->
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <!-- Fail Cross SVG -->
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Precipitation -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">Rain Chance</span>
+          <span class="condition-threshold">is below 20%?</span>
+        </div>
+        <span class="condition-value">{{ precip }}%</span>
+        <div class="condition-status">
+          {% if cond_precip %}
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Wind Speed -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">Max Wind</span>
+          <span class="condition-threshold">is below 16 mph?</span>
+        </div>
+        <span class="condition-value">{{ wind }} mph</span>
+        <div class="condition-status">
+          {% if cond_wind %}
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Forecast -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">Forecast</span>
+          <span class="condition-threshold">is sunny?</span>
+        </div>
+        <span class="condition-value" style="font-size: 1.8cqh; font-weight: 500; line-height: 1.15; max-width: 65%; white-space: normal; word-break: break-word; font-family: inherit; margin-right: 2cqw; padding-left: 2cqw;">{% if forecast_val != blank %}{{ forecast_val }}{% endif %}</span>
+        <div class="condition-status">
+          {% if cond_forecast %}
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Time Limit / Sunlight Hours -->
+      <div class="condition-row">
+        <div class="condition-info">
+          {% if sunrise_val == 0 or sunset_val == 0 %}
+            <span class="condition-name">Current Time</span>
+            <span class="condition-threshold">{{ time_str }}</span>
+          {% elsif time_val >= sunrise_val and time_val < sunset_val %}
+            <span class="condition-name">{{ hours_left }} sunlight hours left</span>
+            <span class="condition-threshold">Sunset at {{ sunset_formatted }}</span>
+          {% else %}
+            <span class="condition-name">{{ hours_until_sunrise }} hours until sunrise</span>
+            <span class="condition-threshold">Sunrise at {{ sunrise_formatted }}</span>
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>
