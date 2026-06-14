@@ -89,6 +89,7 @@
     justify-content: space-between;
     padding: 2cqh 1cqw;
     border-bottom: 0.2cqh dashed #000000;
+    flex: 1;
   }
 
   .condition-row:last-child {
@@ -99,12 +100,14 @@
     display: flex;
     flex-direction: column;
     flex: 1;
+    justify-content: center;
   }
 
   .condition-name {
     font-size: 3.8cqh;
     font-weight: 700;
     color: #000000;
+    line-height: 1.1;
   }
 
   .condition-threshold {
@@ -112,6 +115,7 @@
     color: #555555;
     margin-top: 0.4cqh;
     font-weight: 500;
+    line-height: 1.1;
   }
 
   .condition-value {
@@ -120,6 +124,10 @@
     text-align: right;
     margin-right: 2cqw;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    line-height: 1;
   }
 
   .condition-status {
@@ -146,10 +154,11 @@
 </style>
 
 <!-- Liquid Conditional Evaluation Logic -->
+{% assign offset = trmnl.user.utc_offset | default: -25200 %}
 {% assign temp = temperatureHi | default: temperature_hi | default: temperature | plus: 0 %}
-{% assign precip = probablityofPrecipitation | default: probability_of_precipitation | default: precipitation | plus: 0 %}
+{% assign precip = probabilityofPrecipitation | default: probablityofPrecipitation | default: probability_of_precipitation | default: precipitation | plus: 0 %}
 {% assign wind = windspeedHi | default: wind_speed_hi | default: wind_speed | plus: 0 %}
-{% assign forecast_val = detailedForecast | default: detailed_forecast | default: forecast | downcase %}
+{% assign forecast_val = detailedForecast | default: detailed_forecast | default: forecast %}
 
 
 {% comment %} Determine current time dynamically from the device update timestamp {% endcomment %}
@@ -182,8 +191,9 @@
 {% else %}
   {% assign sunrise_num = sunrise | plus: 0 %}
   {% if sunrise_num > 86400 %}
-    {% assign sunrise_h = sunrise_num | date: "%H" | plus: 0 %}
-    {% assign sunrise_m = sunrise_num | date: "%M" | plus: 0 %}
+    {% assign sunrise_local = sunrise_num | plus: offset %}
+    {% assign sunrise_h = sunrise_local | date: "%H" | plus: 0 %}
+    {% assign sunrise_m = sunrise_local | date: "%M" | plus: 0 %}
     {% assign sunrise_val = sunrise_h | times: 60 | plus: sunrise_m %}
   {% else %}
     {% assign sunrise_val = sunrise_num %}
@@ -216,8 +226,9 @@
 {% else %}
   {% assign sunset_num = sunset | plus: 0 %}
   {% if sunset_num > 86400 %}
-    {% assign sunset_h = sunset_num | date: "%H" | plus: 0 %}
-    {% assign sunset_m = sunset_num | date: "%M" | plus: 0 %}
+    {% assign sunset_local = sunset_num | plus: offset %}
+    {% assign sunset_h = sunset_local | date: "%H" | plus: 0 %}
+    {% assign sunset_m = sunset_local | date: "%M" | plus: 0 %}
     {% assign sunset_val = sunset_h | times: 60 | plus: sunset_m %}
   {% else %}
     {% assign sunset_val = sunset_num %}
@@ -225,7 +236,6 @@
 {% endif %}
 
 {% comment %} Parse current local time from the device update timestamp and timezone offset {% endcomment %}
-{% assign offset = trmnl.user.utc_offset | default: -25200 %}
 {% assign local_time_epoch = time_source | date: "%s" | plus: offset %}
 {% assign time_h = local_time_epoch | date: "%H" | plus: 0 %}
 {% assign time_m = local_time_epoch | date: "%M" | plus: 0 %}
@@ -473,10 +483,18 @@
             <span class="condition-name">Current Time</span>
             <span class="condition-threshold">{{ time_str }}</span>
           {% elsif time_val >= sunrise_val and time_val < sunset_val %}
-            <span class="condition-name">{{ hours_left }} sunlight hours left</span>
+            {% if hours_left > 0 %}
+              <span class="condition-name">{{ hours_left }} sunlight hour{% if hours_left != 1 %}s{% endif %} left</span>
+            {% else %}
+              <span class="condition-name">{{ minutes_left }} sunlight minutes left</span>
+            {% endif %}
             <span class="condition-threshold">Sunset at {{ sunset_formatted }}</span>
           {% else %}
-            <span class="condition-name">{{ hours_until_sunrise }} hours until sunrise</span>
+            {% if hours_until_sunrise > 0 %}
+              <span class="condition-name">{{ hours_until_sunrise }} hour{% if hours_until_sunrise != 1 %}s{% endif %} until sunrise</span>
+            {% else %}
+              <span class="condition-name">{{ minutes_until_sunrise }} minutes until sunrise</span>
+            {% endif %}
             <span class="condition-threshold">Sunrise at {{ sunrise_formatted }}</span>
           {% endif %}
         </div>
