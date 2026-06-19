@@ -246,7 +246,7 @@
 
 {% comment %} Evaluate condition rules {% endcomment %}
 {% assign cond_temp = false %}
-{% if temp >= 74 %}
+{% if temp >= 75 %}
   {% assign cond_temp = true %}
 {% endif %}
 
@@ -256,14 +256,14 @@
 {% endif %}
 
 {% assign cond_wind = false %}
-{% if wind <= 16.0 %}
+{% if wind <= 15.0 %}
   {% assign cond_wind = true %}
 {% endif %}
 
 {% comment %} Forecast check {% endcomment %}
 {% assign cond_forecast = false %}
 {% assign forecast_lower = forecast_val | downcase %}
-{% if forecast_lower contains "sunny" %}
+{% if forecast_lower contains "sunny" or forecast_lower contains "clear" %}
   {% assign cond_forecast = true %}
 {% endif %}
 
@@ -291,10 +291,39 @@
   {% assign is_night_time = true %}
 {% endif %}
 
+{% if is_night_time %}
+  {% assign temp = tomorrowTemperature | default: tomorrow_temperature | plus: 0 %}
+  {% assign precip = tomorrowProbabilityOfPrecipitation | default: tomorrow_probability_of_precipitation | plus: 0 %}
+  {% assign wind = tomorrowWindSpeedHi | default: tomorrow_wind_speed_hi | default: tomorrow_wind_speed | plus: 0 %}
+  {% assign forecast_val = tomorrowDetailedForecast | default: tomorrow_detailed_forecast %}
+
+  {% comment %} Recalculate condition rules for tomorrow {% endcomment %}
+  {% assign cond_temp = false %}
+  {% if temp >= 75 %}
+    {% assign cond_temp = true %}
+  {% endif %}
+
+  {% assign cond_precip = false %}
+  {% if precip < 20.0 %}
+    {% assign cond_precip = true %}
+  {% endif %}
+
+  {% assign cond_wind = false %}
+  {% if wind <= 15.0 %}
+    {% assign cond_wind = true %}
+  {% endif %}
+
+  {% assign cond_forecast = false %}
+  {% assign forecast_lower = forecast_val | downcase %}
+  {% if forecast_lower contains "sunny" or forecast_lower contains "clear" %}
+    {% assign cond_forecast = true %}
+  {% endif %}
+{% endif %}
+
 {% comment %} State 3: Rainy Day {% endcomment %}
 {% assign is_rain_day = false %}
 {% if is_beach_day == false and is_night_time == false %}
-  {% if precip >= 20 or forecast_lower contains "rain" or forecast_lower contains "shower" or forecast_lower contains "drizzle" or forecast_lower contains "storm" or forecast_lower contains "thunderstorm" %}
+  {% if precip >= 40 %}
     {% assign is_rain_day = true %}
   {% endif %}
 {% endif %}
@@ -318,7 +347,7 @@
 {% comment %} State 5.5: Nice Day {% endcomment %}
 {% assign is_nice_day = false %}
 {% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false %}
-  {% if temp >= 65 and temp < 74 and cond_forecast == true %}
+  {% if temp >= 65 and temp < 75 and cond_forecast == true %}
     {% assign is_nice_day = true %}
   {% endif %}
 {% endif %}
@@ -485,7 +514,12 @@
 
   <div class="details-panel">
     <div class="details-header">
-      <span>{{ local_time_epoch | date: "%A" }}</span>
+      {% if is_night_time %}
+        {% assign tomorrow_epoch = local_time_epoch | plus: 86400 %}
+        <span>Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
+      {% else %}
+        <span>{{ local_time_epoch | date: "%A" }}</span>
+      {% endif %}
     </div>
 
     <div class="conditions-table">
@@ -494,7 +528,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">High Temp</span>
-          <span class="condition-threshold">is above 74&deg;F?</span>
+          <span class="condition-threshold">is above 75&deg;F?</span>
         </div>
         <span class="condition-value">{{ temp }}&deg;F</span>
         <div class="condition-status">
@@ -536,7 +570,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Max Wind</span>
-          <span class="condition-threshold">is below 16 mph?</span>
+          <span class="condition-threshold">is below 15 mph?</span>
         </div>
         <span class="condition-value">{{ wind }} mph</span>
         <div class="condition-status">

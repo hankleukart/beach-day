@@ -1,5 +1,7 @@
 /**
  *  MIT License
+ *  Copyright 2026 Hank Leukart
+ *  Adapted from a driver originally written by:
  *  Copyright 2023 Daniel Winks (daniel.winks@gmail.com)
  *
  *  Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -45,10 +47,10 @@ import java.math.RoundingMode
 
 library(
   name: 'UtilitiesAndLoggingLibrary',
-  namespace: 'dwinks',
-  author: 'Daniel Winks',
+  namespace: 'hankle',
+  author: 'Hank Leukart',
   description: 'Utility and Logging Library',
-  importUrl: 'https://raw.githubusercontent.com/DanielWinks/Hubitat-Public/main/Libraries/UtilitiesAndLoggingLibrary.groovy'
+  importUrl: ''
 )
 if (device != null) {
   preferences {
@@ -280,6 +282,14 @@ metadata {
     attribute 'windSpeedHi', 'NUMBER'
     attribute 'windDirection', 'STRING'
     attribute 'lastUpdated', 'STRING'
+    attribute 'tomorrowTemperature', 'NUMBER'
+    attribute 'tomorrowProbabilityOfPrecipitation', 'NUMBER'
+    attribute 'tomorrowWindSpeed', 'STRING'
+    attribute 'tomorrowWindSpeedLo', 'NUMBER'
+    attribute 'tomorrowWindSpeedHi', 'NUMBER'
+    attribute 'tomorrowDetailedForecast', 'STRING'
+    attribute 'tomorrowDetailedForecastLC', 'STRING'
+    attribute 'weatherPayload', 'STRING'
 
     attribute 'forecast1h',  'JSON_OBJECT'
     attribute 'forecast2h',  'JSON_OBJECT'
@@ -447,7 +457,57 @@ void getDetailedForecastCallback(AsyncResponse response, Map data = null) {
   sendEvent(name: 'probabilityOfPrecipitation', value: period['probabilityOfPrecipitation']?.value ?: 0, unit: '%', descriptionText: 'Updated probabilityOfPrecipitation from NWS')
   sendEvent(name: 'dewpoint', value: getDewpoint(period['dewpoint'] as Map, 'us'), unit: '°' + period.temperatureUnit, descriptionText: 'Updated dewpoint from NWS')
 
+  // Extract Tomorrow Period
+  Map tomorrowPeriod = null
+  if (periods.size() >= 2) {
+    if (periods[0]['isDaytime'] == true) {
+      if (periods.size() >= 3) {
+        tomorrowPeriod = periods[2]
+      }
+    } else {
+      tomorrowPeriod = periods[1]
+    }
+  }
+
+  if (tomorrowPeriod) {
+    String tDetailedForecast = tomorrowPeriod['detailedForecast']
+    sendEvent(name: 'tomorrowDetailedForecast', value: tDetailedForecast, descriptionText: 'Updated tomorrowDetailedForecast from NWS')
+    if (tDetailedForecast) {
+      String tDetailedForecastLC = tDetailedForecast.toLowerCase()
+      sendEvent(name: 'tomorrowDetailedForecastLC', value: tDetailedForecastLC, descriptionText: 'Updated tomorrowDetailedForecastLC from NWS')
+    }
+
+    // Tomorrow Wind Speed Parsing
+    String tWindSpeed = tomorrowPeriod['windSpeed']
+    sendEvent(name: 'tomorrowWindSpeed', value: tWindSpeed, descriptionText: 'Updated tomorrowWindSpeed from NWS')
+
+    if (tWindSpeed == "Calm" || tWindSpeed == "calm") {
+      sendEvent(name: 'tomorrowWindSpeedLo', value: 0, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedLo from NWS (Calm)')
+      sendEvent(name: 'tomorrowWindSpeedHi', value: 0, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedHi from NWS (Calm)')
+    } else if (tWindSpeed?.contains(' to ')) {
+      String cleanWind = tWindSpeed.replaceAll(/[^0-9\s-to]/, '').trim()
+      List<String> parts = cleanWind.split(' to ') as List<String>
+      if (parts.size() == 2 && parts[0].trim().isInteger() && parts[1].trim().isInteger()) {
+        Integer windSpeedLo = parts[0].trim() as Integer
+        Integer windSpeedHi = parts[1].trim() as Integer
+        sendEvent(name: 'tomorrowWindSpeedLo', value: windSpeedLo, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedLo from NWS')
+        sendEvent(name: 'tomorrowWindSpeedHi', value: windSpeedHi, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedHi from NWS')
+      }
+    } else if (tWindSpeed) {
+      String cleanWind = tWindSpeed.replaceAll(/[^0-9]/, '').trim()
+      if (cleanWind.isInteger()) {
+        Integer windSpeedValue = cleanWind as Integer
+        sendEvent(name: 'tomorrowWindSpeedLo', value: windSpeedValue, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedLo from NWS')
+        sendEvent(name: 'tomorrowWindSpeedHi', value: windSpeedValue, unit: 'mph', descriptionText: 'Updated tomorrowWindSpeedHi from NWS')
+      }
+    }
+
+    sendEvent(name: 'tomorrowTemperature', value: tomorrowPeriod['temperature'], unit: '°' + tomorrowPeriod.temperatureUnit, descriptionText: 'Updated tomorrowTemperature from NWS')
+    sendEvent(name: 'tomorrowProbabilityOfPrecipitation', value: tomorrowPeriod['probabilityOfPrecipitation']?.value ?: 0, unit: '%', descriptionText: 'Updated tomorrowProbabilityOfPrecipitation from NWS')
+  }
+
   sendEvent(name: 'lastUpdated', value: nowFormatted(), isStateChange: true, descriptionText: 'Updated lastUpdated from NWS detailed forecast callback')
+  runIn(2, 'updateWeatherPayload')
 }
 
 void getHourlyForecast() {
@@ -520,6 +580,7 @@ void getHourlyForecastCallback(AsyncResponse response, Map data = null) {
   }
 
   sendEvent(name: 'lastUpdated', value: nowFormatted(), isStateChange: true, descriptionText: 'Updated lastUpdated from NWS hourly forecast callback')
+  runIn(2, 'updateWeatherPayload')
 }
 
 @CompileStatic
@@ -550,4 +611,50 @@ String getUri() {
   } catch (e) {
     logError "getUri failed: ${e}"
   }
+}
+
+void updateWeatherPayload() {
+  logDebug('Generating weatherPayload payload...')
+
+  // Fetch values from database to check commit status
+  def tempHi = device.currentValue('temperatureHi')
+  def detailed = device.currentValue('detailedForecast')
+
+  // Self-healing check: if database has not committed yet, wait and try again
+  if (tempHi == null || detailed == null) {
+    logWarn "Required weather data is not committed to DB yet. Retrying in 2 seconds..."
+    runIn(2, 'updateWeatherPayload')
+    return
+  }
+
+  Map sunTimes = getSunriseAndSunset()
+  String sunriseStr = ""
+  String sunsetStr = ""
+  if (sunTimes && sunTimes.sunrise && sunTimes.sunset) {
+    if (location.timeZone) {
+      sunriseStr = sunTimes.sunrise.format("MM/dd/yyyy h:mm a", location.timeZone)
+      sunsetStr = sunTimes.sunset.format("MM/dd/yyyy h:mm a", location.timeZone)
+    } else {
+      sunriseStr = sunTimes.sunrise.format("MM/dd/yyyy h:mm a")
+      sunsetStr = sunTimes.sunset.format("MM/dd/yyyy h:mm a")
+    }
+  }
+
+  Map payload = [
+    merge_variables: [
+      temperatureHi: tempHi,
+      probablityofPrecipitation: device.currentValue('probabilityOfPrecipitation'),
+      windspeedHi: device.currentValue('windSpeedHi'),
+      detailedForecast: detailed,
+      sunrise: sunriseStr,
+      sunset: sunsetStr,
+      tomorrowTemperature: device.currentValue('tomorrowTemperature'),
+      tomorrowProbabilityOfPrecipitation: device.currentValue('tomorrowProbabilityOfPrecipitation'),
+      tomorrowWindSpeedHi: device.currentValue('tomorrowWindSpeedHi'),
+      tomorrowDetailedForecast: device.currentValue('tomorrowDetailedForecast')
+    ]
+  ]
+
+  String jsonPayload = groovy.json.JsonOutput.toJson(payload)
+  sendEvent(name: 'weatherPayload', value: jsonPayload, isStateChange: true, descriptionText: 'Updated weatherPayload payload for TRMNL')
 }
