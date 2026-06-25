@@ -537,11 +537,7 @@
         <path d="M2 22c4-1 6-1 10 0s6 1 10 0" stroke-width="2" />
       </svg>
       <div class="hero-title">Beach<br/>Day!</div>
-      {% if is_clearing_later == "true" and clearing_time != blank %}
-        <div class="hero-subtitle">Sun by {{ clearing_time }}</div>
-      {% else %}
-        <div class="hero-subtitle">Pack the car</div>
-      {% endif %}
+       <div class="hero-subtitle">Pack the car</div>
     </div>
   {% elsif is_night_time %}
     <div class="hero-panel hero-panel--no">
@@ -609,11 +605,7 @@
         </svg>
       {% endif %}
       <div class="hero-title">Nice<br/>Day</div>
-      {% if is_clearing_later == "true" and clearing_time != blank %}
-        <div class="hero-subtitle">Sun by {{ clearing_time }}</div>
-      {% else %}
-        <div class="hero-subtitle">But not quite beachy</div>
-      {% endif %}
+      <div class="hero-subtitle">But not quite beachy</div>
     </div>
   {% elsif is_grey_day %}
     <div class="hero-panel hero-panel--no">
