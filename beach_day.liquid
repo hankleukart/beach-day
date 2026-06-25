@@ -59,7 +59,6 @@
     border: 0.8cqh solid #000000;
     border-radius: 1.5cqh;
     height: 100%;
-    min-width: 0;
   }
 
   .details-header {
@@ -642,9 +641,9 @@
       <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
         {% if is_night_time %}
           {% assign tomorrow_epoch = local_time_epoch | plus: 86400 %}
-          <span id="details-headline" style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap; display: inline-block; max-width: 100%;">Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
+          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
         {% else %}
-          <span id="details-headline" style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap; display: inline-block; max-width: 100%;">{{ local_time_epoch | date: "%A" }}</span>
+          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">{{ local_time_epoch | date: "%A" }}</span>
         {% endif %}
       </div>
       {% if forecast_val != blank %}
@@ -769,31 +768,10 @@
 
     <!-- Bottom Divider & Sunset Info -->
     <div style="border-top: 0.8cqh solid #000000; margin-top: 1cqh; padding-top: 1.5cqh; text-align: center;">
-      <span style="font-size: 2.7cqh; font-weight: 700; color: #555555;">
+      <span style="font-size: 2.7cqh; font-weight: 700; color: #555555; white-space: nowrap;">
         {{ time_meta }}
       </span>
     </div>
   </div>
 
 </div>
-
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const adjustFontSize = () => {
-      const el = document.getElementById("details-headline");
-      if (!el) return;
-      const parent = el.parentElement;
-      if (!parent) return;
-      const maxW = parent.clientWidth;
-      let size = parseFloat(window.getComputedStyle(el).fontSize);
-      // Reduce font size step-by-step until the element fits inside the parent width
-      while (el.scrollWidth > maxW && size > 8) {
-        size -= 0.5;
-        el.style.fontSize = size + "px";
-      }
-    };
-    // Run on load and after short timeout to ensure container queries have resolved
-    adjustFontSize();
-    setTimeout(adjustFontSize, 100);
-  });
-</script>
