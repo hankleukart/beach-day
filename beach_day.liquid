@@ -159,6 +159,7 @@
 {% assign precip = probabilityofPrecipitation | default: probablityofPrecipitation | default: probability_of_precipitation | default: precipitation | plus: 0 %}
 {% assign wind = windspeedHi | default: wind_speed_hi | default: wind_speed | plus: 0 %}
 {% assign forecast_val = detailedForecast | default: detailed_forecast | default: forecast %}
+{% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
 
 
 {% comment %} Determine current time dynamically from the device update timestamp {% endcomment %}
@@ -244,6 +245,92 @@
 {% comment %} Sunset limit is 60 minutes before sunset {% endcomment %}
 {% assign sunset_limit = sunset_val | minus: 60 %}
 
+{% comment %} Time check {% endcomment %}
+{% assign cond_time = false %}
+{% if sunrise_val == 0 or sunset_val == 0 %}
+  {% assign cond_time = true %}
+{% else %}
+  {% if time_val >= sunrise_val and time_val <= sunset_limit %}
+    {% assign cond_time = true %}
+  {% endif %}
+{% endif %}
+
+{% comment %} Determine if it is night time {% endcomment %}
+{% assign is_night_time = false %}
+{% if cond_time == false %}
+  {% assign is_night_time = true %}
+{% endif %}
+
+{% comment %} Calculate clearing variables dynamically from hourly payload {% endcomment %}
+{% assign sun_hours = 0 %}
+{% assign is_clearing_later = "false" %}
+{% assign clearing_time = "" %}
+{% assign first_sunny_hour = -1 %}
+{% assign first_period_checked = false %}
+{% assign is_currently_sunny = "false" %}
+{% assign today_date = local_time_epoch | date: "%Y-%m-%d" %}
+{% assign tomorrow_date = local_time_epoch | plus: 86400 | date: "%Y-%m-%d" %}
+
+{% if is_night_time %}
+  {% assign target_date = tomorrow_date %}
+{% else %}
+  {% assign target_date = today_date %}
+{% endif %}
+
+{% for period in hourly %}
+  {% if period.t contains target_date %}
+    {% assign parts = period.t | split: "T" %}
+    {% assign hour = parts[1] | plus: 0 %}
+
+    {% if hour >= 9 and hour <= 18 %}
+      {% assign fc_lower = period.f | downcase %}
+      {% assign is_sunny = false %}
+      {% if fc_lower contains "sunny" or fc_lower contains "clear" or fc_lower contains "sun" %}
+        {% assign is_sunny = true %}
+      {% endif %}
+
+      {% if is_sunny %}
+        {% assign sun_hours = sun_hours | plus: 1 %}
+        {% if first_sunny_hour == -1 %}
+          {% assign first_sunny_hour = hour %}
+        {% endif %}
+      {% endif %}
+
+      {% if first_period_checked == false %}
+        {% if is_sunny %}
+          {% assign is_currently_sunny = "true" %}
+        {% endif %}
+        {% assign first_period_checked = true %}
+      {% endif %}
+    {% endif %}
+  {% endif %}
+{% endfor %}
+
+{% if sun_hours > 0 %}
+  {% if first_sunny_hour != -1 %}
+    {% assign ampm = "AM" %}
+    {% assign display_hour = first_sunny_hour %}
+    {% if first_sunny_hour >= 12 %}
+      {% assign ampm = "PM" %}
+      {% if first_sunny_hour > 12 %}
+        {% assign display_hour = first_sunny_hour | minus: 12 %}
+      {% endif %}
+    {% elsif first_sunny_hour == 0 %}
+      {% assign display_hour = 12 %}
+    {% endif %}
+    {% assign clearing_time = display_hour | append: " " | append: ampm %}
+    
+    {% if is_currently_sunny == "false" %}
+      {% assign is_clearing_later = "true" %}
+    {% endif %}
+  {% endif %}
+{% endif %}
+
+{% assign is_sunny_later = "false" %}
+{% if sun_hours > 0 %}
+  {% assign is_sunny_later = "true" %}
+{% endif %}
+
 {% comment %} Evaluate condition rules {% endcomment %}
 {% assign cond_temp = false %}
 {% if temp >= 75 %}
@@ -263,18 +350,8 @@
 {% comment %} Forecast check {% endcomment %}
 {% assign cond_forecast = false %}
 {% assign forecast_lower = forecast_val | downcase %}
-{% if forecast_lower contains "sunny" or forecast_lower contains "clear" %}
+{% if forecast_lower contains "sunny" or forecast_lower contains "clear" or is_sunny_later == "true" %}
   {% assign cond_forecast = true %}
-{% endif %}
-
-{% comment %} Time check {% endcomment %}
-{% assign cond_time = false %}
-{% if sunrise_val == 0 or sunset_val == 0 %}
-  {% assign cond_time = true %}
-{% else %}
-  {% if time_val >= sunrise_val and time_val <= sunset_limit %}
-    {% assign cond_time = true %}
-  {% endif %}
 {% endif %}
 
 {% comment %} Determine 6 distinct states {% endcomment %}
@@ -285,11 +362,7 @@
   {% assign is_beach_day = true %}
 {% endif %}
 
-{% comment %} State 2: Night Time {% endcomment %}
-{% assign is_night_time = false %}
-{% if cond_time == false %}
-  {% assign is_night_time = true %}
-{% endif %}
+{% comment %} State 2: Night Time (handled above) {% endcomment %}
 
 {% if is_night_time %}
   {% assign temp = tomorrowTemperature | default: tomorrow_temperature | plus: 0 %}
@@ -315,7 +388,7 @@
 
   {% assign cond_forecast = false %}
   {% assign forecast_lower = forecast_val | downcase %}
-  {% if forecast_lower contains "sunny" or forecast_lower contains "clear" %}
+  {% if forecast_lower contains "sunny" or forecast_lower contains "clear" or is_sunny_later == "true" %}
     {% assign cond_forecast = true %}
   {% endif %}
 {% endif %}
@@ -420,6 +493,37 @@
   {% assign sunset_formatted = ss_h | append: ":" | append: ss_m_str | append: " " | append: ss_ampm %}
 {% endif %}
 
+{% capture sun_left_str %}
+  {% if sunrise_val == 0 or sunset_val == 0 %}
+    Always
+  {% elsif time_val >= sunrise_val and time_val < sunset_val %}
+    {% if hours_left > 0 %}
+      {{ hours_left }} hour{% if hours_left != 1 %}s{% endif %} left
+    {% else %}
+      {{ minutes_left }} minute{% if minutes_left != 1 %}s{% endif %} left
+    {% endif %}
+  {% else %}
+    {% if hours_until_sunrise > 0 %}
+      {{ hours_until_sunrise }} hour{% if hours_until_sunrise != 1 %}s{% endif %} until sun
+    {% else %}
+      {{ minutes_until_sunrise }} minute{% if minutes_until_sunrise != 1 %}s{% endif %} until sun
+    {% endif %}
+  {% endif %}
+{% endcapture %}
+{% assign sun_left_str = sun_left_str | strip %}
+
+{% capture time_meta %}
+  {% if sunrise_val == 0 or sunset_val == 0 %}
+    Always
+  {% elsif time_val >= sunrise_val and time_val < sunset_val %}
+    {% assign hours_until_sunset = minutes_left | divided_by: 60.0 | ceil %}
+    {{ hours_until_sunset }} hour{% if hours_until_sunset != 1 %}s{% endif %} until {{ sunset_formatted }} sunset
+  {% else %}
+    Sunrise at {{ sunrise_formatted }}
+  {% endif %}
+{% endcapture %}
+{% assign time_meta = time_meta | strip %}
+
 <div class="layout layout--row gap--medium" style="height: 100%;">
   
   <!-- Left Side: Hero Banner -->
@@ -433,7 +537,11 @@
         <path d="M2 22c4-1 6-1 10 0s6 1 10 0" stroke-width="2" />
       </svg>
       <div class="hero-title">Beach<br/>Day!</div>
-      <div class="hero-subtitle">Pack the car</div>
+      {% if is_clearing_later == "true" and clearing_time != blank %}
+        <div class="hero-subtitle">Sun by {{ clearing_time }}</div>
+      {% else %}
+        <div class="hero-subtitle">Pack the car</div>
+      {% endif %}
     </div>
   {% elsif is_night_time %}
     <div class="hero-panel hero-panel--no">
@@ -476,20 +584,36 @@
     </div>
   {% elsif is_nice_day %}
     <div class="hero-panel hero-panel--no">
-      <!-- Sun SVG Icon -->
-      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1" x2="12" y2="3"/>
-        <line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1" y1="12" x2="3" y2="12"/>
-        <line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      </svg>
+      {% if is_clearing_later == "true" %}
+        <!-- Cloud-Sun SVG Icon -->
+        <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2v2"/>
+          <path d="m4.93 4.93 1.41 1.41"/>
+          <path d="M20 12h2"/>
+          <path d="m19.07 4.93-1.41 1.41"/>
+          <path d="M15.947 12.65a4 4 0 0 0-5.925-4.128"/>
+          <path d="M13 22H7a5 5 0 1 1 4.9-6H13a3 3 0 0 1 0 6Z"/>
+        </svg>
+      {% else %}
+        <!-- Sun SVG Icon -->
+        <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"/>
+          <line x1="12" y1="1" x2="12" y2="3"/>
+          <line x1="12" y1="21" x2="12" y2="23"/>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+          <line x1="1" y1="12" x2="3" y2="12"/>
+          <line x1="21" y1="12" x2="23" y2="12"/>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+        </svg>
+      {% endif %}
       <div class="hero-title">Nice<br/>Day</div>
-      <div class="hero-subtitle">But not quite beachy</div>
+      {% if is_clearing_later == "true" and clearing_time != blank %}
+        <div class="hero-subtitle">Sun by {{ clearing_time }}</div>
+      {% else %}
+        <div class="hero-subtitle">But not quite beachy</div>
+      {% endif %}
     </div>
   {% elsif is_grey_day %}
     <div class="hero-panel hero-panel--no">
@@ -513,12 +637,19 @@
   {% endif %}
 
   <div class="details-panel">
-    <div class="details-header">
-      {% if is_night_time %}
-        {% assign tomorrow_epoch = local_time_epoch | plus: 86400 %}
-        <span>Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
-      {% else %}
-        <span>{{ local_time_epoch | date: "%A" }}</span>
+    <div class="details-header" style="display: flex; flex-direction: column; align-items: flex-start;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
+        {% if is_night_time %}
+          {% assign tomorrow_epoch = local_time_epoch | plus: 86400 %}
+          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
+        {% else %}
+          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">{{ local_time_epoch | date: "%A" }}</span>
+        {% endif %}
+      </div>
+      {% if forecast_val != blank %}
+        <div style="font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; width: 100%; opacity: 0.85; margin-top: 1cqh; line-height: 1.25; text-align: left;">
+          {{ forecast_val }}
+        </div>
       {% endif %}
     </div>
 
@@ -528,7 +659,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">High Temp</span>
-          <span class="condition-threshold">is above 75&deg;F?</span>
+          <span class="condition-threshold">above 75&deg;F?</span>
         </div>
         <span class="condition-value">{{ temp }}&deg;F</span>
         <div class="condition-status">
@@ -550,7 +681,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Rain Chance</span>
-          <span class="condition-threshold">is below 20%?</span>
+          <span class="condition-threshold">below 20%?</span>
         </div>
         <span class="condition-value">{{ precip }}%</span>
         <div class="condition-status">
@@ -570,7 +701,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Max Wind</span>
-          <span class="condition-threshold">is below 15 mph?</span>
+          <span class="condition-threshold">below 15 mph?</span>
         </div>
         <span class="condition-value">{{ wind }} mph</span>
         <div class="condition-status">
@@ -586,13 +717,40 @@
         </div>
       </div>
 
-      <!-- Forecast -->
+      {% capture sun_left_str %}
+        {% if sunrise_val == 0 or sunset_val == 0 %}
+          Always
+        {% elsif time_val >= sunrise_val and time_val < sunset_val %}
+          {% if hours_left > 0 %}
+            {{ hours_left }} hour{% if hours_left != 1 %}s{% endif %} left
+          {% else %}
+            {{ minutes_left }} minute{% if minutes_left != 1 %}s{% endif %} left
+          {% endif %}
+        {% else %}
+          {% if hours_until_sunrise > 0 %}
+            {{ hours_until_sunrise }} hour{% if hours_until_sunrise != 1 %}s{% endif %} until sun
+          {% else %}
+            {{ minutes_until_sunrise }} minute{% if minutes_until_sunrise != 1 %}s{% endif %} until sun
+          {% endif %}
+        {% endif %}
+      {% endcapture %}
+      {% assign sun_left_str = sun_left_str | strip %}
+
+      <!-- Sun Check -->
       <div class="condition-row">
         <div class="condition-info">
-          <span class="condition-name">Forecast</span>
-          <span class="condition-threshold">is sunny?</span>
+          <span class="condition-name">Sun</span>
+          <span class="condition-threshold">coming out?</span>
         </div>
-        <span class="condition-value" style="font-size: 1.8cqh; font-weight: 500; line-height: 1.15; max-width: 65%; white-space: normal; word-break: break-word; font-family: inherit; margin-right: 2cqw; padding-left: 2cqw;">{% if forecast_val != blank %}{{ forecast_val }}{% endif %}</span>
+        <span class="condition-value">
+          {% if is_clearing_later == "true" and clearing_time != blank %}
+            At {{ clearing_time }}
+          {% elsif cond_forecast %}
+            All day
+          {% else %}
+            Cloudy
+          {% endif %}
+        </span>
         <div class="condition-status">
           {% if cond_forecast %}
             <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -606,30 +764,13 @@
         </div>
       </div>
 
-      <!-- Time Limit / Sunlight Hours -->
-      <div class="condition-row">
-        <div class="condition-info">
-          {% if sunrise_val == 0 or sunset_val == 0 %}
-            <span class="condition-name">Current Time</span>
-            <span class="condition-threshold">{{ time_str }}</span>
-          {% elsif time_val >= sunrise_val and time_val < sunset_val %}
-            {% if hours_left > 0 %}
-              <span class="condition-name">{{ hours_left }} sunlight hour{% if hours_left != 1 %}s{% endif %} left</span>
-            {% else %}
-              <span class="condition-name">{{ minutes_left }} sunlight minutes left</span>
-            {% endif %}
-            <span class="condition-threshold">Sunset at {{ sunset_formatted }}</span>
-          {% else %}
-            {% if hours_until_sunrise > 0 %}
-              <span class="condition-name">{{ hours_until_sunrise }} hour{% if hours_until_sunrise != 1 %}s{% endif %} until sunrise</span>
-            {% else %}
-              <span class="condition-name">{{ minutes_until_sunrise }} minutes until sunrise</span>
-            {% endif %}
-            <span class="condition-threshold">Sunrise at {{ sunrise_formatted }}</span>
-          {% endif %}
-        </div>
-      </div>
+    </div>
 
+    <!-- Bottom Divider & Sunset Info -->
+    <div style="border-top: 0.8cqh solid #000000; margin-top: 1cqh; padding-top: 1.5cqh; text-align: center;">
+      <span style="font-size: 2.7cqh; font-weight: 700; color: #555555; white-space: nowrap;">
+        {{ time_meta }}
+      </span>
     </div>
   </div>
 

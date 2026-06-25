@@ -557,6 +557,15 @@ void getHourlyForecastCallback(AsyncResponse response, Map data = null) {
     sendEvent(name: 'probabilityOfPrecipitation12h', value: probPrecip.max(), unit: '%', descriptionText: "Updated probabilityOfPrecipitation from NWS for next 12 hours is: ${probPrecip.max()}")
   }
 
+  // Simplify and store hourly forecast periods for the Liquid code (compact format to keep payload < 2KB)
+  List<Map> simplifiedPeriods = periods.take(26).collect { Map it ->
+    [
+      t: (it.startTime && (it.startTime as String).length() >= 13) ? (it.startTime as String).substring(0, 13) : "",
+      f: it.shortForecast
+    ]
+  }
+  state.hourlyPeriods = simplifiedPeriods
+
   // Populate hourly forecast attributes if requested
   int hourlyHours = settings.hourlyForecastHours as int
   if (hourlyHours > 0) {
@@ -651,7 +660,8 @@ void updateWeatherPayload() {
       tomorrowTemperature: device.currentValue('tomorrowTemperature'),
       tomorrowProbabilityOfPrecipitation: device.currentValue('tomorrowProbabilityOfPrecipitation'),
       tomorrowWindSpeedHi: device.currentValue('tomorrowWindSpeedHi'),
-      tomorrowDetailedForecast: device.currentValue('tomorrowDetailedForecast')
+      tomorrowDetailedForecast: device.currentValue('tomorrowDetailedForecast'),
+      hourly: state.hourlyPeriods ?: []
     ]
   ]
 

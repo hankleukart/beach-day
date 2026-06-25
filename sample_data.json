@@ -61,5 +61,29 @@
     "current_time": 540,
     "sunrise": 360,
     "sunset": 1080
+  },
+  "beach_day_clearing_later": {
+    "temperatureHi": 78.5,
+    "probablityofPrecipitation": 10.0,
+    "windspeedHi": 12.0,
+    "detailedforecastlowercase": "mostly cloudy starting, clearing later",
+    "time": 1765300000,
+    "sunrise": 1765281600,
+    "sunset": 1765324800,
+    "sunnyLater": "true",
+    "clearingLater": "true",
+    "clearingTime": "1 PM"
+  },
+  "nice_day_clearing_later": {
+    "temperatureHi": 71.0,
+    "probablityofPrecipitation": 10.0,
+    "windspeedHi": 10.0,
+    "detailedforecastlowercase": "cloudy morning, nice afternoon",
+    "time": 1765300000,
+    "sunrise": 1765281600,
+    "sunset": 1765324800,
+    "sunnyLater": "true",
+    "clearingLater": "true",
+    "clearingTime": "12 PM"
   }
 }
