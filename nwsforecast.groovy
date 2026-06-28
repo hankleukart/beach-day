@@ -564,7 +564,23 @@ void getHourlyForecastCallback(AsyncResponse response, Map data = null) {
       f: it.shortForecast
     ]
   }
-  state.hourlyPeriods = simplifiedPeriods
+
+  // Merge past periods from today with the new future forecast periods
+  String todayDate = location.timeZone ? new Date().format('yyyy-MM-dd', location.timeZone) : new Date().format('yyyy-MM-dd')
+  String currentHourStr = location.timeZone ? new Date().format('yyyy-MM-dd\'T\'HH', location.timeZone) : new Date().format('yyyy-MM-dd\'T\'HH')
+
+  List<Map> existingPeriods = (state.hourlyPeriods as List<Map>) ?: []
+  List<Map> pastPeriodsToday = existingPeriods.findAll { Map it ->
+    String t = it.t as String
+    return t && t.startsWith(todayDate) && t < currentHourStr
+  }
+
+  List<Map> newFuturePeriods = simplifiedPeriods.findAll { Map it ->
+    String t = it.t as String
+    return t && t >= currentHourStr
+  }
+
+  state.hourlyPeriods = (pastPeriodsToday + newFuturePeriods).take(26)
 
   // Populate hourly forecast attributes if requested
   int hourlyHours = settings.hourlyForecastHours as int

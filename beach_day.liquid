@@ -516,10 +516,9 @@
   {% if sunrise_val == 0 or sunset_val == 0 %}
     Always
   {% elsif time_val >= sunrise_val and time_val < sunset_val %}
-    {% assign hours_until_sunset = minutes_left | divided_by: 60.0 | ceil %}
-    {{ hours_until_sunset }} hour{% if hours_until_sunset != 1 %}s{% endif %} until {{ sunset_formatted }} sunset
+    Sunset: {{ sunset_formatted }}
   {% else %}
-    Sunrise at {{ sunrise_formatted }}
+    Sunrise: {{ sunrise_formatted }}
   {% endif %}
 {% endcapture %}
 {% assign time_meta = time_meta | strip %}
