@@ -1,72 +1,78 @@
-# TRMNL Beach Day Announcer Layout
+# TRMNL Beach Day Announcer
 
-A beautiful, high-contrast, e-ink optimized layout for a TRMNL device that announces whether it's a good beach day or not based on real-time weather conditions.
+A beautiful, high-contrast, e-ink optimized layout for a TRMNL device that decides whether it's a good day to go to the beach based on real-time weather, UV, and air quality conditions.
+
+---
+
+## How It Works
+
+The system is split into two layers to enforce a clean separation of concerns:
+1. **The Data Layer (Hubitat):** An open-source, keyless [Open-Meteo Weather Enhanced](open-meteo-weather-enhanced.groovy) driver gathers weather, UV, and AQI metrics. A dedicated [Beach Day TRMNL Integrator](beach-day-trmnl-integrator.groovy) app handles the business logic (hourly forecast merging, active beach-hour calculations, and value rounding) and sends a single, clean JSON payload to TRMNL.
+2. **The Presentation Layer (TRMNL):** The [beach_day.liquid](beach_day.liquid) template renders the layout. It uses container-query units (`cqh`/`cqw`) so the layout scales natively on both the TRMNL OG and TRMNL X screens.
 
 ---
 
 ## Beach Day Criteria
 
-The layout automatically evaluates the following five rules using Shopify's Liquid templating engine:
+To qualify for a **Beach Day**, all of the following rules must pass:
 
-1. **High Temperature** &ge; `74°F`
-2. **Precipitation Chance** &lt; `20.0%`
-3. **Current Time** is between `Sunrise` and `Sunset - 60 minutes`
-4. **Detailed Forecast Description** contains `"sunny"` (case-insensitive)
-5. **Wind Speed** &le; `16.0 mph`
-
----
-
-## Files
-
-* [beach_day.liquid](beach_day.liquid) - The Liquid template with styling, layout components, and logic checking.
-* [sample_data.json](sample_data.json) - Mock payloads for different test scenarios.
+1. **Sun:** The current sky must be *Clear* or *Mainly Clear* (WMO codes 0 or 1), OR it must be forecasted to clear to those states by **2:00 PM** or earlier.
+2. **High Temp:** $\ge 75^\circ\text{F}$
+3. **Rain Chance:** $< 20\%$ during active beach hours (9:00 AM – 6:00 PM).
+4. **Max Wind:** $\le 15\text{ mph}$ (daily max wind speed).
+5. **Air Quality:** $\text{AQI} < 100$ (US AQI).
+6. **Current Time:** Current local time is between `Sunrise` and `Sunset - 60 minutes`.
 
 ---
 
-## Installation & Setup Instructions
+## Visual States
 
-### Step 1: Connect your Weather Data
-To drive the Beach Day Announcer, you need to connect your weather data sources in your TRMNL account.
+The left-side hero panel displays one of 8 distinct states based on a top-down priority evaluation:
 
-1. Connect a native weather/calendar plugin or set up a private webhook plugin to collect local forecast data.
-2. In **Playlists**, make sure the source plugin is connected (you can click the eyeball icon to "hide" it if you only want to use its data without showing its default template).
+* 🌌 **Night Time:** (*"Beach is closed"*) Triggered after sunset. Automatically flips the entire dashboard (including the checklist and forecast text) to show tomorrow's forecast so you can plan ahead.
+* 🏡 **Indoor Day:** (*"Air Purifier On Max"*) Triggered during the day if $\text{AQI} \ge 100$, bypassing all other weather fallbacks to warn you about hazardous air (wildfire smoke, heavy smog, etc.).
+* 🏖️ **Beach Day!:** (*"Pack the car"*) Triggered if all comfort rules pass.
+* 🌧️ **Rain Day:** (*"Stay dry"*) Triggered if the rain chance is $\ge 40\%$.
+* 💨 **Wind Day:** (*"Hold your towel"*) Triggered if max wind is $> 15\text{ mph}$.
+* 🧥 **Brrr Day:** (*"Wear a hoodie"*) Triggered if the temperature is $< 65^\circ\text{F}$.
+* 🌤️ **Nice Day:** (*"But not quite beachy"*) Triggered if the temperature is between $65^\circ\text{F}$ and $74^\circ\text{F}$ and it is sunny or clearing by 2:00 PM.
+* ☁️ **Grey Day:** (*"Seattle vibes"*) Triggered if it is dry and mild, but the sun is not forecasted to clear by 2:00 PM.
 
-### Step 2: Create a Private Plugin
-1. Go to your TRMNL Account dashboard.
-2. Navigate to **Plugins** > **Private Plugin** and click **Create New**.
-3. Fill out the basic plugin details:
-   - **Name:** Beach Day Indicator
-   - **Strategy:** Select **Plugin Merge** (this allows you to reference variables from other connected plugins).
-4. Click **Create Private Plugin**.
+---
 
-### Step 3: Copy the Markup
-1. Click **Edit Markup** in your newly created private plugin settings.
-2. Copy the entire contents of [beach_day.liquid](beach_day.liquid) and paste it into the markup editor.
+## Layout Features
+
+* **Sun Column:** If it is currently cloudy but clearing later, the checklist row will display the exact hour the sun is expected (e.g., `"At 11 AM"` or `"At 1 PM"`). If it clears after 2:00 PM, it will display the time (e.g. `"At 3 PM"`) but show a fail cross ($\mathbf{\times}$) since it is too late to qualify as a beach day.
+* **Integrated UV Index:** The UV index is appended directly to the end of the text forecast description at the top of the panel (e.g. `Mostly sunny. UV Index: 6`) to keep the checklist clean.
+* **Rounded Values:** All temperatures, wind speeds, UV index, and AQI values are rounded to the nearest integer before sending to TRMNL for clean, glanceable display.
+
+---
+
+## Installation & Setup
+
+### Step 1: Install the Driver in Hubitat
+1. In your Hubitat Admin Console, go to **Drivers Code** > **New Driver**.
+2. Copy the entire contents of [open-meteo-weather-enhanced.groovy](open-meteo-weather-enhanced.groovy) and paste them into the editor.
 3. Click **Save**.
 
-### Step 4: Verify with Mock Data
-To test the layout in the TRMNL live preview:
-1. Open the "Merge Variables" JSON input box below the editor.
-2. Copy one of the JSON states from [sample_data.json](sample_data.json) (e.g., `beach_day_yes` or `beach_day_no_due_to_wind`).
-3. Paste it directly as the root JSON payload.
-4. Click **Force Refresh** to preview the rendering of your Beach Day Announcer!
+### Step 2: Create the Virtual Device in Hubitat
+1. Go to **Devices** > **Add Device** > **Virtual**.
+2. Name the device (e.g., `Open-Meteo Weather`).
+3. Set the **Type** to **Open-Meteo Weather Enhanced** from the dropdown.
+4. Click **Save**.
+5. Configure your **Latitude** and **Longitude** in the device preferences (or leave blank to use your hub's default location) and click **Save Preferences**.
 
----
+### Step 3: Install and Configure the Hubitat App
+1. Go to **Apps Code** > **New App**.
+2. Copy the entire contents of [beach-day-trmnl-integrator.groovy](beach-day-trmnl-integrator.groovy) and paste them into the editor.
+3. Click **Save**.
+4. Go to **Apps** > **Add User App** > select **Beach Day TRMNL Integrator**.
+5. Configure the app:
+   * **Open-Meteo Weather Enhanced Device:** Select the virtual device you created in Step 2.
+   * **TRMNL Webhook URL:** Paste your TRMNL private plugin webhook URL.
+6. Click **Done**.
 
-## Variable Mapping Reference
-
-The Liquid template is designed to automatically detect and map these fields, supporting both camelCase and snake_case naming structures:
-
-| Condition | Primary Variable | Alternative Variables | Target / Rule |
-| :--- | :--- | :--- | :--- |
-| **High Temperature** | `temperatureHi` | `temperature_hi`, `temperature` | &ge; 74 |
-| **Precipitation Chance** | `probablityofPrecipitation` | `probability_of_precipitation`, `precipitation` | &lt; 20.0 |
-| **Wind Speed** | `windspeedHi` | `wind_speed_hi`, `wind_speed` | &le; 16.0 |
-| **Forecast Description** | `detailedforecastlowercase` | `detailed_forecast`, `forecast` | Contains "sunny" |
-| **Current Time** | `time` | `current_time` | Sunrise &le; Time &le; Sunset-60m |
-| **Sunrise Time** | `sunrise` | - | Unix Epoch or minute-of-day |
-| **Sunset Time** | `sunset` | - | Unix Epoch or minute-of-day |
-
-### Time Formats Supported
-* **Unix Epoch (Seconds):** e.g., `time: 1765300000`. The template automatically detects values > 86400 and subtracts 3600 seconds (60 minutes) from Sunset.
-* **Minutes of Day:** e.g., `time: 540` (9:00 AM). The template subtracts 60 minutes from Sunset.
+### Step 4: Update your TRMNL Markup
+1. Copy the entire contents of [beach_day.liquid](beach_day.liquid).
+2. Go to your **TRMNL Dashboard** > **Plugins** > select your **Beach Day** private plugin.
+3. Click **Edit Markup**, select all, paste the new code, and click **Save**.
