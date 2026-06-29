@@ -19,16 +19,26 @@ preferences {
 }
 
 def mainPage() {
-    dynamicPage(name: "mainPage", title: "Beach Day TRMNL Integrator", install: true, uninstall: true) {
-        section("Weather Source") {
+    dynamicPage(name: "mainPage", title: "", install: true, uninstall: true) {
+        section("") {
             input "weatherDevice", "capability.sensor", title: "Open-Meteo Weather Enhanced Device", required: true, multiple: false
-        }
-        section("TRMNL Integration") {
             input "webhookUrl", "text", title: "TRMNL Webhook URL", required: true
-        }
-        section("Logging") {
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
+            input name: "btnForceUpdate", type: "button", title: "Force Update Now"
         }
+    }
+}
+
+def appButtonHandler(btn) {
+    switch(btn) {
+        case "btnForceUpdate":
+            log.info "Force update clicked: refreshing weather device..."
+            if (weatherDevice && weatherDevice.hasCommand("refresh")) {
+                weatherDevice.refresh()
+            } else {
+                updateTrmnl()
+            }
+            break
     }
 }
 
@@ -125,16 +135,16 @@ def updateTrmnl() {
     String sunriseFormatted = formatTime(sunriseStr)
     String sunsetFormatted = formatTime(sunsetStr)
 
-    // 3. Gather other metrics
-    def tempHi = weatherDevice.currentValue("temperatureMax")
-    def windHi = weatherDevice.currentValue("windSpeedMax")
+    // 3. Gather other metrics (rounded to nearest integer for display)
+    def tempHi = roundToNearest(weatherDevice.currentValue("temperatureMax"))
+    def windHi = roundToNearest(weatherDevice.currentValue("windSpeedMax"))
     def detailed = weatherDevice.currentValue("weather")
-    def uv = weatherDevice.currentValue("ultravioletIndex") ?: 0
-    def aqi = weatherDevice.currentValue("airQualityIndex") ?: 0
+    def uv = roundToNearest(weatherDevice.currentValue("ultravioletIndex")) ?: 0
+    def aqi = roundToNearest(weatherDevice.currentValue("airQualityIndex")) ?: 0
 
-    def tomorrowTemp = weatherDevice.currentValue("temperatureMaxTomorrow")
-    def tomorrowPrecip = weatherDevice.currentValue("precipitationProbabilityTomorrow")
-    def tomorrowWind = weatherDevice.currentValue("windSpeedMaxTomorrow")
+    def tomorrowTemp = roundToNearest(weatherDevice.currentValue("temperatureMaxTomorrow"))
+    def tomorrowPrecip = roundToNearest(weatherDevice.currentValue("precipitationProbabilityTomorrow")) ?: 0
+    def tomorrowWind = roundToNearest(weatherDevice.currentValue("windSpeedMaxTomorrow"))
     def tomorrowDetailed = weatherDevice.currentValue("weatherTomorrow")
 
     // 4. Construct Payload
@@ -212,4 +222,20 @@ private String formatTime(String isoStr) {
         log.error "Failed to format time string '${isoStr}': ${e.message}"
         return ""
     }
+}
+
+private Integer roundToNearest(value) {
+    if (value == null) return null
+    if (value instanceof Number) {
+        return Math.round(value.doubleValue()).intValue()
+    }
+    try {
+        String s = value.toString()
+        if (s.isNumber()) {
+            return Math.round(s.toDouble()).intValue()
+        }
+    } catch (e) {
+        log.error "Failed to round value '${value}': ${e.message}"
+    }
+    return null
 }

@@ -216,7 +216,7 @@
     {% if hour >= 9 and hour <= 18 %}
       {% assign fc_lower = period.f | downcase %}
       {% assign is_sunny = false %}
-      {% if fc_lower contains "sunny" or fc_lower contains "clear" or fc_lower contains "sun" %}
+      {% if fc_lower contains "clear" or fc_lower contains "sunny" %}
         {% assign is_sunny = true %}
       {% endif %}
 
@@ -258,7 +258,7 @@
 {% endif %}
 
 {% assign is_sunny_later = "false" %}
-{% if sun_hours > 0 %}
+{% if sun_hours > 0 and first_sunny_hour <= 14 %}
   {% assign is_sunny_later = "true" %}
 {% endif %}
 
@@ -329,9 +329,17 @@
   {% endif %}
 {% endif %}
 
+{% comment %} State 2.5: Indoor Day (Poor Air Quality) {% endcomment %}
+{% assign is_indoor_day = false %}
+{% if is_beach_day == false and is_night_time == false %}
+  {% if cond_aqi == false %}
+    {% assign is_indoor_day = true %}
+  {% endif %}
+{% endif %}
+
 {% comment %} State 3: Rainy Day {% endcomment %}
 {% assign is_rain_day = false %}
-{% if is_beach_day == false and is_night_time == false %}
+{% if is_beach_day == false and is_night_time == false and is_indoor_day == false %}
   {% if precip >= 40 %}
     {% assign is_rain_day = true %}
   {% endif %}
@@ -339,7 +347,7 @@
 
 {% comment %} State 4: Windy Day {% endcomment %}
 {% assign is_windy_day = false %}
-{% if is_beach_day == false and is_night_time == false and is_rain_day == false %}
+{% if is_beach_day == false and is_night_time == false and is_indoor_day == false and is_rain_day == false %}
   {% if cond_wind == false %}
     {% assign is_windy_day = true %}
   {% endif %}
@@ -347,7 +355,7 @@
 
 {% comment %} State 5: Chilly Day {% endcomment %}
 {% assign is_chilly_day = false %}
-{% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false %}
+{% if is_beach_day == false and is_night_time == false and is_indoor_day == false and is_rain_day == false and is_windy_day == false %}
   {% if temp < 65 %}
     {% assign is_chilly_day = true %}
   {% endif %}
@@ -355,7 +363,7 @@
 
 {% comment %} State 5.5: Nice Day {% endcomment %}
 {% assign is_nice_day = false %}
-{% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false %}
+{% if is_beach_day == false and is_night_time == false and is_indoor_day == false and is_rain_day == false and is_windy_day == false %}
   {% if temp >= 65 and temp < 75 and cond_forecast == true %}
     {% assign is_nice_day = true %}
   {% endif %}
@@ -363,7 +371,7 @@
 
 {% comment %} State 6: Grey Day {% endcomment %}
 {% assign is_grey_day = false %}
-{% if is_beach_day == false and is_night_time == false and is_rain_day == false and is_windy_day == false and is_chilly_day == false and is_nice_day == false %}
+{% if is_beach_day == false and is_night_time == false and is_indoor_day == false and is_rain_day == false and is_windy_day == false and is_chilly_day == false and is_nice_day == false %}
   {% if cond_forecast == false %}
     {% assign is_grey_day = true %}
   {% endif %}
@@ -446,6 +454,16 @@
       </svg>
       <div class="hero-title">Night<br/>Time</div>
       <div class="hero-subtitle">Beach is closed</div>
+    </div>
+  {% elsif is_indoor_day %}
+    <div class="hero-panel hero-panel--no">
+      <!-- Home SVG Icon -->
+      <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+        <polyline points="9 22 9 12 15 12 15 22" />
+      </svg>
+      <div class="hero-title">Indoor<br/>Day</div>
+      <div class="hero-subtitle">Air Purifier On Max</div>
     </div>
   {% elsif is_rain_day %}
     <div class="hero-panel hero-panel--no">
@@ -539,13 +557,41 @@
       </div>
       {% if forecast_val != blank %}
         <div style="font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; width: 100%; opacity: 0.85; margin-top: 1cqh; line-height: 1.25; text-align: left;">
-          {{ forecast_val }}
+          {{ forecast_val | remove: "." }}. UV Index: {{ uvIndex }}
         </div>
       {% endif %}
     </div>
 
     <div class="conditions-table">
-      
+
+      <!-- Sun Check -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">Sun</span>
+          <span class="condition-threshold">coming out?</span>
+        </div>
+        <span class="condition-value">
+          {% if is_clearing_later == "true" and clearing_time != blank %}
+            At {{ clearing_time }}
+          {% elsif cond_forecast %}
+            All day
+          {% else %}
+            Cloudy
+          {% endif %}
+        </span>
+        <div class="condition-status">
+          {% if cond_forecast %}
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
       <!-- Temperature -->
       <div class="condition-row">
         <div class="condition-info">
@@ -608,72 +654,11 @@
         </div>
       </div>
 
-      {% capture sun_left_str %}
-        {% if sunrise_val == 0 or sunset_val == 0 %}
-          Always
-        {% elsif time_val >= sunrise_val and time_val < sunset_val %}
-          {% if hours_left > 0 %}
-            {{ hours_left }} hour{% if hours_left != 1 %}s{% endif %} left
-          {% else %}
-            {{ minutes_left }} minute{% if minutes_left != 1 %}s{% endif %} left
-          {% endif %}
-        {% else %}
-          {% if hours_until_sunrise > 0 %}
-            {{ hours_until_sunrise }} hour{% if hours_until_sunrise != 1 %}s{% endif %} until sun
-          {% else %}
-            {{ minutes_until_sunrise }} minute{% if minutes_until_sunrise != 1 %}s{% endif %} until sun
-          {% endif %}
-        {% endif %}
-      {% endcapture %}
-      {% assign sun_left_str = sun_left_str | strip %}
-
-      <!-- Sun Check -->
-      <div class="condition-row">
-        <div class="condition-info">
-          <span class="condition-name">Sun</span>
-          <span class="condition-threshold">coming out?</span>
-        </div>
-        <span class="condition-value">
-          {% if is_clearing_later == "true" and clearing_time != blank %}
-            At {{ clearing_time }}
-          {% elsif cond_forecast %}
-            All day
-          {% else %}
-            Cloudy
-          {% endif %}
-        </span>
-        <div class="condition-status">
-          {% if cond_forecast %}
-            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-          {% else %}
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          {% endif %}
-        </div>
-      </div>
-
-      <!-- UV Index -->
-      <div class="condition-row">
-        <div class="condition-info">
-          <span class="condition-name">UV Index</span>
-          <span class="condition-threshold">Sunscreen if &ge; 3</span>
-        </div>
-        <span class="condition-value">{{ uvIndex }}</span>
-        <div class="condition-status">
-          <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="20 6 9 17 4 12" />
-          </svg>
-        </div>
-      </div>
-
       <!-- Air Quality -->
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Air Quality</span>
-          <span class="condition-threshold">AQI below 100?</span>
+          <span class="condition-threshold">below 100?</span>
         </div>
         <span class="condition-value">{{ aqi }}</span>
         <div class="condition-status">
