@@ -87,7 +87,7 @@
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
-    padding: 2cqh 1cqw;
+    padding: 1.2cqh 1cqw;
     border-bottom: 0.2cqh dashed #000000;
     flex: 1;
   }
@@ -104,14 +104,14 @@
   }
 
   .condition-name {
-    font-size: 3.8cqh;
+    font-size: 3.4cqh;
     font-weight: 700;
     color: #000000;
     line-height: 1.1;
   }
 
   .condition-threshold {
-    font-size: 2.7cqh;
+    font-size: 2.4cqh;
     color: #555555;
     margin-top: 0.4cqh;
     font-weight: 500;
@@ -119,7 +119,7 @@
   }
 
   .condition-value {
-    font-size: 4.2cqh;
+    font-size: 3.8cqh;
     font-weight: 800;
     text-align: right;
     margin-right: 2cqw;
@@ -165,76 +165,7 @@
 {% comment %} Determine current time dynamically from the device update timestamp {% endcomment %}
 {% assign time_source = "now" %}
 
-{% comment %} Parse sunrise and sunset values to minutes of the day {% endcomment %}
-{% assign sunrise_str = sunrise | append: "" %}
-{% assign sunrise_parts = sunrise_str | split: " " %}
-{% assign sunrise_time_part = "" %}
-{% assign sunrise_ampm_part = "" %}
-{% for part in sunrise_parts %}
-  {% if part contains ":" %}
-    {% assign sunrise_time_part = part %}
-  {% endif %}
-  {% assign part_lower = part | downcase %}
-  {% if part_lower == "am" or part_lower == "pm" %}
-    {% assign sunrise_ampm_part = part_lower %}
-  {% endif %}
-{% endfor %}
-{% if sunrise_time_part != "" %}
-  {% assign sunrise_time_parts = sunrise_time_part | split: ":" %}
-  {% assign sunrise_h = sunrise_time_parts[0] | plus: 0 %}
-  {% assign sunrise_m = sunrise_time_parts[1] | plus: 0 %}
-  {% if sunrise_ampm_part == "pm" and sunrise_h < 12 %}
-    {% assign sunrise_h = sunrise_h | plus: 12 %}
-  {% elsif sunrise_ampm_part == "am" and sunrise_h == 12 %}
-    {% assign sunrise_h = 0 %}
-  {% endif %}
-  {% assign sunrise_val = sunrise_h | times: 60 | plus: sunrise_m %}
-{% else %}
-  {% assign sunrise_num = sunrise | plus: 0 %}
-  {% if sunrise_num > 86400 %}
-    {% assign sunrise_local = sunrise_num | plus: offset %}
-    {% assign sunrise_h = sunrise_local | date: "%H" | plus: 0 %}
-    {% assign sunrise_m = sunrise_local | date: "%M" | plus: 0 %}
-    {% assign sunrise_val = sunrise_h | times: 60 | plus: sunrise_m %}
-  {% else %}
-    {% assign sunrise_val = sunrise_num %}
-  {% endif %}
-{% endif %}
-
-{% assign sunset_str = sunset | append: "" %}
-{% assign sunset_parts = sunset_str | split: " " %}
-{% assign sunset_time_part = "" %}
-{% assign sunset_ampm_part = "" %}
-{% for part in sunset_parts %}
-  {% if part contains ":" %}
-    {% assign sunset_time_part = part %}
-  {% endif %}
-  {% assign part_lower = part | downcase %}
-  {% if part_lower == "am" or part_lower == "pm" %}
-    {% assign sunset_ampm_part = part_lower %}
-  {% endif %}
-{% endfor %}
-{% if sunset_time_part != "" %}
-  {% assign sunset_time_parts = sunset_time_part | split: ":" %}
-  {% assign sunset_h = sunset_time_parts[0] | plus: 0 %}
-  {% assign sunset_m = sunset_time_parts[1] | plus: 0 %}
-  {% if sunset_ampm_part == "pm" and sunset_h < 12 %}
-    {% assign sunset_h = sunset_h | plus: 12 %}
-  {% elsif sunset_ampm_part == "am" and sunset_h == 12 %}
-    {% assign sunset_h = 0 %}
-  {% endif %}
-  {% assign sunset_val = sunset_h | times: 60 | plus: sunset_m %}
-{% else %}
-  {% assign sunset_num = sunset | plus: 0 %}
-  {% if sunset_num > 86400 %}
-    {% assign sunset_local = sunset_num | plus: offset %}
-    {% assign sunset_h = sunset_local | date: "%H" | plus: 0 %}
-    {% assign sunset_m = sunset_local | date: "%M" | plus: 0 %}
-    {% assign sunset_val = sunset_h | times: 60 | plus: sunset_m %}
-  {% else %}
-    {% assign sunset_val = sunset_num %}
-  {% endif %}
-{% endif %}
+{% comment %} Sunrise and sunset values are passed directly as minutes from midnight (sunrise_val / sunset_val) {% endcomment %}
 
 {% comment %} Parse current local time from the device update timestamp and timezone offset {% endcomment %}
 {% assign local_time_epoch = time_source | date: "%s" | plus: offset %}
@@ -347,6 +278,11 @@
   {% assign cond_wind = true %}
 {% endif %}
 
+{% assign cond_aqi = false %}
+{% if aqi < 100 %}
+  {% assign cond_aqi = true %}
+{% endif %}
+
 {% comment %} Forecast check {% endcomment %}
 {% assign cond_forecast = false %}
 {% assign forecast_lower = forecast_val | downcase %}
@@ -358,7 +294,7 @@
 
 {% comment %} State 1: Beach Day {% endcomment %}
 {% assign is_beach_day = false %}
-{% if cond_temp and cond_precip and cond_wind and cond_forecast and cond_time %}
+{% if cond_temp and cond_precip and cond_wind and cond_forecast and cond_time and cond_aqi %}
   {% assign is_beach_day = true %}
 {% endif %}
 
@@ -454,43 +390,7 @@
     {% assign hours_until_sunrise = minutes_until_sunrise | divided_by: 60.0 | floor %}
   {% endif %}
 
-  {% comment %} Format Sunrise Time {% endcomment %}
-  {% assign sr_h = sunrise_val | divided_by: 60 %}
-  {% assign sr_m = sunrise_val | modulo: 60 %}
-  {% assign sr_ampm = "AM" %}
-  {% if sr_h >= 12 %}
-    {% assign sr_ampm = "PM" %}
-    {% if sr_h > 12 %}
-      {% assign sr_h = sr_h | minus: 12 %}
-    {% endif %}
-  {% elsif sr_h == 0 %}
-    {% assign sr_h = 12 %}
-  {% endif %}
-  {% if sr_m < 10 %}
-    {% assign sr_m_str = "0" | append: sr_m %}
-  {% else %}
-    {% assign sr_m_str = sr_m %}
-  {% endif %}
-  {% assign sunrise_formatted = sr_h | append: ":" | append: sr_m_str | append: " " | append: sr_ampm %}
-
-  {% comment %} Format Sunset Time {% endcomment %}
-  {% assign ss_h = sunset_val | divided_by: 60 %}
-  {% assign ss_m = sunset_val | modulo: 60 %}
-  {% assign ss_ampm = "AM" %}
-  {% if ss_h >= 12 %}
-    {% assign ss_ampm = "PM" %}
-    {% if ss_h > 12 %}
-      {% assign ss_h = ss_h | minus: 12 %}
-    {% endif %}
-  {% elsif ss_h == 0 %}
-    {% assign ss_h = 12 %}
-  {% endif %}
-  {% if ss_m < 10 %}
-    {% assign ss_m_str = "0" | append: ss_m %}
-  {% else %}
-    {% assign ss_m_str = ss_m %}
-  {% endif %}
-  {% assign sunset_formatted = ss_h | append: ":" | append: ss_m_str | append: " " | append: ss_ampm %}
+  {% comment %} Sunrise and sunset formatting is handled by the Hubitat App (sunrise_formatted / sunset_formatted) {% endcomment %}
 {% endif %}
 
 {% capture sun_left_str %}
@@ -744,6 +644,40 @@
         </span>
         <div class="condition-status">
           {% if cond_forecast %}
+            <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          {% else %}
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- UV Index -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">UV Index</span>
+          <span class="condition-threshold">Sunscreen if &ge; 3</span>
+        </div>
+        <span class="condition-value">{{ uvIndex }}</span>
+        <div class="condition-status">
+          <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Air Quality -->
+      <div class="condition-row">
+        <div class="condition-info">
+          <span class="condition-name">Air Quality</span>
+          <span class="condition-threshold">AQI below 100?</span>
+        </div>
+        <span class="condition-value">{{ aqi }}</span>
+        <div class="condition-status">
+          {% if cond_aqi %}
             <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="20 6 9 17 4 12" />
             </svg>
