@@ -305,6 +305,8 @@
   {% assign precip = tomorrowProbabilityOfPrecipitation | default: tomorrow_probability_of_precipitation | plus: 0 %}
   {% assign wind = tomorrowWindSpeedHi | default: tomorrow_wind_speed_hi | default: tomorrow_wind_speed | plus: 0 %}
   {% assign forecast_val = tomorrowDetailedForecast | default: tomorrow_detailed_forecast %}
+  {% assign uvIndex = tomorrowUvIndex | default: tomorrow_uv_index | default: uvIndex %}
+  {% assign aqi = tomorrowAqi | default: tomorrow_aqi | default: aqi %}
 
   {% comment %} Recalculate condition rules for tomorrow {% endcomment %}
   {% assign cond_temp = false %}
@@ -320,6 +322,11 @@
   {% assign cond_wind = false %}
   {% if wind <= 15.0 %}
     {% assign cond_wind = true %}
+  {% endif %}
+
+  {% assign cond_aqi = false %}
+  {% if aqi < 100 %}
+    {% assign cond_aqi = true %}
   {% endif %}
 
   {% assign cond_forecast = false %}
@@ -557,7 +564,7 @@
       </div>
       {% if forecast_val != blank %}
         <div style="font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; width: 100%; opacity: 0.85; margin-top: 1cqh; line-height: 1.25; text-align: left;">
-          {{ forecast_val | remove: "." }}. UV Index: {{ uvIndex }}
+          {{ forecast_val | remove: "." }}. Max UV Index: {{ uvIndex }}
         </div>
       {% endif %}
     </div>
@@ -595,8 +602,8 @@
       <!-- Temperature -->
       <div class="condition-row">
         <div class="condition-info">
-          <span class="condition-name">High Temp</span>
-          <span class="condition-threshold">above 75&deg;F?</span>
+          <span class="condition-name">Temperature</span>
+          <span class="condition-threshold">high above 75&deg;F?</span>
         </div>
         <span class="condition-value">{{ temp }}&deg;F</span>
         <div class="condition-status">
@@ -637,8 +644,8 @@
       <!-- Wind Speed -->
       <div class="condition-row">
         <div class="condition-info">
-          <span class="condition-name">Max Wind</span>
-          <span class="condition-threshold">below 15 mph?</span>
+          <span class="condition-name">Wind</span>
+          <span class="condition-threshold">max 15 mph?</span>
         </div>
         <span class="condition-value">{{ wind }} mph</span>
         <div class="condition-status">
@@ -658,7 +665,7 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Air Quality</span>
-          <span class="condition-threshold">below 100?</span>
+          <span class="condition-threshold">max below 100?</span>
         </div>
         <span class="condition-value">{{ aqi }}</span>
         <div class="condition-status">

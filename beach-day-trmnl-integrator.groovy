@@ -141,6 +141,8 @@ def updateTrmnl() {
     def detailed = weatherDevice.currentValue("weather")
     def uv = roundToNearest(weatherDevice.currentValue("ultravioletIndex")) ?: 0
     def aqi = roundToNearest(weatherDevice.currentValue("airQualityIndex")) ?: 0
+    def uvTomorrow = roundToNearest(weatherDevice.currentValue("ultravioletIndexTomorrow")) ?: 0
+    def aqiTomorrow = roundToNearest(weatherDevice.currentValue("airQualityIndexTomorrow")) ?: 0
 
     def tomorrowTemp = roundToNearest(weatherDevice.currentValue("temperatureMaxTomorrow"))
     def tomorrowPrecip = roundToNearest(weatherDevice.currentValue("precipitationProbabilityTomorrow")) ?: 0
@@ -164,7 +166,9 @@ def updateTrmnl() {
             tomorrowDetailedForecast: tomorrowDetailed,
             hourly: state.hourlyPeriods,
             uvIndex: uv,
-            aqi: aqi
+            aqi: aqi,
+            tomorrowUvIndex: uvTomorrow,
+            tomorrowAqi: aqiTomorrow
         ]
     ]
 

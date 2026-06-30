@@ -102,8 +102,9 @@ metadata {
 		attribute "weatherTomorrow", "string"               // tomorrow's WMO description
 		attribute "precipitationProbabilityTomorrow", "number" // tomorrow's daily max %
 		attribute "windSpeedMax", "number"          // today's max wind speed
-		attribute "windSpeedMaxTomorrow", "number"  // tomorrow's max wind speed
 		attribute "airQualityIndex", "number"       // US AQI
+		attribute "airQualityIndexTomorrow", "number" // tomorrow's US AQI daily max
+		attribute "ultravioletIndexTomorrow", "number" // tomorrow's UV index daily max
 
 		// Precipitation helpers (for Climate Advisor)
 		attribute "precipitationNextHour", "number"            // sum over next 60 min
@@ -231,6 +232,7 @@ def refresh() {
 			latitude : lat,
 			longitude: lon,
 			current  : "us_aqi",
+			hourly   : "us_aqi",
 			timezone : "auto"
 		],
 		timeout: 30,
@@ -373,9 +375,7 @@ private void parseHourly(Map json, String tUnit, String pUnit) {
 	emitIfChanged("precipitationProbabilityNextHour", probNext1hMax, "${device.displayName} precipitation probability next hour ${probNext1hMax}%", "%")
 	emitIfChanged("precipitationProbabilityNext6h",   probNext6hMax, "${device.displayName} precipitation probability next 6h ${probNext6hMax}%", "%")
 
-	if (currentHourUv != null) {
-		emitIfChanged("ultravioletIndex", currentHourUv, "${device.displayName} UV index is ${currentHourUv}")
-	}
+
 }
 
 private void parseDaily(Map json, String tUnit) {
@@ -432,11 +432,16 @@ private void parseDaily(Map json, String tUnit) {
 		if (wMaxT != null) emitIfChanged("windSpeedMaxTomorrow", wMaxT, "${device.displayName} tomorrow's max wind speed is ${wMaxT}${wUnit}", wUnit)
 	}
 
-	// Only fall back to daily UV max if the hourly parser couldn't set one
-	if (uvMaxes && device.currentValue("ultravioletIndex") == null) {
+	if (uvMaxes) {
 		BigDecimal uvMax = roundN(uvMaxes[0], 2)
 		if (uvMax != null) {
 			emitIfChanged("ultravioletIndex", uvMax, "${device.displayName} UV index (daily max) is ${uvMax}")
+		}
+	}
+	if (uvMaxes.size() > 1) {
+		BigDecimal uvMaxT = roundN(uvMaxes[1], 2)
+		if (uvMaxT != null) {
+			emitIfChanged("ultravioletIndexTomorrow", uvMaxT, "${device.displayName} UV index tomorrow (daily max) is ${uvMaxT}")
 		}
 	}
 }
@@ -454,10 +459,68 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 	Map json = safeResponseJson(response)
 	if (!json) return
 
-	Map cur = (json.current instanceof Map) ? (Map) json.current : null
-	if (cur && cur.us_aqi != null) {
-		Integer aqi = toInt(cur.us_aqi)
-		emitIfChanged("airQualityIndex", aqi, "${device.displayName} AQI is ${aqi}")
+	Map hourly = (json.hourly instanceof Map) ? (Map) json.hourly : null
+	if (hourly && hourly.us_aqi instanceof List) {
+		List aqis = (List) hourly.us_aqi
+
+		// Determine daylight hours from device attributes (default to 6 AM - 8 PM if not set)
+		String sunriseStr = device.currentValue("sunrise")
+		String sunsetStr = device.currentValue("sunset")
+		int sunriseHour = 6
+		int sunsetHour = 20
+
+		if (sunriseStr && sunriseStr.contains("T")) {
+			try {
+				sunriseHour = sunriseStr.split("T")[1].split(":")[0].toInteger()
+			} catch (e) {
+				log.warn "Failed to parse sunrise hour from ${sunriseStr}: ${e.message}"
+			}
+		}
+		if (sunsetStr && sunsetStr.contains("T")) {
+			try {
+				sunsetHour = sunsetStr.split("T")[1].split(":")[0].toInteger()
+			} catch (e) {
+				log.warn "Failed to parse sunset hour from ${sunsetStr}: ${e.message}"
+			}
+		}
+		
+		// Today's max (indices 0..23, filtered by daylight hours)
+		List todayDaylightAqis = []
+		for (int i = 0; i < 24; i++) {
+			if (i >= aqis.size()) break
+			if (i >= sunriseHour && i <= sunsetHour) {
+				todayDaylightAqis.add(aqis[i])
+			}
+		}
+		Integer maxAqiToday = todayDaylightAqis.findAll { it != null }.max() as Integer
+
+		// Tomorrow's max (indices 24..47, filtered by daylight hours)
+		Integer maxAqiTomorrow = null
+		if (aqis.size() >= 48) {
+			List tomorrowDaylightAqis = []
+			for (int i = 24; i < 48; i++) {
+				if (i >= aqis.size()) break
+				int hourOfTomorrow = i - 24
+				if (hourOfTomorrow >= sunriseHour && hourOfTomorrow <= sunsetHour) {
+					tomorrowDaylightAqis.add(aqis[i])
+				}
+			}
+			maxAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.max() as Integer
+		}
+
+		if (maxAqiToday != null) {
+			emitIfChanged("airQualityIndex", maxAqiToday, "${device.displayName} AQI (daily max) is ${maxAqiToday}")
+		}
+		if (maxAqiTomorrow != null) {
+			emitIfChanged("airQualityIndexTomorrow", maxAqiTomorrow, "${device.displayName} AQI tomorrow (daily max) is ${maxAqiTomorrow}")
+		}
+	} else {
+		// Fallback to current if hourly is not present
+		Map cur = (json.current instanceof Map) ? (Map) json.current : null
+		if (cur && cur.us_aqi != null) {
+			Integer aqi = toInt(cur.us_aqi)
+			emitIfChanged("airQualityIndex", aqi, "${device.displayName} AQI is ${aqi}")
+		}
 	}
 }
 
