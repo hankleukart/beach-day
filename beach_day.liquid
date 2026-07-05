@@ -24,6 +24,16 @@
     background-color: #ffffff;
     color: #000000;
     border: 0.8cqh solid #000000;
+    border-radius: 1.5cqh;
+  }
+
+  .hero-location {
+    font-size: 2.8cqh;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.2cqw;
+    opacity: 0.8;
+    margin-bottom: 0cqh;
   }
 
   .hero-icon {
@@ -159,6 +169,14 @@
 {% assign precip = probabilityofPrecipitation | default: probablityofPrecipitation | default: probability_of_precipitation | default: precipitation | plus: 0 %}
 {% assign wind = windspeedHi | default: wind_speed_hi | default: wind_speed | plus: 0 %}
 {% assign forecast_val = detailedForecast | default: detailed_forecast | default: forecast %}
+{% assign temp_min = temperatureMin | default: temperature_min | plus: 0 %}
+{% assign temp_max = temperatureHi | default: temperature_hi | default: temperature | plus: 0 %}
+{% assign humidity_min = humidityMin | default: humidity_min | plus: 0 %}
+{% assign humidity_max = humidityMax | default: humidity_max | plus: 0 %}
+{% assign aqi_min = aqiMin | default: aqi_min | plus: 0 %}
+{% assign aqi_max = aqi | default: airQualityIndex | default: air_quality_index | plus: 0 %}
+{% assign weather_cond = weatherCondToday | default: weather_cond_today | default: weather | remove: "." %}
+{% assign uv_index = uvIndex | default: uv_index | default: ultravioletIndex | plus: 0 %}
 {% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
 
 
@@ -307,6 +325,14 @@
   {% assign forecast_val = tomorrowDetailedForecast | default: tomorrow_detailed_forecast %}
   {% assign uvIndex = tomorrowUvIndex | default: tomorrow_uv_index | default: uvIndex %}
   {% assign aqi = tomorrowAqi | default: tomorrow_aqi | default: aqi %}
+  {% assign temp_min = tomorrowTemperatureMin | default: tomorrow_temperature_min | plus: 0 %}
+  {% assign temp_max = tomorrowTemperature | default: tomorrow_temperature | plus: 0 %}
+  {% assign humidity_min = tomorrowHumidityMin | default: tomorrow_humidity_min | plus: 0 %}
+  {% assign humidity_max = tomorrowHumidityMax | default: tomorrow_humidity_max | plus: 0 %}
+  {% assign aqi_min = tomorrowAqiMin | default: tomorrow_aqi_min | plus: 0 %}
+  {% assign aqi_max = tomorrowAqi | default: tomorrow_aqi | plus: 0 %}
+  {% assign weather_cond = weatherCondTomorrow | default: weather_cond_tomorrow | default: weatherTomorrow | remove: "." %}
+  {% assign uv_index = tomorrowUvIndex | default: tomorrow_uv_index | plus: 0 %}
 
   {% comment %} Recalculate condition rules for tomorrow {% endcomment %}
   {% assign cond_temp = false %}
@@ -443,6 +469,9 @@
   <!-- Left Side: Hero Banner -->
   {% if is_beach_day %}
     <div class="hero-panel hero-panel--yes">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Sunny Beach SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="10" r="4" fill="#ffffff" />
@@ -455,6 +484,9 @@
     </div>
   {% elsif is_night_time %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Crescent Moon SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
@@ -464,6 +496,9 @@
     </div>
   {% elsif is_indoor_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Home SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -474,6 +509,9 @@
     </div>
   {% elsif is_rain_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Rain Cloud SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
@@ -486,6 +524,9 @@
     </div>
   {% elsif is_windy_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Wind lines SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" />
@@ -495,6 +536,9 @@
     </div>
   {% elsif is_chilly_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Cloudy (Chilly Day) SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
@@ -504,6 +548,9 @@
     </div>
   {% elsif is_nice_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       {% if is_clearing_later == "true" %}
         <!-- Cloud-Sun SVG Icon -->
         <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -533,6 +580,9 @@
     </div>
   {% elsif is_grey_day %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Overlapping Clouds SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
@@ -543,6 +593,9 @@
     </div>
   {% else %}
     <div class="hero-panel hero-panel--no">
+      {% if location_name != blank %}
+        <div class="hero-location">{{ location_name }}</div>
+      {% endif %}
       <!-- Default fallback: Simple Cloud SVG Icon -->
       <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <path d="M17 18.6a6 6 0 1 0-8.2-8.2 6 6 0 0 0-3.3 11H17a4 4 0 1 0 0-8h-.3" />
@@ -562,11 +615,16 @@
           <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">{{ local_time_epoch | date: "%A" }}</span>
         {% endif %}
       </div>
-      {% if forecast_val != blank %}
-        <div style="font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; width: 100%; opacity: 0.85; margin-top: 1cqh; line-height: 1.25; text-align: left;">
-          {{ forecast_val | remove: "." }}. Max UV Index: {{ uvIndex }}
+      <div style="display: flex; flex-direction: row; justify-content: space-between; width: 100%; font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.85; margin-top: 1cqh; line-height: 1.35; text-align: left;">
+        <div style="flex: 1; min-width: 0; padding-right: 3cqw;">
+          <div><strong>{% if is_night_time %}Tomorrow{% else %}Today{% endif %}:</strong> {{ weather_cond }}</div>
+          <div><strong>Temps:</strong> {{ temp_min }} to {{ temp_max }}°F</div>
         </div>
-      {% endif %}
+        <div style="flex: 1; min-width: 0; padding-left: 3cqw;">
+          <div><strong>Humidity:</strong> {{ humidity_min }} to {{ humidity_max }}%</div>
+          <div><strong>Air quality:</strong> {{ aqi_min }} to {{ aqi_max }}</div>
+        </div>
+      </div>
     </div>
 
     <div class="conditions-table">

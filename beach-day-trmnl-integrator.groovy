@@ -22,6 +22,7 @@ def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true) {
         section("") {
             input "weatherDevice", "capability.sensor", title: "Open-Meteo Weather Enhanced Device", required: true, multiple: false
+            input "locationName", "text", title: "Location Name (optional)", required: false
             input "webhookUrl", "text", title: "TRMNL Webhook URL", required: true
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input name: "btnForceUpdate", type: "button", title: "Force Update Now"
@@ -137,22 +138,46 @@ def updateTrmnl() {
 
     // 3. Gather other metrics (rounded to nearest integer for display)
     def tempHi = roundToNearest(weatherDevice.currentValue("temperatureMax"))
+    def tempLow = roundToNearest(weatherDevice.currentValue("temperatureMin"))
     def windHi = roundToNearest(weatherDevice.currentValue("windSpeedMax"))
-    def detailed = weatherDevice.currentValue("weather")
+    def detailed = weatherDevice.currentValue("detailedForecastToday") ?: weatherDevice.currentValue("weather")
     def uv = roundToNearest(weatherDevice.currentValue("ultravioletIndex")) ?: 0
     def aqi = roundToNearest(weatherDevice.currentValue("airQualityIndex")) ?: 0
     def uvTomorrow = roundToNearest(weatherDevice.currentValue("ultravioletIndexTomorrow")) ?: 0
     def aqiTomorrow = roundToNearest(weatherDevice.currentValue("airQualityIndexTomorrow")) ?: 0
 
     def tomorrowTemp = roundToNearest(weatherDevice.currentValue("temperatureMaxTomorrow"))
+    def tomorrowTempLow = roundToNearest(weatherDevice.currentValue("temperatureMinTomorrow"))
     def tomorrowPrecip = roundToNearest(weatherDevice.currentValue("precipitationProbabilityTomorrow")) ?: 0
     def tomorrowWind = roundToNearest(weatherDevice.currentValue("windSpeedMaxTomorrow"))
-    def tomorrowDetailed = weatherDevice.currentValue("weatherTomorrow")
+    def tomorrowDetailed = weatherDevice.currentValue("detailedForecastTomorrow") ?: weatherDevice.currentValue("weatherTomorrow")
+
+    // Clean weather condition strings (remove trailing periods if any)
+    def weatherCondToday = (weatherDevice.currentValue("weather") ?: "Unknown").toString()
+    if (weatherCondToday.endsWith(".")) {
+        weatherCondToday = weatherCondToday.substring(0, weatherCondToday.length() - 1)
+    }
+    def weatherCondTomorrow = (weatherDevice.currentValue("weatherTomorrow") ?: "Unknown").toString()
+    if (weatherCondTomorrow.endsWith(".")) {
+        weatherCondTomorrow = weatherCondTomorrow.substring(0, weatherCondTomorrow.length() - 1)
+    }
+
+    def humidityMin = roundToNearest(weatherDevice.currentValue("humidityMin"))
+    def humidityMax = roundToNearest(weatherDevice.currentValue("humidityMax"))
+    def aqiMin = roundToNearest(weatherDevice.currentValue("airQualityIndexMin"))
+
+    def tomorrowHumidityMin = roundToNearest(weatherDevice.currentValue("humidityMinTomorrow"))
+    def tomorrowHumidityMax = roundToNearest(weatherDevice.currentValue("humidityMaxTomorrow"))
+    def tomorrowAqiMin = roundToNearest(weatherDevice.currentValue("airQualityIndexMinTomorrow"))
+
+    def locName = settings.locationName ?: ""
 
     // 4. Construct Payload
     Map payload = [
         merge_variables: [
+            location_name: locName,
             temperatureHi: tempHi,
+            temperatureMin: tempLow,
             probablityofPrecipitation: maxPrecipProb, // calculated for active beach hours
             windspeedHi: windHi,
             detailedForecast: detailed,
@@ -161,6 +186,7 @@ def updateTrmnl() {
             sunrise_formatted: sunriseFormatted,
             sunset_formatted: sunsetFormatted,
             tomorrowTemperature: tomorrowTemp,
+            tomorrowTemperatureMin: tomorrowTempLow,
             tomorrowProbabilityOfPrecipitation: tomorrowPrecip,
             tomorrowWindSpeedHi: tomorrowWind,
             tomorrowDetailedForecast: tomorrowDetailed,
@@ -168,7 +194,15 @@ def updateTrmnl() {
             uvIndex: uv,
             aqi: aqi,
             tomorrowUvIndex: uvTomorrow,
-            tomorrowAqi: aqiTomorrow
+            tomorrowAqi: aqiTomorrow,
+            weatherCondToday: weatherCondToday,
+            humidityMin: humidityMin,
+            humidityMax: humidityMax,
+            aqiMin: aqiMin,
+            weatherCondTomorrow: weatherCondTomorrow,
+            tomorrowHumidityMin: tomorrowHumidityMin,
+            tomorrowHumidityMax: tomorrowHumidityMax,
+            tomorrowAqiMin: tomorrowAqiMin
         ]
     ]
 

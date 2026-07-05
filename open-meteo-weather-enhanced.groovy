@@ -105,6 +105,14 @@ metadata {
 		attribute "airQualityIndex", "number"       // US AQI
 		attribute "airQualityIndexTomorrow", "number" // tomorrow's US AQI daily max
 		attribute "ultravioletIndexTomorrow", "number" // tomorrow's UV index daily max
+		attribute "detailedForecastToday", "string"
+		attribute "detailedForecastTomorrow", "string"
+		attribute "humidityMin", "number"
+		attribute "humidityMax", "number"
+		attribute "humidityMinTomorrow", "number"
+		attribute "humidityMaxTomorrow", "number"
+		attribute "airQualityIndexMin", "number"
+		attribute "airQualityIndexMinTomorrow", "number"
 
 		// Precipitation helpers (for Climate Advisor)
 		attribute "precipitationNextHour", "number"            // sum over next 60 min
@@ -205,7 +213,7 @@ def refresh() {
 		precipitation_unit: u.precipitation_unit,
 		current           : "temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,rain,showers,snowfall,weather_code,cloud_cover,pressure_msl,wind_speed_10m,wind_direction_10m,wind_gusts_10m",
 		hourly            : "temperature_2m,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,uv_index",
-		daily             : "sunrise,sunset,uv_index_max,temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max",
+		daily             : "sunrise,sunset,uv_index_max,temperature_2m_max,temperature_2m_min,weather_code,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max",
 		forecast_days     : 2
 	]
 
@@ -277,6 +285,8 @@ void httpResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 	parseCurrent(json, tUnit, wUnit, pUnit)
 	parseHourly(json, tUnit, pUnit)
 	parseDaily(json, tUnit)
+
+	generateForecastStrings()
 
 	String stamp = new Date().format("yyyy-MM-dd'T'HH:mm:ssXXX")
 	sendEvent(name: "lastUpdated", value: stamp, descriptionText: "${device.displayName} last updated")
@@ -375,6 +385,33 @@ private void parseHourly(Map json, String tUnit, String pUnit) {
 	emitIfChanged("precipitationProbabilityNextHour", probNext1hMax, "${device.displayName} precipitation probability next hour ${probNext1hMax}%", "%")
 	emitIfChanged("precipitationProbabilityNext6h",   probNext6hMax, "${device.displayName} precipitation probability next 6h ${probNext6hMax}%", "%")
 
+	if (winds.size() >= 24) {
+		state.todayWindMin = roundN(winds.subList(0, 24).findAll { it != null }.min() as BigDecimal, 1)
+		state.todayWindMax = roundN(winds.subList(0, 24).findAll { it != null }.max() as BigDecimal, 1)
+	}
+	if (winds.size() >= 48) {
+		state.tomorrowWindMin = roundN(winds.subList(24, 48).findAll { it != null }.min() as BigDecimal, 1)
+		state.tomorrowWindMax = roundN(winds.subList(24, 48).findAll { it != null }.max() as BigDecimal, 1)
+	}
+
+	if (hums.size() >= 24) {
+		state.todayHumMin = toInt(hums.subList(0, 24).findAll { it != null }.min())
+		state.todayHumMax = toInt(hums.subList(0, 24).findAll { it != null }.max())
+	}
+	if (hums.size() >= 48) {
+		state.tomorrowHumMin = toInt(hums.subList(24, 48).findAll { it != null }.min())
+		state.tomorrowHumMax = toInt(hums.subList(24, 48).findAll { it != null }.max())
+	}
+
+	if (uvs.size() >= 24) {
+		state.todayUvMin = roundN(uvs.subList(0, 24).findAll { it != null }.min() as BigDecimal, 1)
+		state.todayUvMax = roundN(uvs.subList(0, 24).findAll { it != null }.max() as BigDecimal, 1)
+	}
+	if (uvs.size() >= 48) {
+		state.tomorrowUvMin = roundN(uvs.subList(24, 48).findAll { it != null }.min() as BigDecimal, 1)
+		state.tomorrowUvMax = roundN(uvs.subList(24, 48).findAll { it != null }.max() as BigDecimal, 1)
+	}
+
 
 }
 
@@ -421,6 +458,7 @@ private void parseDaily(Map json, String tUnit) {
 	}
 
 	List windMaxes = (daily.wind_speed_10m_max instanceof List) ? (List) daily.wind_speed_10m_max : []
+	List windGustMaxes = (daily.wind_gusts_10m_max instanceof List) ? (List) daily.wind_gusts_10m_max : []
 	Map u = resolvedUnits()
 	String wUnit = u.wind_speed_unit == "mph" ? "mph" : "km/h"
 	if (windMaxes) {
@@ -430,6 +468,15 @@ private void parseDaily(Map json, String tUnit) {
 	if (windMaxes.size() > 1) {
 		BigDecimal wMaxT = roundN(windMaxes[1], 1)
 		if (wMaxT != null) emitIfChanged("windSpeedMaxTomorrow", wMaxT, "${device.displayName} tomorrow's max wind speed is ${wMaxT}${wUnit}", wUnit)
+	}
+
+	if (windGustMaxes) {
+		BigDecimal gMax = roundN(windGustMaxes[0], 1)
+		state.todayWindGustMax = gMax
+	}
+	if (windGustMaxes.size() > 1) {
+		BigDecimal gMaxT = roundN(windGustMaxes[1], 1)
+		state.tomorrowWindGustMax = gMaxT
 	}
 
 	if (uvMaxes) {
@@ -493,9 +540,11 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 			}
 		}
 		Integer maxAqiToday = todayDaylightAqis.findAll { it != null }.max() as Integer
+		Integer minAqiToday = todayDaylightAqis.findAll { it != null }.min() as Integer
 
 		// Tomorrow's max (indices 24..47, filtered by daylight hours)
 		Integer maxAqiTomorrow = null
+		Integer minAqiTomorrow = null
 		if (aqis.size() >= 48) {
 			List tomorrowDaylightAqis = []
 			for (int i = 24; i < 48; i++) {
@@ -506,13 +555,18 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 				}
 			}
 			maxAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.max() as Integer
+			minAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.min() as Integer
 		}
 
 		if (maxAqiToday != null) {
 			emitIfChanged("airQualityIndex", maxAqiToday, "${device.displayName} AQI (daily max) is ${maxAqiToday}")
+			state.todayAqiMin = minAqiToday
+			state.todayAqiMax = maxAqiToday
 		}
 		if (maxAqiTomorrow != null) {
 			emitIfChanged("airQualityIndexTomorrow", maxAqiTomorrow, "${device.displayName} AQI tomorrow (daily max) is ${maxAqiTomorrow}")
+			state.tomorrowAqiMin = minAqiTomorrow
+			state.tomorrowAqiMax = maxAqiTomorrow
 		}
 	} else {
 		// Fallback to current if hourly is not present
@@ -520,8 +574,11 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 		if (cur && cur.us_aqi != null) {
 			Integer aqi = toInt(cur.us_aqi)
 			emitIfChanged("airQualityIndex", aqi, "${device.displayName} AQI is ${aqi}")
+			state.todayAqiMin = aqi
+			state.todayAqiMax = aqi
 		}
 	}
+	generateForecastStrings()
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -601,4 +658,56 @@ private Map safeResponseJson(hubitat.scheduling.AsyncResponse resp) {
 void logsOff() {
 	log.info "Open-Meteo: debug logging disabled"
 	device.updateSetting("logEnable", [value: false, type: "bool"])
+}
+
+private void generateForecastStrings() {
+	// TODAY
+	String condToday = device.currentValue("weather") ?: "Unknown"
+	if (condToday.endsWith(".")) {
+		condToday = condToday.substring(0, condToday.length() - 1)
+	}
+	def tMinToday = device.currentValue("temperatureMin")
+	def tMaxToday = device.currentValue("temperatureMax")
+	def uvMaxToday = device.currentValue("ultravioletIndex")
+	
+	if (tMinToday != null && tMaxToday != null && state.todayHumMin != null && state.todayHumMax != null && state.todayAqiMin != null && state.todayAqiMax != null && uvMaxToday != null) {
+		def tMinR = Math.round(tMinToday.doubleValue())
+		def tMaxR = Math.round(tMaxToday.doubleValue())
+		def hMinR = state.todayHumMin
+		def hMaxR = state.todayHumMax
+		def aqiMinR = state.todayAqiMin
+		def aqiMaxR = state.todayAqiMax
+		def uvMaxR = Math.round(uvMaxToday.doubleValue())
+
+		String forecastToday = "${condToday} day, temps ${tMinR} to ${tMaxR}°F, humidity ${hMinR} to ${hMaxR}%, and air quality ${aqiMinR} to ${aqiMaxR}. UV max at ${uvMaxR}."
+		emitIfChanged("detailedForecastToday", forecastToday, "${device.displayName} detailed forecast today updated")
+		emitIfChanged("humidityMin", hMinR, "${device.displayName} today's humidity min is ${hMinR}%", "%")
+		emitIfChanged("humidityMax", hMaxR, "${device.displayName} today's humidity max is ${hMaxR}%", "%")
+		emitIfChanged("airQualityIndexMin", aqiMinR, "${device.displayName} today's AQI min is ${aqiMinR}")
+	}
+
+	// TOMORROW
+	String condTomorrow = device.currentValue("weatherTomorrow") ?: "Unknown"
+	if (condTomorrow.endsWith(".")) {
+		condTomorrow = condTomorrow.substring(0, condTomorrow.length() - 1)
+	}
+	def tMinTomorrow = device.currentValue("temperatureMinTomorrow")
+	def tMaxTomorrow = device.currentValue("temperatureMaxTomorrow")
+	def uvMaxTomorrow = device.currentValue("ultravioletIndexTomorrow")
+
+	if (tMinTomorrow != null && tMaxTomorrow != null && state.tomorrowHumMin != null && state.tomorrowHumMax != null && state.tomorrowAqiMin != null && state.tomorrowAqiMax != null && uvMaxTomorrow != null) {
+		def tMinR = Math.round(tMinTomorrow.doubleValue())
+		def tMaxR = Math.round(tMaxTomorrow.doubleValue())
+		def hMinR = state.tomorrowHumMin
+		def hMaxR = state.tomorrowHumMax
+		def aqiMinR = state.tomorrowAqiMin
+		def aqiMaxR = state.tomorrowAqiMax
+		def uvMaxR = Math.round(uvMaxTomorrow.doubleValue())
+
+		String forecastTomorrow = "${condTomorrow} day, temps ${tMinR} to ${tMaxR}°F, humidity ${hMinR} to ${hMaxR}%, and air quality ${aqiMinR} to ${aqiMaxR}. UV max at ${uvMaxR}."
+		emitIfChanged("detailedForecastTomorrow", forecastTomorrow, "${device.displayName} detailed forecast tomorrow updated")
+		emitIfChanged("humidityMinTomorrow", hMinR, "${device.displayName} tomorrow's humidity min is ${hMinR}%", "%")
+		emitIfChanged("humidityMaxTomorrow", hMaxR, "${device.displayName} tomorrow's humidity max is ${hMaxR}%", "%")
+		emitIfChanged("airQualityIndexMinTomorrow", aqiMinR, "${device.displayName} tomorrow's AQI min is ${aqiMinR}")
+	}
 }
