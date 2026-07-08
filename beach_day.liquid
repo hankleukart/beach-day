@@ -33,7 +33,7 @@
     text-transform: uppercase;
     letter-spacing: 0.2cqw;
     opacity: 0.8;
-    margin-bottom: 0cqh;
+    margin-bottom: 3cqh;
   }
 
   .hero-icon {
@@ -173,8 +173,9 @@
 {% assign temp_max = temperatureHi | default: temperature_hi | default: temperature | plus: 0 %}
 {% assign humidity_min = humidityMin | default: humidity_min | plus: 0 %}
 {% assign humidity_max = humidityMax | default: humidity_max | plus: 0 %}
-{% assign aqi_min = aqiMin | default: aqi_min | plus: 0 %}
-{% assign aqi_max = aqi | default: airQualityIndex | default: air_quality_index | plus: 0 %}
+{% assign aqi = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
+{% assign aqi_min = airQualityDaylightHrsMin | default: aqiMin | default: aqi_min | plus: 0 %}
+{% assign aqi_max = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
 {% assign weather_cond = weatherCondToday | default: weather_cond_today | default: weather | remove: "." %}
 {% assign uv_index = uvIndex | default: uv_index | default: ultravioletIndex | plus: 0 %}
 {% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
@@ -324,13 +325,13 @@
   {% assign wind = tomorrowWindSpeedHi | default: tomorrow_wind_speed_hi | default: tomorrow_wind_speed | plus: 0 %}
   {% assign forecast_val = tomorrowDetailedForecast | default: tomorrow_detailed_forecast %}
   {% assign uvIndex = tomorrowUvIndex | default: tomorrow_uv_index | default: uvIndex %}
-  {% assign aqi = tomorrowAqi | default: tomorrow_aqi | default: aqi %}
+  {% assign aqi = airQualityDaylightHrsMaxTomorrow | default: tomorrowAqi | default: tomorrow_aqi | default: aqi %}
   {% assign temp_min = tomorrowTemperatureMin | default: tomorrow_temperature_min | plus: 0 %}
   {% assign temp_max = tomorrowTemperature | default: tomorrow_temperature | plus: 0 %}
   {% assign humidity_min = tomorrowHumidityMin | default: tomorrow_humidity_min | plus: 0 %}
   {% assign humidity_max = tomorrowHumidityMax | default: tomorrow_humidity_max | plus: 0 %}
-  {% assign aqi_min = tomorrowAqiMin | default: tomorrow_aqi_min | plus: 0 %}
-  {% assign aqi_max = tomorrowAqi | default: tomorrow_aqi | plus: 0 %}
+  {% assign aqi_min = airQualityDaylightHrsMinTomorrow | default: tomorrowAqiMin | default: tomorrow_aqi_min | plus: 0 %}
+  {% assign aqi_max = airQualityDaylightHrsMaxTomorrow | default: tomorrowAqi | default: tomorrow_aqi | plus: 0 %}
   {% assign weather_cond = weatherCondTomorrow | default: weather_cond_tomorrow | default: weatherTomorrow | remove: "." %}
   {% assign uv_index = tomorrowUvIndex | default: tomorrow_uv_index | plus: 0 %}
 
@@ -615,12 +616,12 @@
           <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">{{ local_time_epoch | date: "%A" }}</span>
         {% endif %}
       </div>
-      <div style="display: flex; flex-direction: row; justify-content: space-between; width: 100%; font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.85; margin-top: 1cqh; line-height: 1.35; text-align: left;">
-        <div style="flex: 1; min-width: 0; padding-right: 3cqw;">
+      <div style="display: flex; flex-direction: row; justify-content: space-between; width: 100%; font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.85; margin-top: 1cqh; line-height: 1.35; text-align: left; white-space: nowrap;">
+        <div>
           <div><strong>{% if is_night_time %}Tomorrow{% else %}Today{% endif %}:</strong> {{ weather_cond }}</div>
           <div><strong>Temps:</strong> {{ temp_min }} to {{ temp_max }}°F</div>
         </div>
-        <div style="flex: 1; min-width: 0; padding-left: 3cqw;">
+        <div>
           <div><strong>Humidity:</strong> {{ humidity_min }} to {{ humidity_max }}%</div>
           <div><strong>Air quality:</strong> {{ aqi_min }} to {{ aqi_max }}</div>
         </div>

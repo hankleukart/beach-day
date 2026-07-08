@@ -102,8 +102,8 @@ metadata {
 		attribute "weatherTomorrow", "string"               // tomorrow's WMO description
 		attribute "precipitationProbabilityTomorrow", "number" // tomorrow's daily max %
 		attribute "windSpeedMax", "number"          // today's max wind speed
-		attribute "airQualityIndex", "number"       // US AQI
-		attribute "airQualityIndexTomorrow", "number" // tomorrow's US AQI daily max
+		attribute "airQualityDaylightHrsMax", "number"       // US AQI (daylight max)
+		attribute "airQualityDaylightHrsMaxTomorrow", "number" // tomorrow's US AQI daily max (daylight)
 		attribute "ultravioletIndexTomorrow", "number" // tomorrow's UV index daily max
 		attribute "detailedForecastToday", "string"
 		attribute "detailedForecastTomorrow", "string"
@@ -111,8 +111,12 @@ metadata {
 		attribute "humidityMax", "number"
 		attribute "humidityMinTomorrow", "number"
 		attribute "humidityMaxTomorrow", "number"
-		attribute "airQualityIndexMin", "number"
-		attribute "airQualityIndexMinTomorrow", "number"
+		attribute "airQualityDaylightHrsMin", "number"
+		attribute "airQualityDaylightHrsMinTomorrow", "number"
+		attribute "airQuality24hMin", "number"
+		attribute "airQuality24hMax", "number"
+		attribute "airQuality24hMinTomorrow", "number"
+		attribute "airQuality24hMaxTomorrow", "number"
 
 		// Precipitation helpers (for Climate Advisor)
 		attribute "precipitationNextHour", "number"            // sum over next 60 min
@@ -542,6 +546,11 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 		Integer maxAqiToday = todayDaylightAqis.findAll { it != null }.max() as Integer
 		Integer minAqiToday = todayDaylightAqis.findAll { it != null }.min() as Integer
 
+		// Today's 24h min/max
+		List today24hAqis = aqis.subList(0, Math.min(aqis.size(), 24))
+		Integer maxAqiToday24h = today24hAqis.findAll { it != null }.max() as Integer
+		Integer minAqiToday24h = today24hAqis.findAll { it != null }.min() as Integer
+
 		// Tomorrow's max (indices 24..47, filtered by daylight hours)
 		Integer maxAqiTomorrow = null
 		Integer minAqiTomorrow = null
@@ -558,24 +567,50 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 			minAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.min() as Integer
 		}
 
+		// Tomorrow's 24h min/max
+		Integer maxAqiTomorrow24h = null
+		Integer minAqiTomorrow24h = null
+		if (aqis.size() >= 48) {
+			List tomorrow24hAqis = aqis.subList(24, 48)
+			maxAqiTomorrow24h = tomorrow24hAqis.findAll { it != null }.max() as Integer
+			minAqiTomorrow24h = tomorrow24hAqis.findAll { it != null }.min() as Integer
+		}
+
 		if (maxAqiToday != null) {
-			emitIfChanged("airQualityIndex", maxAqiToday, "${device.displayName} AQI (daily max) is ${maxAqiToday}")
+			emitIfChanged("airQualityDaylightHrsMax", maxAqiToday, "${device.displayName} AQI (daily max) is ${maxAqiToday}")
 			state.todayAqiMin = minAqiToday
 			state.todayAqiMax = maxAqiToday
 		}
+		if (maxAqiToday24h != null) {
+			emitIfChanged("airQuality24hMax", maxAqiToday24h, "${device.displayName} 24h AQI max is ${maxAqiToday24h}")
+			emitIfChanged("airQuality24hMin", minAqiToday24h, "${device.displayName} 24h AQI min is ${minAqiToday24h}")
+			state.todayAqi24hMin = minAqiToday24h
+			state.todayAqi24hMax = maxAqiToday24h
+		}
 		if (maxAqiTomorrow != null) {
-			emitIfChanged("airQualityIndexTomorrow", maxAqiTomorrow, "${device.displayName} AQI tomorrow (daily max) is ${maxAqiTomorrow}")
+			emitIfChanged("airQualityDaylightHrsMaxTomorrow", maxAqiTomorrow, "${device.displayName} AQI tomorrow (daily max) is ${maxAqiTomorrow}")
 			state.tomorrowAqiMin = minAqiTomorrow
 			state.tomorrowAqiMax = maxAqiTomorrow
+		}
+		if (maxAqiTomorrow24h != null) {
+			emitIfChanged("airQuality24hMaxTomorrow", maxAqiTomorrow24h, "${device.displayName} 24h AQI tomorrow max is ${maxAqiTomorrow24h}")
+			emitIfChanged("airQuality24hMinTomorrow", minAqiTomorrow24h, "${device.displayName} 24h AQI tomorrow min is ${minAqiTomorrow24h}")
+			state.tomorrowAqi24hMin = minAqiTomorrow24h
+			state.tomorrowAqi24hMax = maxAqiTomorrow24h
 		}
 	} else {
 		// Fallback to current if hourly is not present
 		Map cur = (json.current instanceof Map) ? (Map) json.current : null
 		if (cur && cur.us_aqi != null) {
 			Integer aqi = toInt(cur.us_aqi)
-			emitIfChanged("airQualityIndex", aqi, "${device.displayName} AQI is ${aqi}")
+			emitIfChanged("airQualityDaylightHrsMax", aqi, "${device.displayName} AQI is ${aqi}")
 			state.todayAqiMin = aqi
 			state.todayAqiMax = aqi
+
+			emitIfChanged("airQuality24hMax", aqi, "${device.displayName} 24h AQI max is ${aqi}")
+			emitIfChanged("airQuality24hMin", aqi, "${device.displayName} 24h AQI min is ${aqi}")
+			state.todayAqi24hMin = aqi
+			state.todayAqi24hMax = aqi
 		}
 	}
 	generateForecastStrings()
@@ -683,7 +718,7 @@ private void generateForecastStrings() {
 		emitIfChanged("detailedForecastToday", forecastToday, "${device.displayName} detailed forecast today updated")
 		emitIfChanged("humidityMin", hMinR, "${device.displayName} today's humidity min is ${hMinR}%", "%")
 		emitIfChanged("humidityMax", hMaxR, "${device.displayName} today's humidity max is ${hMaxR}%", "%")
-		emitIfChanged("airQualityIndexMin", aqiMinR, "${device.displayName} today's AQI min is ${aqiMinR}")
+		emitIfChanged("airQualityDaylightHrsMin", aqiMinR, "${device.displayName} today's AQI min is ${aqiMinR}")
 	}
 
 	// TOMORROW
@@ -708,6 +743,6 @@ private void generateForecastStrings() {
 		emitIfChanged("detailedForecastTomorrow", forecastTomorrow, "${device.displayName} detailed forecast tomorrow updated")
 		emitIfChanged("humidityMinTomorrow", hMinR, "${device.displayName} tomorrow's humidity min is ${hMinR}%", "%")
 		emitIfChanged("humidityMaxTomorrow", hMaxR, "${device.displayName} tomorrow's humidity max is ${hMaxR}%", "%")
-		emitIfChanged("airQualityIndexMinTomorrow", aqiMinR, "${device.displayName} tomorrow's AQI min is ${aqiMinR}")
+		emitIfChanged("airQualityDaylightHrsMinTomorrow", aqiMinR, "${device.displayName} tomorrow's AQI min is ${aqiMinR}")
 	}
 }

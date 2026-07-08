@@ -142,9 +142,9 @@ def updateTrmnl() {
     def windHi = roundToNearest(weatherDevice.currentValue("windSpeedMax"))
     def detailed = weatherDevice.currentValue("detailedForecastToday") ?: weatherDevice.currentValue("weather")
     def uv = roundToNearest(weatherDevice.currentValue("ultravioletIndex")) ?: 0
-    def aqi = roundToNearest(weatherDevice.currentValue("airQualityIndex")) ?: 0
+    def aqi = roundToNearest(weatherDevice.currentValue("airQualityDaylightHrsMax")) ?: 0
     def uvTomorrow = roundToNearest(weatherDevice.currentValue("ultravioletIndexTomorrow")) ?: 0
-    def aqiTomorrow = roundToNearest(weatherDevice.currentValue("airQualityIndexTomorrow")) ?: 0
+    def aqiTomorrow = roundToNearest(weatherDevice.currentValue("airQualityDaylightHrsMaxTomorrow")) ?: 0
 
     def tomorrowTemp = roundToNearest(weatherDevice.currentValue("temperatureMaxTomorrow"))
     def tomorrowTempLow = roundToNearest(weatherDevice.currentValue("temperatureMinTomorrow"))
@@ -164,11 +164,11 @@ def updateTrmnl() {
 
     def humidityMin = roundToNearest(weatherDevice.currentValue("humidityMin"))
     def humidityMax = roundToNearest(weatherDevice.currentValue("humidityMax"))
-    def aqiMin = roundToNearest(weatherDevice.currentValue("airQualityIndexMin"))
+    def aqiMin = roundToNearest(weatherDevice.currentValue("airQualityDaylightHrsMin"))
 
     def tomorrowHumidityMin = roundToNearest(weatherDevice.currentValue("humidityMinTomorrow"))
     def tomorrowHumidityMax = roundToNearest(weatherDevice.currentValue("humidityMaxTomorrow"))
-    def tomorrowAqiMin = roundToNearest(weatherDevice.currentValue("airQualityIndexMinTomorrow"))
+    def tomorrowAqiMin = roundToNearest(weatherDevice.currentValue("airQualityDaylightHrsMinTomorrow"))
 
     def locName = settings.locationName ?: ""
 
@@ -192,17 +192,17 @@ def updateTrmnl() {
             tomorrowDetailedForecast: tomorrowDetailed,
             hourly: state.hourlyPeriods,
             uvIndex: uv,
-            aqi: aqi,
+            airQualityDaylightHrsMax: aqi,
             tomorrowUvIndex: uvTomorrow,
-            tomorrowAqi: aqiTomorrow,
+            airQualityDaylightHrsMaxTomorrow: aqiTomorrow,
             weatherCondToday: weatherCondToday,
             humidityMin: humidityMin,
             humidityMax: humidityMax,
-            aqiMin: aqiMin,
+            airQualityDaylightHrsMin: aqiMin,
             weatherCondTomorrow: weatherCondTomorrow,
             tomorrowHumidityMin: tomorrowHumidityMin,
             tomorrowHumidityMax: tomorrowHumidityMax,
-            tomorrowAqiMin: tomorrowAqiMin
+            airQualityDaylightHrsMinTomorrow: tomorrowAqiMin
         ]
     ]
 
