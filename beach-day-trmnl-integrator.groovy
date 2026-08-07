@@ -91,7 +91,8 @@ def updateTrmnl() {
         String timeStr = it.time as String
         [
             t: (timeStr && timeStr.length() >= 13) ? timeStr.substring(0, 13) : "",
-            f: it.condition ?: "Unknown"
+            f: it.condition ?: "Unknown",
+            c: (it.code != null) ? it.code.toInteger() : 0
         ]
     }
 
@@ -140,7 +141,7 @@ def updateTrmnl() {
     def tempHi = roundToNearest(weatherDevice.currentValue("temperatureMax"))
     def tempLow = roundToNearest(weatherDevice.currentValue("temperatureMin"))
     def windHi = roundToNearest(weatherDevice.currentValue("windSpeedMax"))
-    def detailed = weatherDevice.currentValue("detailedForecastToday") ?: weatherDevice.currentValue("weather")
+    def detailed = weatherDevice.currentValue("detailedForecastToday") ?: weatherDevice.currentValue("weatherNow")
     def uv = roundToNearest(weatherDevice.currentValue("ultravioletIndex")) ?: 0
     def aqi = roundToNearest(weatherDevice.currentValue("airQualityDaylightHrsMax")) ?: 0
     def uvTomorrow = roundToNearest(weatherDevice.currentValue("ultravioletIndexTomorrow")) ?: 0
@@ -153,7 +154,7 @@ def updateTrmnl() {
     def tomorrowDetailed = weatherDevice.currentValue("detailedForecastTomorrow") ?: weatherDevice.currentValue("weatherTomorrow")
 
     // Clean weather condition strings (remove trailing periods if any)
-    def weatherCondToday = (weatherDevice.currentValue("weather") ?: "Unknown").toString()
+    def weatherCondToday = (weatherDevice.currentValue("weatherToday") ?: weatherDevice.currentValue("weatherNow") ?: "Unknown").toString()
     if (weatherCondToday.endsWith(".")) {
         weatherCondToday = weatherCondToday.substring(0, weatherCondToday.length() - 1)
     }
@@ -196,10 +197,12 @@ def updateTrmnl() {
             tomorrowUvIndex: uvTomorrow,
             airQualityDaylightHrsMaxTomorrow: aqiTomorrow,
             weatherCondToday: weatherCondToday,
+            weatherCodeToday: weatherDevice.currentValue("weatherCodeToday") ?: weatherDevice.currentValue("weatherCodeNow") ?: 0,
             humidityMin: humidityMin,
             humidityMax: humidityMax,
             airQualityDaylightHrsMin: aqiMin,
             weatherCondTomorrow: weatherCondTomorrow,
+            weatherCodeTomorrow: weatherDevice.currentValue("weatherCodeTomorrow") ?: 0,
             tomorrowHumidityMin: tomorrowHumidityMin,
             tomorrowHumidityMax: tomorrowHumidityMax,
             airQualityDaylightHrsMinTomorrow: tomorrowAqiMin

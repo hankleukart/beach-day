@@ -11,6 +11,7 @@
     text-align: center;
     box-sizing: border-box;
     height: 100%;
+    min-width: 0;
   }
 
   .hero-panel--yes {
@@ -69,6 +70,7 @@
     border: 0.8cqh solid #000000;
     border-radius: 1.5cqh;
     height: 100%;
+    min-width: 0;
   }
 
   .details-header {
@@ -82,6 +84,23 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
+    min-width: 0;
+  }
+
+  .details-header-title {
+    font-size: 4.5cqh;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.2cqw;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .details-header-title--night {
+    font-size: 3.3cqh;
+    letter-spacing: 0.08cqw;
   }
 
   .conditions-table {
@@ -159,7 +178,6 @@
 
   .status-icon--fail {
     color: #888888;
-    stroke-dasharray: 4;
   }
 </style>
 
@@ -176,7 +194,9 @@
 {% assign aqi = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
 {% assign aqi_min = airQualityDaylightHrsMin | default: aqiMin | default: aqi_min | plus: 0 %}
 {% assign aqi_max = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
-{% assign weather_cond = weatherCondToday | default: weather_cond_today | default: weather | remove: "." %}
+{% assign weather_cond = weatherCondToday | default: weather_cond_today | default: weatherNow | default: weather | remove: "." %}
+{% assign weather_code_today = weatherCodeToday | default: weather_code_today | default: 99 | plus: 0 %}
+{% assign weather_code_tomorrow = weatherCodeTomorrow | default: weather_code_tomorrow | default: 99 | plus: 0 %}
 {% assign uv_index = uvIndex | default: uv_index | default: ultravioletIndex | plus: 0 %}
 {% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
 
@@ -223,8 +243,10 @@
 
 {% if is_night_time %}
   {% assign target_date = tomorrow_date %}
+  {% assign active_weather_code = weather_code_tomorrow %}
 {% else %}
   {% assign target_date = today_date %}
+  {% assign active_weather_code = weather_code_today %}
 {% endif %}
 
 {% for period in hourly %}
@@ -233,9 +255,9 @@
     {% assign hour = parts[1] | plus: 0 %}
 
     {% if hour >= 9 and hour <= 18 %}
-      {% assign fc_lower = period.f | downcase %}
+      {% assign fc_code = period.c | default: 99 | plus: 0 %}
       {% assign is_sunny = false %}
-      {% if fc_lower contains "clear" or fc_lower contains "sunny" %}
+      {% if fc_code <= 2 %}
         {% assign is_sunny = true %}
       {% endif %}
 
@@ -304,8 +326,7 @@
 
 {% comment %} Forecast check {% endcomment %}
 {% assign cond_forecast = false %}
-{% assign forecast_lower = forecast_val | downcase %}
-{% if forecast_lower contains "sunny" or forecast_lower contains "clear" or is_sunny_later == "true" %}
+{% if active_weather_code <= 2 or is_sunny_later == "true" %}
   {% assign cond_forecast = true %}
 {% endif %}
 
@@ -608,12 +629,12 @@
 
   <div class="details-panel">
     <div class="details-header" style="display: flex; flex-direction: column; align-items: flex-start;">
-      <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%; min-width: 0;">
         {% if is_night_time %}
           {% assign tomorrow_epoch = local_time_epoch | plus: 86400 %}
-          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
+          <span class="details-header-title details-header-title--night">Tomorrow ({{ tomorrow_epoch | date: "%A" }})</span>
         {% else %}
-          <span style="font-size: 4.5cqh; font-weight: 800; text-transform: uppercase; letter-spacing: 0.2cqw; white-space: nowrap;">{{ local_time_epoch | date: "%A" }}</span>
+          <span class="details-header-title">{{ local_time_epoch | date: "%A" }}</span>
         {% endif %}
       </div>
       <div style="display: flex; flex-direction: row; justify-content: space-between; width: 100%; font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.85; margin-top: 1cqh; line-height: 1.35; text-align: left; white-space: nowrap;">
@@ -651,8 +672,10 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {% else %}
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+              <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
             </svg>
           {% endif %}
         </div>
@@ -672,9 +695,11 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {% else %}
-            <!-- Fail Cross SVG -->
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <!-- Fail Beach Umbrella with Slash SVG -->
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+              <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
             </svg>
           {% endif %}
         </div>
@@ -693,8 +718,10 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {% else %}
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+              <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
             </svg>
           {% endif %}
         </div>
@@ -713,8 +740,10 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {% else %}
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+              <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
             </svg>
           {% endif %}
         </div>
@@ -733,8 +762,10 @@
               <polyline points="20 6 9 17 4 12" />
             </svg>
           {% else %}
-            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+              <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+              <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
             </svg>
           {% endif %}
         </div>

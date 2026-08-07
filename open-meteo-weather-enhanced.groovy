@@ -84,8 +84,8 @@ metadata {
 		capability "UltravioletIndex"
 
 		// Current conditions
-		attribute "weather", "string"               // Human-readable WMO description (Climate Advisor reads this)
-		attribute "weatherCode", "number"           // Raw WMO code
+		attribute "weatherNow", "string"            // Human-readable WMO description (now)
+		attribute "weatherCodeNow", "number"        // Raw WMO code (now)
 		attribute "apparentTemperature", "number"   // "Feels like"
 		attribute "cloudCover", "number"            // %
 		attribute "windSpeed", "number"
@@ -97,8 +97,9 @@ metadata {
 		attribute "sunset", "string"                // ISO local time
 		attribute "temperatureMax", "number"        // today's forecast high
 		attribute "temperatureMin", "number"        // today's forecast low
-		attribute "temperatureMaxTomorrow", "number"        // tomorrow's forecast high
-		attribute "temperatureMinTomorrow", "number"        // tomorrow's forecast low
+		attribute "weatherCodeToday", "number"              // today's WMO forecast code
+		attribute "weatherCodeTomorrow", "number"           // tomorrow's WMO forecast code
+		attribute "weatherToday", "string"                  // today's WMO forecast description
 		attribute "weatherTomorrow", "string"               // tomorrow's WMO description
 		attribute "precipitationProbabilityTomorrow", "number" // tomorrow's daily max %
 		attribute "windSpeedMax", "number"          // today's max wind speed
@@ -309,8 +310,8 @@ private void parseCurrent(Map json, String tUnit, String wUnit, String pUnit) {
 	Integer code = toInt(cur.weather_code)
 	String condition = wmoDescription(code)
 
-	emitIfChanged("weather",             condition,                                "${device.displayName} weather is ${condition}")
-	emitIfChanged("weatherCode",         code,                                     "${device.displayName} WMO code is ${code}")
+	emitIfChanged("weatherNow",          condition,                                "${device.displayName} weather is ${condition}")
+	emitIfChanged("weatherCodeNow",      code,                                     "${device.displayName} WMO code is ${code}")
 	emitIfChanged("temperature",         roundN(cur.temperature_2m, 1),            "${device.displayName} temperature is ${cur.temperature_2m}${tUnit}", tUnit)
 	emitIfChanged("apparentTemperature", roundN(cur.apparent_temperature, 1),      "${device.displayName} apparent temperature is ${cur.apparent_temperature}${tUnit}", tUnit)
 	emitIfChanged("humidity",            toInt(cur.relative_humidity_2m),          "${device.displayName} humidity is ${cur.relative_humidity_2m}%", "%")
@@ -451,9 +452,16 @@ private void parseDaily(Map json, String tUnit) {
 		BigDecimal tMinT = roundN(tMins[1], 1)
 		if (tMinT != null) emitIfChanged("temperatureMinTomorrow", tMinT, "${device.displayName} tomorrow's low is ${tMinT}${tUnit}", tUnit)
 	}
+	if (codes) {
+		Integer codeToday = toInt(codes[0])
+		String condToday = wmoDescription(codeToday)
+		if (codeToday != null) emitIfChanged("weatherCodeToday", codeToday, "${device.displayName} today's weather code is ${codeToday}")
+		if (condToday) emitIfChanged("weatherToday", condToday, "${device.displayName} today's weather is ${condToday}")
+	}
 	if (codes.size() > 1) {
 		Integer codeT = toInt(codes[1])
 		String condT = wmoDescription(codeT)
+		if (codeT != null) emitIfChanged("weatherCodeTomorrow", codeT, "${device.displayName} tomorrow's weather code is ${codeT}")
 		if (condT) emitIfChanged("weatherTomorrow", condT, "${device.displayName} tomorrow's weather is ${condT}")
 	}
 	if (rainPMax.size() > 1) {
@@ -697,7 +705,7 @@ void logsOff() {
 
 private void generateForecastStrings() {
 	// TODAY
-	String condToday = device.currentValue("weather") ?: "Unknown"
+	String condToday = device.currentValue("weatherToday") ?: device.currentValue("weatherNow") ?: "Unknown"
 	if (condToday.endsWith(".")) {
 		condToday = condToday.substring(0, condToday.length() - 1)
 	}

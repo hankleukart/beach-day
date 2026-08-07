@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>TRMNL Beach Day - Night Mode Preview</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 40px;
+      background-color: #e5e5e5;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+    }
+
+    /* Simulate 800x480 TRMNL Device Frame */
+    .trmnl-screen {
+      width: 800px;
+      height: 480px;
+      background-color: #ffffff;
+      border: 12px solid #222222;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      padding: 16px;
+      box-sizing: border-box;
+      container-type: size;
+    }
+
+    .layout {
+      display: flex;
+      flex-direction: row;
+      width: 100%;
+      height: 100%;
+      gap: 16px;
+      box-sizing: border-box;
+    }
+
+    .hero-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      flex: 5;
+      padding: 6cqh 4cqw;
+      border-radius: 1.5cqh;
+      text-align: center;
+      box-sizing: border-box;
+      height: 100%;
+      min-width: 0;
+    }
+
+    .hero-panel--no {
+      background-color: #ffffff;
+      color: #000000;
+      border: 0.8cqh solid #000000;
+      border-radius: 1.5cqh;
+    }
+
+    .hero-location {
+      font-size: 2.8cqh;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2cqw;
+      opacity: 0.8;
+      margin-bottom: 3cqh;
+    }
+
+    .hero-icon {
+      width: 28cqh;
+      height: 28cqh;
+      margin-bottom: 4cqh;
+    }
+
+    .hero-title {
+      font-size: 11cqh;
+      font-weight: 800;
+      line-height: 1.1;
+      text-transform: uppercase;
+      letter-spacing: 0.4cqw;
+    }
+
+    .hero-subtitle {
+      font-size: 4.2cqh;
+      margin-top: 2cqh;
+      opacity: 0.8;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.2cqw;
+    }
+
+    .details-panel {
+      display: flex;
+      flex-direction: column;
+      flex: 7;
+      padding: 6cqh 5cqw;
+      box-sizing: border-box;
+      background-color: #ffffff;
+      border: 0.8cqh solid #000000;
+      border-radius: 1.5cqh;
+      height: 100%;
+      min-width: 0;
+    }
+
+    .details-header {
+      font-size: 4.5cqh;
+      font-weight: 800;
+      border-bottom: 0.8cqh solid #000000;
+      padding-bottom: 1.5cqh;
+      margin-bottom: 1cqh;
+      text-transform: uppercase;
+      letter-spacing: 0.2cqw;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .details-header-title {
+      font-size: 4.5cqh;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.2cqw;
+      white-space: nowrap;
+      max-width: 100%;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .details-header-title--night {
+      font-size: 3.3cqh;
+      letter-spacing: 0.08cqw;
+    }
+
+    .conditions-table {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      justify-content: space-between;
+      margin-top: 2cqh;
+    }
+
+    .condition-row {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      padding: 1.2cqh 1cqw;
+      border-bottom: 0.2cqh dashed #000000;
+      flex: 1;
+    }
+
+    .condition-row:last-child {
+      border-bottom: none;
+    }
+
+    .condition-info {
+      display: flex;
+      flex-direction: column;
+      flex: 1;
+      justify-content: center;
+    }
+
+    .condition-name {
+      font-size: 3.4cqh;
+      font-weight: 700;
+      color: #000000;
+      line-height: 1.1;
+    }
+
+    .condition-threshold {
+      font-size: 2.4cqh;
+      color: #555555;
+      margin-top: 0.4cqh;
+      font-weight: 500;
+      line-height: 1.1;
+    }
+
+    .condition-value {
+      font-size: 3.8cqh;
+      font-weight: 800;
+      text-align: right;
+      margin-right: 2cqw;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      line-height: 1;
+    }
+
+    .condition-status {
+      width: 6cqh;
+      height: 6cqh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .status-icon {
+      width: 5cqh;
+      height: 5cqh;
+    }
+
+    .status-icon--pass {
+      color: #000000;
+    }
+
+    .status-icon--fail {
+      color: #888888;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="trmnl-screen">
+    <div class="layout">
+      <!-- Left Side: Hero Banner -->
+      <div class="hero-panel hero-panel--no">
+        <div class="hero-location">Santa Cruz</div>
+        <!-- Crescent Moon SVG Icon -->
+        <svg class="hero-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+        </svg>
+        <div class="hero-title">Night<br/>Time</div>
+        <div class="hero-subtitle">Beach is closed</div>
+      </div>
+
+      <!-- Right Side: Details Panel -->
+      <div class="details-panel">
+        <div class="details-header" style="display: flex; flex-direction: column; align-items: flex-start;">
+          <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%; min-width: 0;">
+            <span class="details-header-title details-header-title--night">Tomorrow (Wednesday)</span>
+          </div>
+          <div style="display: flex; flex-direction: row; justify-content: space-between; width: 100%; font-size: 2.2cqh; font-weight: 500; text-transform: none; letter-spacing: 0; opacity: 0.85; margin-top: 1cqh; line-height: 1.35; text-align: left; white-space: nowrap;">
+            <div>
+              <div><strong>Tomorrow:</strong> Clear</div>
+              <div><strong>Temps:</strong> 58 to 68°F</div>
+            </div>
+            <div>
+              <div><strong>Humidity:</strong> 45 to 80%</div>
+              <div><strong>Air quality:</strong> 42 to 55</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="conditions-table">
+
+          <!-- Sun Check -->
+          <div class="condition-row">
+            <div class="condition-info">
+              <span class="condition-name">Sun</span>
+              <span class="condition-threshold">coming out?</span>
+            </div>
+            <span class="condition-value">All day</span>
+            <div class="condition-status">
+              <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Temperature -->
+          <div class="condition-row">
+            <div class="condition-info">
+              <span class="condition-name">Temperature</span>
+              <span class="condition-threshold">high above 75&deg;F?</span>
+            </div>
+            <span class="condition-value">68&deg;F</span>
+            <div class="condition-status">
+              <!-- Slashed Beach Umbrella Fail Icon -->
+              <svg class="status-icon status-icon--fail" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M6 14a6 6 0 0 1 12 0H6Z" stroke-width="1.8" />
+                <line x1="12" y1="14" x2="12" y2="21" stroke-width="1.8" />
+                <line x1="19" y1="5" x2="5" y2="19" stroke-width="2.5" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Precipitation -->
+          <div class="condition-row">
+            <div class="condition-info">
+              <span class="condition-name">Rain Chance</span>
+              <span class="condition-threshold">below 20%?</span>
+            </div>
+            <span class="condition-value">0%</span>
+            <div class="condition-status">
+              <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Wind Speed -->
+          <div class="condition-row">
+            <div class="condition-info">
+              <span class="condition-name">Wind</span>
+              <span class="condition-threshold">max 15 mph?</span>
+            </div>
+            <span class="condition-value">12 mph</span>
+            <div class="condition-status">
+              <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          </div>
+
+          <!-- Air Quality -->
+          <div class="condition-row">
+            <div class="condition-info">
+              <span class="condition-name">Air Quality</span>
+              <span class="condition-threshold">max below 100?</span>
+            </div>
+            <span class="condition-value">45</span>
+            <div class="condition-status">
+              <svg class="status-icon status-icon--pass" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Bottom Sunset Info -->
+        <div style="border-top: 0.8cqh solid #000000; margin-top: 3cqh; padding-top: 1.5cqh; text-align: center;">
+          <span style="font-size: 2.7cqh; font-weight: 700; color: #555555; white-space: nowrap;">
+            Sunrise: 6:05 AM
+          </span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

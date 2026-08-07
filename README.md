@@ -16,7 +16,7 @@ The system is split into two layers to enforce a clean separation of concerns:
 
 To qualify for a **Beach Day**, all of the following rules must pass:
 
-1. **Sun:** The current sky must be *Clear* or *Mainly Clear* (WMO codes 0 or 1), OR it must be forecasted to clear to those states by **2:00 PM** or earlier.
+1. **Sun:** The sky must be forecasted as *Clear*, *Mainly Clear*, or *Partly Cloudy* (WMO codes 0, 1, or 2), OR it must be forecasted to clear to those states by **2:00 PM** or earlier.
 2. **High Temp:** $\ge 75^\circ\text{F}$
 3. **Rain Chance:** $< 20\%$ during active beach hours (9:00 AM – 6:00 PM).
 4. **Max Wind:** $\le 15\text{ mph}$ (daily max wind speed).
