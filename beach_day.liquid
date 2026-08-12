@@ -194,9 +194,9 @@
 {% assign aqi = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
 {% assign aqi_min = airQualityDaylightHrsMin | default: aqiMin | default: aqi_min | plus: 0 %}
 {% assign aqi_max = airQualityDaylightHrsMax | default: aqi | default: air_quality_index | plus: 0 %}
-{% assign weather_cond = weatherCondToday | default: weather_cond_today | default: weatherNow | default: weather | remove: "." %}
-{% assign weather_code_today = weatherCodeToday | default: weather_code_today | default: 99 | plus: 0 %}
-{% assign weather_code_tomorrow = weatherCodeTomorrow | default: weather_code_tomorrow | default: 99 | plus: 0 %}
+{% assign weather_cond = weatherCondDaylightToday | default: weatherCondToday | default: weather_cond_today | default: weatherNow | default: weather | remove: "." %}
+{% assign weather_code_today = weatherCodeDaylightToday | default: weatherCodeToday | default: weather_code_today | default: 99 | plus: 0 %}
+{% assign weather_code_tomorrow = weatherCodeDaylightTomorrow | default: weatherCodeTomorrow | default: weather_code_tomorrow | default: 99 | plus: 0 %}
 {% assign uv_index = uvIndex | default: uv_index | default: ultravioletIndex | plus: 0 %}
 {% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
 
@@ -353,7 +353,7 @@
   {% assign humidity_max = tomorrowHumidityMax | default: tomorrow_humidity_max | plus: 0 %}
   {% assign aqi_min = airQualityDaylightHrsMinTomorrow | default: tomorrowAqiMin | default: tomorrow_aqi_min | plus: 0 %}
   {% assign aqi_max = airQualityDaylightHrsMaxTomorrow | default: tomorrowAqi | default: tomorrow_aqi | plus: 0 %}
-  {% assign weather_cond = weatherCondTomorrow | default: weather_cond_tomorrow | default: weatherTomorrow | remove: "." %}
+  {% assign weather_cond = weatherCondDaylightTomorrow | default: weatherCondTomorrow | default: weather_cond_tomorrow | default: weatherTomorrow | remove: "." %}
   {% assign uv_index = tomorrowUvIndex | default: tomorrow_uv_index | plus: 0 %}
 
   {% comment %} Recalculate condition rules for tomorrow {% endcomment %}
@@ -378,8 +378,7 @@
   {% endif %}
 
   {% assign cond_forecast = false %}
-  {% assign forecast_lower = forecast_val | downcase %}
-  {% if forecast_lower contains "sunny" or forecast_lower contains "clear" or is_sunny_later == "true" %}
+  {% if active_weather_code <= 2 or is_sunny_later == "true" %}
     {% assign cond_forecast = true %}
   {% endif %}
 {% endif %}
