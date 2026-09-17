@@ -1,0 +1,137 @@
+{
+  "$comment": "Single source of truth for Beach Day decision logic. Every implementation (Hubitat/TRMNL Liquid, reTerminal firmware) must produce identical verdicts from identical inputs. Change a value here first, then update each implementation and note it in shared/README.md.",
+  "version": 1,
+
+  "units": {
+    "temperature": "fahrenheit",
+    "windSpeed": "mph",
+    "precipitationProbability": "percent",
+    "aqi": "us_aqi",
+    "timeOfDay": "minutes from local midnight"
+  },
+
+  "activeBeachHours": {
+    "$comment": "Hourly forecast rows inside this inclusive local-hour window feed the sun/rain/AQI aggregates.",
+    "startHour": 9,
+    "endHour": 18
+  },
+
+  "sunnyWeatherCodeMax": {
+    "$comment": "WMO codes <= this count as sun: 0 clear, 1 mainly clear, 2 partly cloudy.",
+    "value": 2
+  },
+
+  "clearingDeadlineHour": {
+    "$comment": "First sunny hour must be at or before this local hour to satisfy the forecast condition. 14 = 2 PM.",
+    "value": 14
+  },
+
+  "beachDayConditions": {
+    "$comment": "ALL must pass for a Beach Day. Operators are applied as: <metric> <op> <value>.",
+    "temp": { "op": ">=", "value": 75 },
+    "precipProbability": { "op": "<", "value": 20.0 },
+    "windSpeed": { "op": "<=", "value": 15.0 },
+    "aqi": { "op": "<", "value": 100 },
+    "forecast": {
+      "$comment": "Passes if the active daily weather code is sunny, OR the first sunny hour is at/before clearingDeadlineHour.",
+      "rule": "activeWeatherCode <= sunnyWeatherCodeMax OR firstSunnyHour <= clearingDeadlineHour"
+    },
+    "time": {
+      "$comment": "Current local time must be between sunrise and sunset minus this buffer. If sunrise/sunset are unavailable (0), this condition passes.",
+      "rule": "sunrise <= now <= (sunset - sunsetBufferMinutes)",
+      "sunsetBufferMinutes": 60
+    }
+  },
+
+  "nightMode": {
+    "$comment": "When the time condition fails, the whole display flips to tomorrow's forecast and re-evaluates every condition against tomorrow's values.",
+    "trigger": "time condition fails",
+    "retargetsTo": "tomorrow"
+  },
+
+  "states": {
+    "$comment": "Evaluated top-down; the FIRST match wins. Each entry's condition assumes all earlier entries did not match.",
+    "priority": [
+      {
+        "id": "beach_day",
+        "title": "Beach Day!",
+        "subtitle": "Pack the car",
+        "condition": "all beachDayConditions pass"
+      },
+      {
+        "id": "night_time",
+        "title": "Night Time",
+        "subtitle": "Beach is closed",
+        "condition": "time condition fails"
+      },
+      {
+        "id": "indoor_day",
+        "title": "Indoor Day",
+        "subtitle": "Air Purifier On Max",
+        "condition": "aqi >= 100"
+      },
+      {
+        "id": "rain_day",
+        "title": "Rain Day",
+        "subtitle": "Stay dry",
+        "condition": "precipProbability >= 40"
+      },
+      {
+        "id": "wind_day",
+        "title": "Wind Day",
+        "subtitle": "Hold your towel",
+        "condition": "windSpeed > 15.0"
+      },
+      {
+        "id": "chilly_day",
+        "title": "Brrr Day",
+        "subtitle": "Wear a hoodie",
+        "condition": "temp < 65"
+      },
+      {
+        "id": "nice_day",
+        "title": "Nice Day",
+        "subtitle": "But not quite beachy",
+        "condition": "temp >= 65 AND temp < 75 AND forecast condition passes",
+        "$comment": "Evaluated at the same precedence level as chilly_day (both gated only on beach/night/indoor/rain/wind not matching). temp ranges are disjoint, so they cannot both match."
+      },
+      {
+        "id": "grey_day",
+        "title": "Grey Day",
+        "subtitle": "Seattle vibes",
+        "condition": "forecast condition fails"
+      },
+      {
+        "id": "just_a_day",
+        "title": "Just A Day",
+        "subtitle": "Not beachy",
+        "condition": "fallback when nothing above matches"
+      }
+    ]
+  },
+
+  "parkingAlert": {
+    "$comment": "Street cleaning restrictions. When active, the alert replaces the sunset/time metadata line. Window opens at sunset the evening before the restriction day and closes at endTime on the restriction day.",
+    "activeWindow": {
+      "opensAt": "sunset on the day before the restriction day",
+      "closesAt": "endTime on the restriction day",
+      "sunsetFallbackMinutes": 1170,
+      "$comment2": "sunsetFallbackMinutes = 19:30 local, used when sunset is unavailable."
+    },
+    "weekOfMonthFormula": "floor((dayOfMonth - 1) / 7) + 1",
+    "textFormat": "NO PARKING {SIDE} SIDE: {start}-{end}",
+    "textFormatNote": "The start meridiem is dropped when start and end share it, e.g. '8-10AM'.",
+    "defaults": {
+      "left":  { "enabled": true, "weeks": [1, 3], "day": "Wednesday", "start": "08:00", "end": "10:00" },
+      "right": { "enabled": true, "weeks": [1, 3], "day": "Thursday",  "start": "08:00", "end": "10:00" }
+    }
+  },
+
+  "rounding": {
+    "$comment": "All values are rounded to the nearest integer before display.",
+    "temperature": 0,
+    "windSpeed": 0,
+    "uvIndex": 0,
+    "aqi": 0
+  }
+}

@@ -1,5 +1,11 @@
-# Ignore docs directory
-docs/
+# Vendored reference docs (TRMNL platform docs)
+hubitat-trmnl/docs/
+
+# PlatformIO / ESP32 build artifacts
+.pio/
+reterminal-e1001/.pio/
+reterminal-e1001/build/
+reterminal-e1001/src/secrets.h
 
 # System files
 .DS_Store
