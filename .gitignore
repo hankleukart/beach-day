@@ -1,11 +1,10 @@
 # Vendored reference docs (TRMNL platform docs)
 hubitat-trmnl/docs/
 
-# PlatformIO / ESP32 build artifacts
-.pio/
+# reTerminal firmware: local secrets and build output
+reterminal-e1001/src/beachday_config.h
 reterminal-e1001/.pio/
-reterminal-e1001/build/
-reterminal-e1001/src/secrets.h
+.pio/
 
 # System files
 .DS_Store

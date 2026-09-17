@@ -12,13 +12,14 @@ rules rather than reinventing them.
 | Folder | Hardware | Needs | Status |
 | --- | --- | --- | --- |
 | [hubitat-trmnl/](hubitat-trmnl/) | TRMNL OG / TRMNL X | Hubitat hub + TRMNL account | Working |
-| [reterminal-e1001/](reterminal-e1001/) | Seeed reTerminal E1001 (7.5" mono ePaper, ESP32-S3) | Wi-Fi only | Scaffolding |
+| [reterminal-e1001/](reterminal-e1001/) | Seeed reTerminal E1001 (7.5" mono ePaper, ESP32-S3) | Wi-Fi only | Firmware written, not yet flashed |
 
 ## Shared rules
 
 [shared/](shared/) holds the thresholds, the state priority table, the WMO code
-map, and the sample fixtures. It is the source of truth — when a rule changes,
-it changes there first, then in each target.
+map, and the test fixtures. It is the source of truth — when a rule changes,
+it changes there first. The reTerminal firmware generates its constants and
+tests from it; the TRMNL template is edited by hand to match.
 
 See [shared/README.md](shared/README.md) for the input/output contract every
 target must satisfy.
