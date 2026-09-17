@@ -13,7 +13,7 @@ A beautiful, high-contrast, e-ink optimized layout for a TRMNL device that decid
 ## How It Works
 
 The system is split into two layers to enforce a clean separation of concerns:
-1. **The Data Layer (Hubitat):** An open-source, keyless [Open-Meteo Weather Enhanced](open-meteo-weather-enhanced.groovy) driver gathers weather, UV, and AQI metrics. A dedicated [Beach Day TRMNL Integrator](beach-day-trmnl-integrator.groovy) app handles the business logic (hourly forecast merging, active beach-hour calculations, and value rounding) and sends a single, clean JSON payload to TRMNL.
+1. **The Data Layer (Hubitat):** An open-source, keyless [Open-Meteo Weather Enhanced](open-meteo-weather-enhanced.groovy) driver gathers weather, UV, and AQI metrics. The driver also does all daylight-window aggregation (per-day sunrise-to-sunset max rain chance, AQI and humidity ranges, the dominant weather code, and the sunny-hour scan), since only it holds the full 48-hour hourly arrays. A dedicated [Beach Day TRMNL Integrator](beach-day-trmnl-integrator.groovy) app forwards those values, evaluates the street-parking schedule, and sends a single, clean JSON payload to TRMNL.
 2. **The Presentation Layer (TRMNL):** The [beach_day.liquid](beach_day.liquid) template renders the layout. It uses container-query units (`cqh`/`cqw`) so the layout scales natively on both the TRMNL OG and TRMNL X screens.
 
 ---
@@ -22,11 +22,14 @@ The system is split into two layers to enforce a clean separation of concerns:
 
 To qualify for a **Beach Day**, all of the following rules must pass:
 
-1. **Sun:** The sky must be forecasted as *Clear*, *Mainly Clear*, or *Partly Cloudy* (WMO codes 0, 1, or 2), OR it must be forecasted to clear to those states by **2:00 PM** or earlier.
+All hourly aggregates below use **that day's own sunrise-to-sunset hours**.
+
+1. **Sun:** At least **3 sunny hours** (WMO codes 0, 1, or 2) in the window, AND
+   either the day's dominant condition is sunny OR the sun arrives by **2:00 PM**.
 2. **High Temp:** $\ge 75^\circ\text{F}$
-3. **Rain Chance:** $< 20\%$ during active beach hours (9:00 AM – 6:00 PM).
+3. **Rain Chance:** $< 20\%$ (max hourly probability in the window).
 4. **Max Wind:** $\le 15\text{ mph}$ (daily max wind speed).
-5. **Air Quality:** $\text{AQI} < 100$ (US AQI).
+5. **Air Quality:** $\text{AQI} < 100$ (max US AQI in the window).
 6. **Current Time:** Current local time is between `Sunrise` and `Sunset - 60 minutes`.
 
 ---
@@ -41,17 +44,17 @@ The left-side hero panel displays one of 9 distinct states based on a top-down p
 * 🌧️ **Rain Day:** (*"Stay dry"*) Triggered if the rain chance is $\ge 40\%$.
 * 💨 **Wind Day:** (*"Hold your towel"*) Triggered if max wind is $> 15\text{ mph}$.
 * 🧥 **Brrr Day:** (*"Wear a hoodie"*) Triggered if the temperature is $< 65^\circ\text{F}$.
-* 🌤️ **Nice Day:** (*"But not quite beachy"*) Triggered if the temperature is between $65^\circ\text{F}$ and $74^\circ\text{F}$ and it is sunny or clearing by 2:00 PM.
-* ☁️ **Grey Day:** (*"Seattle vibes"*) Triggered if it is dry and mild, but the sun is not forecasted to clear by 2:00 PM.
+* 🌤️ **Nice Day:** (*"But not quite beachy"*) Triggered if the temperature is between $65^\circ\text{F}$ and $74^\circ\text{F}$ and the sun condition passes.
+* ☁️ **Grey Day:** (*"Seattle vibes"*) Triggered if it is dry and mild, but the sun condition fails — fewer than 3 sunny hours, or no sun until after 2:00 PM.
 * 🌥️ **Just A Day:** (*"Not beachy"*) Final fallback when no other state matches.
 
 ---
 
 ## Layout Features
 
-* **Sun Column:** If it is currently cloudy but clearing later, the checklist row will display the exact hour the sun is expected (e.g., `"At 11 AM"` or `"At 1 PM"`). If it clears after 2:00 PM, it will display the time (e.g. `"At 3 PM"`) but show a fail cross ($\mathbf{\times}$) since it is too late to qualify as a beach day.
+* **Sun Column:** If the window does not start sunny but clears later, the row shows the hour the sun is expected (e.g. `"At 11 AM"`). If it clears after 2:00 PM it still shows the time (e.g. `"At 3 PM"`) but with a fail cross ($\mathbf{\times}$), since that is too late to qualify. Sun for all but at most one hour of the window reads `"All day"`; anything less shows a count (e.g. `"5 hrs"`).
 * **Integrated UV Index:** The UV index is appended directly to the end of the text forecast description at the top of the panel (e.g. `Mostly sunny. UV Index: 6`) to keep the checklist clean.
-* **Rounded Values:** All temperatures, wind speeds, UV index, and AQI values are rounded to the nearest integer before sending to TRMNL for clean, glanceable display.
+* **Rounded Values:** Temperatures, wind speeds, UV index, and AQI are rounded to the nearest integer — **once**, half-up, straight from the API value. A high of 74.45 °F reads 74 and fails the 75 °F threshold.
 * **Street Parking Alerts:** Optional left/right side street-cleaning reminders. When a restriction is upcoming, a high-contrast `NO PARKING LEFT SIDE: 8-10AM` block replaces the sunset/time line at the bottom of the panel. The alert appears at sunset the evening before and clears when the restriction ends the next morning.
 
 ---
@@ -80,6 +83,11 @@ The left-side hero panel displays one of 9 distinct states based on a top-down p
    * **TRMNL Webhook URL:** Paste your TRMNL private plugin webhook URL.
    * **Street Parking Restrictions:** *(optional)* Set the week(s) of the month, day, and time window for each side of the street. Disable both toggles if you don't want parking alerts.
 6. Click **Done**.
+
+> **Upgrading from an earlier version:** re-paste **all three** files. The
+> daylight-window rules moved the hourly aggregation into the driver, so the
+> driver, the app and the template must be updated together — an old driver with
+> a new app will send zeros for the sun scan.
 
 ### Step 4: Update your TRMNL Markup
 1. Copy the entire contents of [beach_day.liquid](beach_day.liquid).

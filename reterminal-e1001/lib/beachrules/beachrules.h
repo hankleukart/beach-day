@@ -9,14 +9,15 @@
 
 namespace beach {
 
-constexpr int   MAX_ACTIVE_HOURS = ACTIVE_END_HOUR - ACTIVE_START_HOUR + 1; // 10
+// A daylight window can span at most every hour of the day.
+constexpr int   MAX_DAYLIGHT_HOURS = 24;
 
 enum class State : uint8_t {
   BeachDay, NightTime, IndoorDay, RainDay, WindDay, ChillyDay, NiceDay, GreyDay, JustADay
 };
 
 struct HourRow {
-  int8_t  hour;   // local hour, expected within activeBeachHours
+  int8_t  hour;   // local hour, inside that day's daylight window
   int16_t code;   // WMO weather code
 };
 
@@ -32,17 +33,19 @@ struct DayInputs {
   int16_t uv          = 0;
   int16_t humidityMin = 0;
   int16_t humidityMax = 0;
-  int16_t weatherCode = 99;  // activeWeatherCode (mode over active hours)
+  int16_t weatherCode = 99;  // activeWeatherCode (mode over the daylight window)
   char    conditionText[32] = "Unknown";
-  HourRow hours[MAX_ACTIVE_HOURS] = {};
+  int16_t sunriseMin  = 0;   // this day's own sun, 0 = unavailable
+  int16_t sunsetMin   = 0;
+  HourRow hours[MAX_DAYLIGHT_HOURS] = {};
   int8_t  hourCount   = 0;
   bool    valid       = false;
 };
 
 struct Inputs {
   int16_t   nowMinutes     = 0;   // local minutes from midnight
-  int16_t   sunriseMinutes = 0;   // 0 = unavailable
-  int16_t   sunsetMinutes  = 0;   // 0 = unavailable
+  int16_t   sunriseMinutes = 0;   // TODAY's sun; drives the time condition. 0 = unavailable
+  int16_t   sunsetMinutes  = 0;
   DayInputs today;
   DayInputs tomorrow;
 };
@@ -50,9 +53,11 @@ struct Inputs {
 struct SunScan {
   int8_t sunHours            = 0;
   int8_t firstSunnyHour      = -1;
-  bool   firstWindowHourSunny = false;   // the 9 AM row was sunny
+  bool   firstWindowHourSunny = false;   // the first row of the window (sunrise hour) was sunny
   bool   clearingLater       = false;    // sun later but not at 9 AM
   bool   sunnyLater          = false;    // first sunny hour <= 2 PM
+  bool   enoughSun           = false;    // sunHours >= MIN_SUN_HOURS
+  int8_t windowHours         = 0;        // rows in the daylight window
   char   clearingTime[8]     = "";       // "11 AM", "1 PM"
 };
 
@@ -78,7 +83,7 @@ const char* stateTitleLine1(State s);   // "Beach"
 const char* stateTitleLine2(State s);   // "Day!"
 const char* stateSubtitle(State s);     // "Pack the car"
 
-// "At 11 AM" / "All day" / "Cloudy" — the Sun row's value cell.
+// "At 11 AM" / "All day" / "2 hrs" / "Cloudy" — the Sun row's value cell.
 void sunRowText(const Verdict& v, char* out, int outLen);
 
 // 14 -> "2 PM", 9 -> "9 AM", 0 -> "12 AM"

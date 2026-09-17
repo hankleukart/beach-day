@@ -4,12 +4,11 @@
 
 namespace beach {
 
-constexpr int   RULES_VERSION          = 1;
-constexpr int   ACTIVE_START_HOUR      = 9;
-constexpr int   ACTIVE_END_HOUR        = 18;
-constexpr int   AQI_FALLBACK_START_HOUR = 6;
-constexpr int   AQI_FALLBACK_END_HOUR  = 20;
+constexpr int   RULES_VERSION          = 2;
+constexpr int   DAYLIGHT_FALLBACK_START_HOUR = 6;
+constexpr int   DAYLIGHT_FALLBACK_END_HOUR   = 20;
 constexpr int   SUNNY_CODE_MAX         = 2;
+constexpr int   MIN_SUN_HOURS          = 3;
 constexpr int   CLEARING_DEADLINE_HOUR = 14;
 constexpr int   TEMP_BEACH_MIN         = 75;   // temp >=
 constexpr float PRECIP_BEACH_MAX       = 20.0f; // precip <

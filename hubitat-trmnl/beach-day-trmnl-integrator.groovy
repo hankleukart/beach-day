@@ -90,70 +90,24 @@ def updateTrmnl() {
         return
     }
 
-    // 1. Parse Hourly Forecast & Perform Merging (Option B)
-    String hourlyForecastStr = weatherDevice.currentValue("hourlyForecast")
-    List<Map> parsedHourly = []
-    if (hourlyForecastStr) {
-        try {
-            parsedHourly = new groovy.json.JsonSlurper().parseText(hourlyForecastStr) as List<Map>
-        } catch (e) {
-            log.error "Failed to parse hourlyForecast JSON: ${e.message}"
-        }
-    }
+    // 1. Daylight-window aggregates
+    // The driver computes these over each day's own sunrise..sunset window from
+    // the full 48-hour hourly arrays (shared/rules.json "daylightWindow"), so
+    // there is nothing to merge or re-scan here.
+    def maxPrecipProb   = toIntOr(weatherDevice.currentValue("precipitationProbabilityDaylightToday"), 0)
+    def tomorrowPrecip  = toIntOr(weatherDevice.currentValue("precipitationProbabilityDaylightTomorrow"), 0)
 
-    // Simplify new periods (only keep 't' and 'c' for beach hours 9-18)
-    List<Map> simplifiedNewPeriods = []
-    parsedHourly.each { Map it ->
-        String timeStr = it.time as String
-        if (timeStr && timeStr.contains("T")) {
-            def hourPart = timeStr.split("T")[1].split(":")[0].toInteger()
-            if (hourPart >= 9 && hourPart <= 18) {
-                simplifiedNewPeriods << [
-                    t: (timeStr.length() >= 13) ? timeStr.substring(0, 13) : "",
-                    c: (it.code != null) ? it.code.toInteger() : 0
-                ]
-            }
-        }
-    }
+    Integer codeDaylightToday    = toIntOr(weatherDevice.currentValue("weatherCodeDaylightToday"), null)
+    Integer codeDaylightTomorrow = toIntOr(weatherDevice.currentValue("weatherCodeDaylightTomorrow"), null)
+    String  condDaylightToday    = weatherDevice.currentValue("weatherCondDaylightToday")
+    String  condDaylightTomorrow = weatherDevice.currentValue("weatherCondDaylightTomorrow")
 
-    // Merge past periods from today with the new future forecast periods
-    String todayDate = location.timeZone ? new Date().format('yyyy-MM-dd', location.timeZone) : new Date().format('yyyy-MM-dd')
-    String tomorrowDate = location.timeZone ? new Date().plus(1).format('yyyy-MM-dd', location.timeZone) : new Date().plus(1).format('yyyy-MM-dd')
-    String currentHourStr = location.timeZone ? new Date().format('yyyy-MM-dd\'T\'HH', location.timeZone) : new Date().format('yyyy-MM-dd\'T\'HH')
-
-    List<Map> existingPeriods = (state.hourlyPeriods as List<Map>) ?: []
-    List<Map> pastPeriodsToday = existingPeriods.findAll { Map it ->
-        String t = it.t as String
-        return t && t.startsWith(todayDate) && t < currentHourStr
-    }
-
-    List<Map> newFuturePeriods = simplifiedNewPeriods.findAll { Map it ->
-        String t = it.t as String
-        return t && t >= currentHourStr
-    }
-
-    state.hourlyPeriods = (pastPeriodsToday + newFuturePeriods).take(20)
-
-    // Calculate max precip probability during beach hours (9 AM to 6 PM) today
-    int maxPrecipProb = 0
-    parsedHourly.each { Map it ->
-        String timeStr = it.time as String
-        if (timeStr && timeStr.startsWith(todayDate)) {
-            def hourPart = timeStr.split("T")[1].split(":")[0].toInteger()
-            if (hourPart >= 9 && hourPart <= 18) {
-                int prob = (it.precipProb != null) ? it.precipProb.toInteger() : 0
-                if (prob > maxPrecipProb) {
-                    maxPrecipProb = prob
-                }
-            }
-        }
-    }
-
-    // Calculate predominant (mode) WMO code during daylight hours (9 AM to 6 PM)
-    Integer codeDaylightToday = computeDaylightModeWmoCode(parsedHourly, todayDate)
-    String condDaylightToday = wmoCodeToDescription(codeDaylightToday)
-    Integer codeDaylightTomorrow = computeDaylightModeWmoCode(parsedHourly, tomorrowDate)
-    String condDaylightTomorrow = wmoCodeToDescription(codeDaylightTomorrow)
+    def sunHoursToday        = toIntOr(weatherDevice.currentValue("sunHoursToday"), 0)
+    def sunHoursTomorrow     = toIntOr(weatherDevice.currentValue("sunHoursTomorrow"), 0)
+    def firstSunnyToday      = toIntOr(weatherDevice.currentValue("firstSunnyHourToday"), -1)
+    def firstSunnyTomorrow   = toIntOr(weatherDevice.currentValue("firstSunnyHourTomorrow"), -1)
+    def daylightHoursToday   = toIntOr(weatherDevice.currentValue("daylightHoursToday"), 0)
+    def daylightHoursTomorrow = toIntOr(weatherDevice.currentValue("daylightHoursTomorrow"), 0)
 
     // 2. Parse Sunrise/Sunset
     String sunriseStr = weatherDevice.currentValue("sunrise")
@@ -161,6 +115,13 @@ def updateTrmnl() {
 
     int sunriseVal = parseTimeToMinutes(sunriseStr)
     int sunsetVal = parseTimeToMinutes(sunsetStr)
+
+    // Tomorrow's sun times: the template needs them to work out whether
+    // tomorrow's sun arrives after tomorrow's sunrise (night mode).
+    String sunriseTomorrowStr = weatherDevice.currentValue("sunriseTomorrow")
+    String sunsetTomorrowStr  = weatherDevice.currentValue("sunsetTomorrow")
+    int sunriseTomorrowVal = parseTimeToMinutes(sunriseTomorrowStr)
+    int sunsetTomorrowVal  = parseTimeToMinutes(sunsetTomorrowStr)
     String sunriseFormatted = formatTime(sunriseStr)
     String sunsetFormatted = formatTime(sunsetStr)
 
@@ -175,7 +136,6 @@ def updateTrmnl() {
 
     def tomorrowTemp = roundToNearest(weatherDevice.currentValue("temperatureMaxTomorrow"))
     def tomorrowTempLow = roundToNearest(weatherDevice.currentValue("temperatureMinTomorrow"))
-    def tomorrowPrecip = roundToNearest(weatherDevice.currentValue("precipitationProbabilityTomorrow")) ?: 0
     def tomorrowWind = roundToNearest(weatherDevice.currentValue("windSpeedMaxTomorrow"))
 
     // Clean weather condition strings (remove trailing periods if any)
@@ -207,17 +167,18 @@ def updateTrmnl() {
             location_name: locName,
             temperatureHi: tempHi,
             temperatureMin: tempLow,
-            probablityofPrecipitation: maxPrecipProb, // calculated for active beach hours
+            probablityofPrecipitation: maxPrecipProb, // max over today's sunrise..sunset hours
             windspeedHi: windHi,
             sunrise_val: sunriseVal,
             sunset_val: sunsetVal,
             sunrise_formatted: sunriseFormatted,
             sunset_formatted: sunsetFormatted,
+            sunriseTomorrow_val: sunriseTomorrowVal,
+            sunsetTomorrow_val: sunsetTomorrowVal,
             tomorrowTemperature: tomorrowTemp,
             tomorrowTemperatureMin: tomorrowTempLow,
             tomorrowProbabilityOfPrecipitation: tomorrowPrecip,
             tomorrowWindSpeedHi: tomorrowWind,
-            hourly: state.hourlyPeriods,
             uvIndex: uv,
             airQualityDaylightHrsMax: aqi,
             tomorrowUvIndex: uvTomorrow,
@@ -236,6 +197,12 @@ def updateTrmnl() {
             tomorrowHumidityMin: tomorrowHumidityMin,
             tomorrowHumidityMax: tomorrowHumidityMax,
             airQualityDaylightHrsMinTomorrow: tomorrowAqiMin,
+            sunHoursToday: sunHoursToday,
+            sunHoursTomorrow: sunHoursTomorrow,
+            firstSunnyHourToday: firstSunnyToday,
+            firstSunnyHourTomorrow: firstSunnyTomorrow,
+            daylightHoursToday: daylightHoursToday,
+            daylightHoursTomorrow: daylightHoursTomorrow,
             parking_alert_active: parkingAlert.active,
             parking_alert_text: parkingAlert.text
         ]
@@ -313,26 +280,14 @@ private Integer roundToNearest(value) {
     return null
 }
 
-private Integer computeDaylightModeWmoCode(List<Map> parsedHourly, String targetDate) {
-    if (!parsedHourly || !targetDate) return null
-    Map<Integer, Integer> counts = [:]
-    parsedHourly.each { Map it ->
-        String timeStr = it.time as String
-        if (timeStr && timeStr.startsWith(targetDate)) {
-            def parts = timeStr.split("T")
-            if (parts.size() > 1) {
-                def hourPart = parts[1].split(":")[0].toInteger()
-                if (hourPart >= 9 && hourPart <= 18 && it.code != null) {
-                    int code = it.code.toInteger()
-                    counts[code] = (counts[code] ?: 0) + 1
-                }
-            }
-        }
-    }
-    if (counts.isEmpty()) return null
-    return counts.entrySet().max { a, b ->
-        a.value <=> b.value ?: b.key <=> a.key
-    }?.key
+
+private Integer toIntOr(value, Integer fallback) {
+    if (value == null) return fallback
+    if (value instanceof Number) return ((Number) value).intValue()
+    String str = value.toString().trim()
+    if (!str) return fallback
+    try { return new BigDecimal(str).setScale(0, java.math.RoundingMode.HALF_UP).intValue() }
+    catch (e) { return fallback }
 }
 
 private String wmoCodeToDescription(Integer code) {

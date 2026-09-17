@@ -45,8 +45,9 @@ deep sleep ──wake──▶ Wi-Fi ──▶ NTP ──▶ Open-Meteo forecast
                                               │
                                               ▼
                                   aggregate  (lib/beachrules/aggregate.cpp)
-                                  active hours 9–18: first sunny hour, code mode,
-                                  max precip; sunrise→sunset hours: AQI min/max
+                                  each day's own sunrise→sunset hours:
+                                  max precip, AQI min/max, humidity min/max,
+                                  weather-code mode, sunny-hour scan
                                               │
                                               ▼
                                   evaluate   (lib/beachrules/beachrules.cpp)

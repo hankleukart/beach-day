@@ -16,14 +16,14 @@ void formatHour12(int hour, char* out, int outLen) {
   snprintf(out, outLen, "%d %s", display, ampm);
 }
 
-// Mirrors the hourly loop in beach_day.liquid: walk the active-hour rows for
-// the target day in order, counting sunny hours and remembering the first.
+// Walk the day's daylight-window rows in order, counting sunny hours and
+// remembering the first. Rows are already filtered to the window by aggregate().
 SunScan scanSun(const DayInputs& day) {
   SunScan s;
+  s.windowHours = day.hourCount;
   bool firstChecked = false;
   for (int i = 0; i < day.hourCount; i++) {
     const HourRow& r = day.hours[i];
-    if (r.hour < ACTIVE_START_HOUR || r.hour > ACTIVE_END_HOUR) continue;
     bool sunny = r.code <= SUNNY_CODE_MAX;
     if (sunny) {
       s.sunHours++;
@@ -39,6 +39,7 @@ SunScan scanSun(const DayInputs& day) {
     if (!s.firstWindowHourSunny) s.clearingLater = true;
   }
   s.sunnyLater = (s.sunHours > 0 && s.firstSunnyHour <= CLEARING_DEADLINE_HOUR);
+  s.enoughSun  = (s.sunHours >= MIN_SUN_HOURS);
   return s;
 }
 
@@ -64,7 +65,10 @@ Verdict evaluate(const Inputs& in) {
   v.condPrecip   = d.precipProb < PRECIP_BEACH_MAX;
   v.condWind     = d.wind <= WIND_BEACH_MAX;
   v.condAqi      = d.aqi < AQI_BEACH_MAX;
-  v.condForecast = (d.weatherCode <= SUNNY_CODE_MAX) || v.sun.sunnyLater;
+  // Needs enough sun overall, and the sun must either dominate the day or
+  // arrive by the clearing deadline.
+  v.condForecast = v.sun.enoughSun &&
+                   ((d.weatherCode <= SUNNY_CODE_MAX) || v.sun.sunnyLater);
 
   bool beach = v.condTemp && v.condPrecip && v.condWind &&
                v.condForecast && v.condTime && v.condAqi;
@@ -87,8 +91,13 @@ Verdict evaluate(const Inputs& in) {
 void sunRowText(const Verdict& v, char* out, int outLen) {
   if (v.sun.clearingLater && v.sun.clearingTime[0] != '\0') {
     snprintf(out, outLen, "At %s", v.sun.clearingTime);
-  } else if (v.condForecast) {
+  } else if (v.sun.windowHours > 0 && v.sun.sunHours >= v.sun.windowHours - 1) {
+    // Sunny for all but at most one hour of the daylight window.
     snprintf(out, outLen, "All day");
+  } else if (v.sun.sunHours > 0) {
+    // Partial sun that didn't arrive later than it started: say how much there
+    // is rather than overclaiming "All day".
+    snprintf(out, outLen, "%d hr%s", v.sun.sunHours, v.sun.sunHours == 1 ? "" : "s");
   } else {
     snprintf(out, outLen, "Cloudy");
   }

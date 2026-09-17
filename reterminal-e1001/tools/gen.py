@@ -56,11 +56,10 @@ def gen_rules_config(rules):
     lines = [HEADER.format(src="shared/rules.json"),
              "#pragma once", "", "namespace beach {", ""]
     lines.append(f"constexpr int   RULES_VERSION          = {rules['version']};")
-    lines.append(f"constexpr int   ACTIVE_START_HOUR      = {rules['activeBeachHours']['startHour']};")
-    lines.append(f"constexpr int   ACTIVE_END_HOUR        = {rules['activeBeachHours']['endHour']};")
-    lines.append(f"constexpr int   AQI_FALLBACK_START_HOUR = {rules['aqiDaylightWindow']['fallbackStartHour']};")
-    lines.append(f"constexpr int   AQI_FALLBACK_END_HOUR  = {rules['aqiDaylightWindow']['fallbackEndHour']};")
+    lines.append(f"constexpr int   DAYLIGHT_FALLBACK_START_HOUR = {rules['daylightWindow']['fallbackStartHour']};")
+    lines.append(f"constexpr int   DAYLIGHT_FALLBACK_END_HOUR   = {rules['daylightWindow']['fallbackEndHour']};")
     lines.append(f"constexpr int   SUNNY_CODE_MAX         = {rules['sunnyWeatherCodeMax']['value']};")
+    lines.append(f"constexpr int   MIN_SUN_HOURS          = {rules['minSunHours']['value']};")
     lines.append(f"constexpr int   CLEARING_DEADLINE_HOUR = {rules['clearingDeadlineHour']['value']};")
 
     op, v = op_value(conds["temp"]);  assert op == ">="
@@ -93,11 +92,27 @@ def gen_rules_config(rules):
     return "\n".join(lines) + "\n"
 
 
+def parse_hours(spec):
+    """"6-19:1" or "6-10:3,11:1,12-19:3" -> [(hour, code), ...] in hour order."""
+    rows = {}
+    for part in spec.split(","):
+        rng, _, code = part.partition(":")
+        code = int(code)
+        if "-" in rng:
+            a, b = rng.split("-")
+            for h in range(int(a), int(b) + 1):
+                rows[h] = code
+        else:
+            rows[int(rng)] = code
+    return sorted(rows.items())
+
+
 def day_struct(d):
-    hours = d["hours"]
-    rows = ", ".join(f"{{{9 + i}, {c}}}" for i, c in enumerate(hours))
+    hours = parse_hours(d["hours"])
+    rows = ", ".join(f"{{{h}, {c}}}" for h, c in hours) or "{0,0}"
     return (f"{{ {d['temp']}, {d['tempMin']}, {d['precipProb']}, {d['wind']}, {d['aqi']}, {d['aqiMin']}, "
             f"{d['uv']}, {d['humidityMin']}, {d['humidityMax']}, {d['weatherCode']}, \"\", "
+            f"{d.get('sunriseMin', 0)}, {d.get('sunsetMin', 0)}, "
             f"{{ {rows} }}, {len(hours)}, true }}")
 
 
@@ -117,6 +132,7 @@ def gen_fixtures(fx):
     out.append("  const char* sunText;  // nullptr unset")
     out.append("  const char* clearingTime;")
     out.append("  int clearingLater;")
+    out.append("  int expectSunHours;   // -1 unset")
     out.append("  int shownTomorrow;    // -1 unset, 0 today, 1 tomorrow")
     out.append("};")
     out.append("")
@@ -143,6 +159,7 @@ def gen_fixtures(fx):
                    f"{cstr(e['sunText']) if 'sunText' in e else 'nullptr'}, "
                    f"{cstr(e['clearingTime']) if 'clearingTime' in e else 'nullptr'}, "
                    f"{-1 if 'clearingLater' not in e else int(e['clearingLater'])}, "
+                   f"{e.get('sunHours', -1)}, "
                    f"{-1 if shown is None else (1 if shown == 'tomorrow' else 0)} }},")
     out.append("};")
     out.append("const int RULES_COUNT = sizeof(RULES) / sizeof(RULES[0]);")

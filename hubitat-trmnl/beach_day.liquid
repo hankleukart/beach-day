@@ -251,76 +251,64 @@
   {% assign is_night_time = true %}
 {% endif %}
 
-{% comment %} Calculate clearing variables dynamically from hourly payload {% endcomment %}
-{% assign sun_hours = 0 %}
-{% assign is_clearing_later = "false" %}
-{% assign clearing_time = "" %}
-{% assign first_sunny_hour = -1 %}
-{% assign first_period_checked = false %}
-{% assign is_currently_sunny = "false" %}
-{% assign today_date = local_time_epoch | date: "%Y-%m-%d" %}
-{% assign tomorrow_date = local_time_epoch | plus: 86400 | date: "%Y-%m-%d" %}
+{% comment %}
+  Sun scan. The Hubitat driver now scans each day's own sunrise..sunset window
+  over the full 48-hour hourly arrays and sends the results, so there is no
+  hourly loop here any more. See shared/rules.json "daylightWindow".
+{% endcomment %}
+{% assign sun_hours_today      = sunHoursToday          | default: 0  | plus: 0 %}
+{% assign sun_hours_tomorrow   = sunHoursTomorrow       | default: 0  | plus: 0 %}
+{% assign first_sunny_today    = firstSunnyHourToday    | default: -1 | plus: 0 %}
+{% assign first_sunny_tomorrow = firstSunnyHourTomorrow | default: -1 | plus: 0 %}
+{% assign daylight_today       = daylightHoursToday     | default: 0  | plus: 0 %}
+{% assign daylight_tomorrow    = daylightHoursTomorrow  | default: 0  | plus: 0 %}
 
 {% if is_night_time %}
-  {% assign target_date = tomorrow_date %}
   {% assign active_weather_code = weather_code_tomorrow %}
+  {% assign sun_hours        = sun_hours_tomorrow %}
+  {% assign first_sunny_hour = first_sunny_tomorrow %}
+  {% assign window_hours     = daylight_tomorrow %}
+  {% assign window_sun_start = sunriseTomorrow_val | default: sunrise_val | default: 0 | plus: 0 %}
 {% else %}
-  {% assign target_date = today_date %}
   {% assign active_weather_code = weather_code_today %}
+  {% assign sun_hours        = sun_hours_today %}
+  {% assign first_sunny_hour = first_sunny_today %}
+  {% assign window_hours     = daylight_today %}
+  {% assign window_sun_start = sunrise_val | default: 0 | plus: 0 %}
 {% endif %}
 
-{% for period in hourly %}
-  {% if period.t contains target_date %}
-    {% assign parts = period.t | split: "T" %}
-    {% assign hour = parts[1] | plus: 0 %}
-
-    {% if hour >= 9 and hour <= 18 %}
-      {% assign fc_code = period.c | default: 99 | plus: 0 %}
-      {% assign is_sunny = false %}
-      {% if fc_code <= 2 %}
-        {% assign is_sunny = true %}
-      {% endif %}
-
-      {% if is_sunny %}
-        {% assign sun_hours = sun_hours | plus: 1 %}
-        {% if first_sunny_hour == -1 %}
-          {% assign first_sunny_hour = hour %}
-        {% endif %}
-      {% endif %}
-
-      {% if first_period_checked == false %}
-        {% if is_sunny %}
-          {% assign is_currently_sunny = "true" %}
-        {% endif %}
-        {% assign first_period_checked = true %}
-      {% endif %}
+{% comment %} Format the first sunny hour as a 12-hour clock string {% endcomment %}
+{% assign clearing_time = "" %}
+{% assign is_clearing_later = "false" %}
+{% if sun_hours > 0 and first_sunny_hour != -1 %}
+  {% assign ampm = "AM" %}
+  {% assign display_hour = first_sunny_hour %}
+  {% if first_sunny_hour >= 12 %}
+    {% assign ampm = "PM" %}
+    {% if first_sunny_hour > 12 %}
+      {% assign display_hour = first_sunny_hour | minus: 12 %}
     {% endif %}
+  {% elsif first_sunny_hour == 0 %}
+    {% assign display_hour = 12 %}
   {% endif %}
-{% endfor %}
+  {% assign clearing_time = display_hour | append: " " | append: ampm %}
 
-{% if sun_hours > 0 %}
-  {% if first_sunny_hour != -1 %}
-    {% assign ampm = "AM" %}
-    {% assign display_hour = first_sunny_hour %}
-    {% if first_sunny_hour >= 12 %}
-      {% assign ampm = "PM" %}
-      {% if first_sunny_hour > 12 %}
-        {% assign display_hour = first_sunny_hour | minus: 12 %}
-      {% endif %}
-    {% elsif first_sunny_hour == 0 %}
-      {% assign display_hour = 12 %}
-    {% endif %}
-    {% assign clearing_time = display_hour | append: " " | append: ampm %}
-    
-    {% if is_currently_sunny == "false" %}
-      {% assign is_clearing_later = "true" %}
-    {% endif %}
+  {% comment %} "Clearing later" means the window did not start out sunny {% endcomment %}
+  {% assign window_start_hour = window_sun_start | divided_by: 60 %}
+  {% if first_sunny_hour > window_start_hour %}
+    {% assign is_clearing_later = "true" %}
   {% endif %}
 {% endif %}
 
 {% assign is_sunny_later = "false" %}
 {% if sun_hours > 0 and first_sunny_hour <= 14 %}
   {% assign is_sunny_later = "true" %}
+{% endif %}
+
+{% comment %} Minimum sunny hours in the window (rules.json minSunHours) {% endcomment %}
+{% assign has_enough_sun = false %}
+{% if sun_hours >= 3 %}
+  {% assign has_enough_sun = true %}
 {% endif %}
 
 {% comment %} Evaluate condition rules {% endcomment %}
@@ -346,8 +334,10 @@
 
 {% comment %} Forecast check {% endcomment %}
 {% assign cond_forecast = false %}
-{% if active_weather_code <= 2 or is_sunny_later == "true" %}
-  {% assign cond_forecast = true %}
+{% if has_enough_sun %}
+  {% if active_weather_code <= 2 or is_sunny_later == "true" %}
+    {% assign cond_forecast = true %}
+  {% endif %}
 {% endif %}
 
 {% comment %} Determine 6 distinct states {% endcomment %}
@@ -398,8 +388,10 @@
   {% endif %}
 
   {% assign cond_forecast = false %}
-  {% if active_weather_code <= 2 or is_sunny_later == "true" %}
-    {% assign cond_forecast = true %}
+  {% if has_enough_sun %}
+    {% if active_weather_code <= 2 or is_sunny_later == "true" %}
+      {% assign cond_forecast = true %}
+    {% endif %}
   {% endif %}
 {% endif %}
 
@@ -674,13 +666,16 @@
       <div class="condition-row">
         <div class="condition-info">
           <span class="condition-name">Sun</span>
-          <span class="condition-threshold">coming out?</span>
+          <span class="condition-threshold">3+ hours?</span>
         </div>
         <span class="condition-value">
+          {% assign all_day_floor = window_hours | minus: 1 %}
           {% if is_clearing_later == "true" and clearing_time != blank %}
             At {{ clearing_time }}
-          {% elsif cond_forecast %}
+          {% elsif window_hours > 0 and sun_hours >= all_day_floor %}
             All day
+          {% elsif sun_hours > 0 %}
+            {{ sun_hours }} hr{% if sun_hours != 1 %}s{% endif %}
           {% else %}
             Cloudy
           {% endif %}

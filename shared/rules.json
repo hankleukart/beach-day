@@ -1,6 +1,6 @@
 {
-  "$comment": "Single source of truth for Beach Day decision logic. Every implementation (Hubitat/TRMNL Liquid, reTerminal firmware) must produce identical verdicts from identical inputs. Change a value here first, then update each implementation and note it in shared/README.md.",
-  "version": 1,
+  "$comment": "Single source of truth for Beach Day decision logic. Every implementation (Hubitat/TRMNL, reTerminal firmware) must produce identical verdicts from identical inputs. Change a value here first, then regenerate the firmware constants (reterminal-e1001/tools/gen.py), update the Groovy and Liquid by hand, and note it in shared/README.md.",
+  "version": 2,
   "units": {
     "temperature": "fahrenheit",
     "windSpeed": "mph",
@@ -8,37 +8,38 @@
     "aqi": "us_aqi",
     "timeOfDay": "minutes from local midnight"
   },
-  "activeBeachHours": {
-    "$comment": "Hourly forecast rows inside this inclusive local-hour window feed the sun scan (first sunny hour, weather-code mode) and today's max precipitation probability. NOT the AQI window — see aqiDaylightWindow.",
-    "startHour": 9,
-    "endHour": 18
-  },
-  "aqiDaylightWindow": {
-    "$comment": "AQI min/max use a different window from the other aggregates: hourly us_aqi rows whose local hour is between the sunrise hour and the sunset hour, both inclusive, integer hours (sunrise 06:41 -> 6, sunset 19:52 -> 19). Falls back to 06-20 if sunrise/sunset are unavailable.",
-    "startHour": "hour(sunrise)",
-    "endHour": "hour(sunset)",
+  "daylightWindow": {
+    "$comment": "THE one time window. Every aggregate that narrows by time uses the hours from that day's own sunrise to that day's own sunset, inclusive, as integer hours (sunrise 06:41 -> 6, sunset 19:52 -> 19). Today uses today's sun; tomorrow uses TOMORROW's sun. There is no separate beach-hours window.",
+    "startHour": "hour(sunrise of that day)",
+    "endHour": "hour(sunset of that day)",
     "fallbackStartHour": 6,
-    "fallbackEndHour": 20
+    "fallbackEndHour": 20,
+    "$comment2": "Fallback applies only when that day's sunrise/sunset are unavailable."
   },
   "inputAggregation": {
-    "$comment": "How each rule input is derived from Open-Meteo. Today and tomorrow are NOT symmetric; implementations must match this, not tidy it.",
-    "temp": "daily temperature_2m_max for the target day",
-    "windSpeed": "daily wind_speed_10m_max for the target day",
-    "uvIndex": "daily uv_index_max for the target day",
-    "precipProbability.today": "max hourly precipitation_probability over activeBeachHours today",
-    "precipProbability.tomorrow": "daily precipitation_probability_max for tomorrow (whole day, not activeBeachHours)",
-    "aqi": "max hourly us_aqi over aqiDaylightWindow for the target day",
-    "aqiMin": "min hourly us_aqi over aqiDaylightWindow for the target day",
-    "humidityMin/Max": "min/max hourly relative_humidity_2m over all 24 hours of the target day",
-    "activeWeatherCode": "mode of hourly weather_code over activeBeachHours for the target day; ties go to the LOWER code; falls back to daily weather_code if no rows",
-    "hourlyRows": "every hourly row for the target day whose local hour is in activeBeachHours, as (hour, weather_code)"
+    "$comment": "How each rule input is derived from Open-Meteo. Today and tomorrow are SYMMETRIC: the same calculation on the same kind of window, each using its own day's sunrise/sunset.",
+    "temp": "daily temperature_2m_max for that day",
+    "tempMin": "daily temperature_2m_min for that day",
+    "windSpeed": "daily wind_speed_10m_max for that day",
+    "uvIndex": "daily uv_index_max for that day",
+    "precipProbability": "max hourly precipitation_probability over that day's daylightWindow",
+    "aqi": "max hourly us_aqi over that day's daylightWindow",
+    "aqiMin": "min hourly us_aqi over that day's daylightWindow",
+    "humidityMin": "min hourly relative_humidity_2m over that day's daylightWindow",
+    "humidityMax": "max hourly relative_humidity_2m over that day's daylightWindow",
+    "activeWeatherCode": "mode of hourly weather_code over that day's daylightWindow; ties go to the LOWER code; falls back to that day's daily weather_code when the window has no rows",
+    "hourlyRows": "every hourly row in that day's daylightWindow as (hour, weather_code), in hour order; feeds the sun scan"
   },
   "sunnyWeatherCodeMax": {
     "$comment": "WMO codes <= this count as sun: 0 clear, 1 mainly clear, 2 partly cloudy.",
     "value": 2
   },
+  "minSunHours": {
+    "$comment": "Minimum number of sunny hours (WMO code <= sunnyWeatherCodeMax) required within that day's daylightWindow for the forecast condition to pass. Guards against a single sunny hour at dawn qualifying an otherwise overcast day.",
+    "value": 3
+  },
   "clearingDeadlineHour": {
-    "$comment": "First sunny hour must be at or before this local hour to satisfy the forecast condition. 14 = 2 PM.",
+    "$comment": "The first sunny hour of the daylight window must be at or before this local hour to satisfy the forecast condition. 14 = 2 PM. This is a threshold on the hour, not a window boundary.",
     "value": 14
   },
   "beachDayConditions": {
@@ -60,8 +61,8 @@
       "value": 100
     },
     "forecast": {
-      "$comment": "Passes if the active daily weather code is sunny, OR the first sunny hour is at/before clearingDeadlineHour.",
-      "rule": "activeWeatherCode <= sunnyWeatherCodeMax OR firstSunnyHour <= clearingDeadlineHour"
+      "$comment": "Passes when the daylight window has at least minSunHours sunny hours AND the sun is either the day's dominant condition or arrives by clearingDeadlineHour.",
+      "rule": "sunHours >= minSunHours AND (activeWeatherCode <= sunnyWeatherCodeMax OR firstSunnyHour <= clearingDeadlineHour)"
     },
     "time": {
       "$comment": "Current local time must be between sunrise and sunset minus this buffer. If sunrise/sunset are unavailable (0), this condition passes.",
@@ -169,10 +170,13 @@
     }
   },
   "rounding": {
-    "$comment": "All values are rounded to the nearest integer before display.",
-    "temperature": 0,
-    "windSpeed": 0,
-    "uvIndex": 0,
-    "aqi": 0
+    "$comment": "Displayed values are rounded ONCE, half-up, from the API value straight to an integer. Implementations must not round in two stages (e.g. to one decimal and then to an integer): 74.45 rounds to 74, never 75.",
+    "mode": "half-up to integer, single stage",
+    "applies": [
+      "temperature",
+      "windSpeed",
+      "uvIndex",
+      "aqi"
+    ]
   }
 }

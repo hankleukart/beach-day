@@ -114,6 +114,23 @@ metadata {
 		attribute "humidityMaxTomorrow", "number"
 		attribute "airQualityDaylightHrsMin", "number"
 		attribute "airQualityDaylightHrsMinTomorrow", "number"
+
+		// ── Daylight-window aggregates (shared/rules.json "daylightWindow") ──
+		// Every time-narrowed aggregate uses that day's OWN sunrise..sunset hours.
+		attribute "sunriseTomorrow", "string"
+		attribute "sunsetTomorrow", "string"
+		attribute "precipitationProbabilityDaylightToday", "number"
+		attribute "precipitationProbabilityDaylightTomorrow", "number"
+		attribute "weatherCodeDaylightToday", "number"      // mode over the window
+		attribute "weatherCodeDaylightTomorrow", "number"
+		attribute "weatherCondDaylightToday", "string"
+		attribute "weatherCondDaylightTomorrow", "string"
+		attribute "sunHoursToday", "number"                 // hours with WMO code <= 2
+		attribute "sunHoursTomorrow", "number"
+		attribute "firstSunnyHourToday", "number"           // -1 when never sunny
+		attribute "firstSunnyHourTomorrow", "number"
+		attribute "daylightHoursToday", "number"            // rows in the window
+		attribute "daylightHoursTomorrow", "number"
 		attribute "airQuality24hMin", "number"
 		attribute "airQuality24hMax", "number"
 		attribute "airQuality24hMinTomorrow", "number"
@@ -290,6 +307,7 @@ void httpResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 	parseCurrent(json, tUnit, wUnit, pUnit)
 	parseHourly(json, tUnit, pUnit)
 	parseDaily(json, tUnit)
+	computeDaylightAggregates()
 
 	generateForecastStrings()
 
@@ -399,14 +417,13 @@ private void parseHourly(Map json, String tUnit, String pUnit) {
 		state.tomorrowWindMax = roundN(winds.subList(24, 48).findAll { it != null }.max() as BigDecimal, 1)
 	}
 
-	if (hums.size() >= 24) {
-		state.todayHumMin = toInt(hums.subList(0, 24).findAll { it != null }.min())
-		state.todayHumMax = toInt(hums.subList(0, 24).findAll { it != null }.max())
-	}
-	if (hums.size() >= 48) {
-		state.tomorrowHumMin = toInt(hums.subList(24, 48).findAll { it != null }.min())
-		state.tomorrowHumMax = toInt(hums.subList(24, 48).findAll { it != null }.max())
-	}
+	// Humidity, precipitation probability and the weather-code mode are all
+	// aggregated over each day's own sunrise..sunset window, which needs the sun
+	// times parseDaily has not emitted yet. Stash the raw hours; httpResponse
+	// calls computeDaylightAggregates() once both halves are in.
+	state.hrHumidity   = hums.collect { toInt(it) }
+	state.hrPrecipProb = precipProbs.collect { toInt(it) }
+	state.hrCode       = codes.collect { toInt(it) }
 
 	if (uvs.size() >= 24) {
 		state.todayUvMin = roundN(uvs.subList(0, 24).findAll { it != null }.min() as BigDecimal, 1)
@@ -434,6 +451,19 @@ private void parseDaily(Map json, String tUnit) {
 
 	if (sunrises) emitIfChanged("sunrise", sunrises[0] as String, "${device.displayName} sunrise ${sunrises[0]}")
 	if (sunsets)  emitIfChanged("sunset",  sunsets[0]  as String, "${device.displayName} sunset ${sunsets[0]}")
+	if (sunrises.size() > 1) emitIfChanged("sunriseTomorrow", sunrises[1] as String, "${device.displayName} sunrise tomorrow ${sunrises[1]}")
+	if (sunsets.size()  > 1) emitIfChanged("sunsetTomorrow",  sunsets[1]  as String, "${device.displayName} sunset tomorrow ${sunsets[1]}")
+
+	// Stash what computeDaylightAggregates() and aqiResponse() need. state is
+	// written synchronously; attributes just emitted are not readable yet.
+	state.sunHourToday     = isoHour(sunrises ? sunrises[0] : null)
+	state.sunsetHourToday  = isoHour(sunsets  ? sunsets[0]  : null)
+	state.sunHourTomorrow    = isoHour(sunrises.size() > 1 ? sunrises[1] : null)
+	state.sunsetHourTomorrow = isoHour(sunsets.size()  > 1 ? sunsets[1]  : null)
+	state.dailyCodeToday       = codes ? toInt(codes[0]) : null
+	state.dailyCodeTomorrow    = codes.size() > 1 ? toInt(codes[1]) : null
+	state.dailyPrecipMaxToday    = rainPMax ? toInt(rainPMax[0]) : null
+	state.dailyPrecipMaxTomorrow = rainPMax.size() > 1 ? toInt(rainPMax[1]) : null
 
 	if (tMaxes) {
 		BigDecimal tMax = roundN(tMaxes[0], 1)
@@ -522,58 +552,23 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 	if (hourly && hourly.us_aqi instanceof List) {
 		List aqis = (List) hourly.us_aqi
 
-		// Determine daylight hours from device attributes (default to 6 AM - 8 PM if not set)
-		String sunriseStr = device.currentValue("sunrise")
-		String sunsetStr = device.currentValue("sunset")
-		int sunriseHour = 6
-		int sunsetHour = 20
+		// AQI over each day's own sunrise..sunset window. Tomorrow uses TOMORROW's
+		// sun, not today's (rules.json "daylightWindow").
+		state.hrAqi = aqis.collect { toInt(it) }
 
-		if (sunriseStr && sunriseStr.contains("T")) {
-			try {
-				sunriseHour = sunriseStr.split("T")[1].split(":")[0].toInteger()
-			} catch (e) {
-				log.warn "Failed to parse sunrise hour from ${sunriseStr}: ${e.message}"
-			}
-		}
-		if (sunsetStr && sunsetStr.contains("T")) {
-			try {
-				sunsetHour = sunsetStr.split("T")[1].split(":")[0].toInteger()
-			} catch (e) {
-				log.warn "Failed to parse sunset hour from ${sunsetStr}: ${e.message}"
-			}
-		}
-		
-		// Today's max (indices 0..23, filtered by daylight hours)
-		List todayDaylightAqis = []
-		for (int i = 0; i < 24; i++) {
-			if (i >= aqis.size()) break
-			if (i >= sunriseHour && i <= sunsetHour) {
-				todayDaylightAqis.add(aqis[i])
-			}
-		}
-		Integer maxAqiToday = todayDaylightAqis.findAll { it != null }.max() as Integer
-		Integer minAqiToday = todayDaylightAqis.findAll { it != null }.min() as Integer
+		List<Integer> wToday    = daylightWindowFor(0)
+		List<Integer> wTomorrow = daylightWindowFor(1)
 
-		// Today's 24h min/max
+		Integer maxAqiToday = hourlyWindowMax(aqis, 0, wToday[0], wToday[1])
+		Integer minAqiToday = hourlyWindowMin(aqis, 0, wToday[0], wToday[1])
+
+		// Today's 24h min/max (whole-day, unrelated to the daylight window)
 		List today24hAqis = aqis.subList(0, Math.min(aqis.size(), 24))
 		Integer maxAqiToday24h = today24hAqis.findAll { it != null }.max() as Integer
 		Integer minAqiToday24h = today24hAqis.findAll { it != null }.min() as Integer
 
-		// Tomorrow's max (indices 24..47, filtered by daylight hours)
-		Integer maxAqiTomorrow = null
-		Integer minAqiTomorrow = null
-		if (aqis.size() >= 48) {
-			List tomorrowDaylightAqis = []
-			for (int i = 24; i < 48; i++) {
-				if (i >= aqis.size()) break
-				int hourOfTomorrow = i - 24
-				if (hourOfTomorrow >= sunriseHour && hourOfTomorrow <= sunsetHour) {
-					tomorrowDaylightAqis.add(aqis[i])
-				}
-			}
-			maxAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.max() as Integer
-			minAqiTomorrow = tomorrowDaylightAqis.findAll { it != null }.min() as Integer
-		}
+		Integer maxAqiTomorrow = hourlyWindowMax(aqis, 1, wTomorrow[0], wTomorrow[1])
+		Integer minAqiTomorrow = hourlyWindowMin(aqis, 1, wTomorrow[0], wTomorrow[1])
 
 		// Tomorrow's 24h min/max
 		Integer maxAqiTomorrow24h = null
@@ -622,6 +617,125 @@ void aqiResponse(hubitat.scheduling.AsyncResponse response, Map data = null) {
 		}
 	}
 	generateForecastStrings()
+}
+
+// ── Daylight-window aggregation ──────────────────────────────────────────────
+// One window for everything: that day's own sunrise hour through its own sunset
+// hour, inclusive. See shared/rules.json "daylightWindow" and "inputAggregation".
+
+@Field static final int DAYLIGHT_FALLBACK_START_HOUR = 6
+@Field static final int DAYLIGHT_FALLBACK_END_HOUR   = 20
+@Field static final int SUNNY_CODE_MAX               = 2
+
+// Hour-of-day from an ISO local timestamp ("2026-09-17T06:38" -> 6), or null.
+private Integer isoHour(value) {
+	if (value == null) return null
+	String str = value.toString()
+	if (!str.contains("T")) return null
+	try { return str.split("T")[1].split(":")[0].toInteger() } catch (e) { return null }
+}
+
+// dayIndex 0 = today, 1 = tomorrow. Returns [startHour, endHour], inclusive.
+// Prefers state (written by parseDaily in this same poll) over the attributes,
+// which may not have caught up yet.
+private List<Integer> daylightWindowFor(int dayIndex) {
+	Integer startH = (dayIndex == 0) ? toInt(state.sunHourToday)    : toInt(state.sunHourTomorrow)
+	Integer endH   = (dayIndex == 0) ? toInt(state.sunsetHourToday) : toInt(state.sunsetHourTomorrow)
+	if (startH == null) startH = isoHour(device.currentValue(dayIndex == 0 ? "sunrise" : "sunriseTomorrow"))
+	if (endH   == null) endH   = isoHour(device.currentValue(dayIndex == 0 ? "sunset"  : "sunsetTomorrow"))
+	if (startH == null) startH = DAYLIGHT_FALLBACK_START_HOUR
+	if (endH   == null) endH   = DAYLIGHT_FALLBACK_END_HOUR
+	return [startH, endH]
+}
+
+// Open-Meteo with timezone=auto and forecast_days=2 returns 48 hourly rows
+// starting at local midnight today, so index = dayIndex * 24 + hourOfDay.
+private List collectWindow(List values, int dayIndex, int startH, int endH) {
+	List out = []
+	if (!values) return out
+	for (int h = startH; h <= endH && h <= 23; h++) {
+		int i = dayIndex * 24 + h
+		if (i < 0 || i >= values.size()) continue
+		if (values[i] != null) out << values[i]
+	}
+	return out
+}
+
+private Integer hourlyWindowMax(List values, int dayIndex, int startH, int endH) {
+	List w = collectWindow(values, dayIndex, startH, endH)
+	return w.isEmpty() ? null : (w.max() as Integer)
+}
+
+private Integer hourlyWindowMin(List values, int dayIndex, int startH, int endH) {
+	List w = collectWindow(values, dayIndex, startH, endH)
+	return w.isEmpty() ? null : (w.min() as Integer)
+}
+
+// Mode of the WMO code over the window; ties go to the LOWER code.
+private Integer windowModeWmoCode(List codes, int dayIndex, int startH, int endH) {
+	List w = collectWindow(codes, dayIndex, startH, endH)
+	if (w.isEmpty()) return null
+	Map<Integer, Integer> counts = [:]
+	w.each { Integer c -> counts[c] = (counts[c] ?: 0) + 1 }
+	return counts.entrySet().max { a, b -> a.value <=> b.value ?: b.key <=> a.key }?.key
+}
+
+private void computeDaylightAggregates() {
+	List codes       = (state.hrCode       instanceof List) ? (List) state.hrCode       : []
+	List precipProbs = (state.hrPrecipProb instanceof List) ? (List) state.hrPrecipProb : []
+	List hums        = (state.hrHumidity   instanceof List) ? (List) state.hrHumidity   : []
+
+	(0..1).each { int d ->
+		List<Integer> w = daylightWindowFor(d)
+		int startH = w[0], endH = w[1]
+		String sfx = (d == 0) ? "Today" : "Tomorrow"
+
+		// Precipitation probability: window max, falling back to the API daily max.
+		Integer precipMax = hourlyWindowMax(precipProbs, d, startH, endH)
+		if (precipMax == null) {
+			precipMax = toInt(d == 0 ? state.dailyPrecipMaxToday : state.dailyPrecipMaxTomorrow)
+		}
+		if (precipMax != null) {
+			emitIfChanged("precipitationProbabilityDaylight${sfx}", precipMax,
+				"${device.displayName} ${sfx.toLowerCase()}'s daylight max precipitation probability ${precipMax}%", "%")
+		}
+
+		// Weather-code mode over the window, plus its description.
+		Integer modeCode = windowModeWmoCode(codes, d, startH, endH)
+		if (modeCode == null) modeCode = toInt(d == 0 ? state.dailyCodeToday : state.dailyCodeTomorrow)
+		if (modeCode != null) {
+			emitIfChanged("weatherCodeDaylight${sfx}", modeCode, "${device.displayName} ${sfx.toLowerCase()}'s daylight weather code is ${modeCode}")
+			String cond = wmoDescription(modeCode)
+			if (cond) emitIfChanged("weatherCondDaylight${sfx}", cond, "${device.displayName} ${sfx.toLowerCase()}'s daylight weather is ${cond}")
+		}
+
+		// Humidity min/max over the window (was previously the whole 24 hours).
+		Integer hMin = hourlyWindowMin(hums, d, startH, endH)
+		Integer hMax = hourlyWindowMax(hums, d, startH, endH)
+		if (hMin != null && hMax != null) {
+			emitIfChanged("humidityMin${d == 0 ? '' : 'Tomorrow'}", hMin, "${device.displayName} ${sfx.toLowerCase()}'s daylight humidity min is ${hMin}%", "%")
+			emitIfChanged("humidityMax${d == 0 ? '' : 'Tomorrow'}", hMax, "${device.displayName} ${sfx.toLowerCase()}'s daylight humidity max is ${hMax}%", "%")
+			if (d == 0) { state.todayHumMin = hMin; state.todayHumMax = hMax }
+			else        { state.tomorrowHumMin = hMin; state.tomorrowHumMax = hMax }
+		}
+
+		// Sun scan: how many sunny hours, and the first one.
+		int sunHours = 0
+		int firstSunnyHour = -1
+		int rows = 0
+		for (int h = startH; h <= endH && h <= 23; h++) {
+			int i = d * 24 + h
+			if (i < 0 || i >= codes.size() || codes[i] == null) continue
+			rows++
+			if ((codes[i] as Integer) <= SUNNY_CODE_MAX) {
+				sunHours++
+				if (firstSunnyHour == -1) firstSunnyHour = h
+			}
+		}
+		emitIfChanged("sunHours${sfx}", sunHours, "${device.displayName} ${sfx.toLowerCase()} has ${sunHours} sunny daylight hours")
+		emitIfChanged("firstSunnyHour${sfx}", firstSunnyHour, "${device.displayName} ${sfx.toLowerCase()}'s first sunny hour is ${firstSunnyHour}")
+		emitIfChanged("daylightHours${sfx}", rows, "${device.displayName} ${sfx.toLowerCase()} has ${rows} daylight hours")
+	}
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

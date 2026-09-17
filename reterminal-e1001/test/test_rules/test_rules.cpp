@@ -51,6 +51,10 @@ void test_rules_fixtures() {
       snprintf(msg, sizeof(msg), "%s: clearingTime", c.name);
       TEST_ASSERT_EQUAL_STRING_MESSAGE(c.clearingTime, v.sun.clearingTime, msg);
     }
+    if (c.expectSunHours >= 0) {
+      snprintf(msg, sizeof(msg), "%s: sunHours", c.name);
+      TEST_ASSERT_EQUAL_INT_MESSAGE(c.expectSunHours, v.sun.sunHours, msg);
+    }
     if (c.clearingLater >= 0) {
       snprintf(msg, sizeof(msg), "%s: clearingLater", c.name);
       TEST_ASSERT_EQUAL_MESSAGE(c.clearingLater != 0, v.sun.clearingLater, msg);
