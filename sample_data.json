@@ -85,5 +85,27 @@
     "sunnyLater": "true",
     "clearingLater": "true",
     "clearingTime": "12 PM"
+  },
+  "parking_alert_left": {
+    "temperatureHi": 78.5,
+    "probablityofPrecipitation": 10.0,
+    "windspeedHi": 12.0,
+    "detailedforecastlowercase": "clear and sunny",
+    "time": 1765300000,
+    "sunrise": 1765281600,
+    "sunset": 1765324800,
+    "parking_alert_active": true,
+    "parking_alert_text": "DO NOT PARK LEFT SIDE: 8-10AM"
+  },
+  "parking_alert_right": {
+    "temperatureHi": 78.5,
+    "probablityofPrecipitation": 10.0,
+    "windspeedHi": 12.0,
+    "detailedforecastlowercase": "clear and sunny",
+    "time": 1765300000,
+    "sunrise": 1765281600,
+    "sunset": 1765324800,
+    "parking_alert_active": true,
+    "parking_alert_text": "DO NOT PARK RIGHT SIDE: 8-10AM"
   }
 }

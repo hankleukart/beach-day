@@ -20,12 +20,27 @@ preferences {
 
 def mainPage() {
     dynamicPage(name: "mainPage", title: "", install: true, uninstall: true) {
-        section("") {
+        section("General Configuration") {
             input "weatherDevice", "capability.sensor", title: "Open-Meteo Weather Enhanced Device", required: true, multiple: false
             input "locationName", "text", title: "Location Name (optional)", required: false
             input "webhookUrl", "text", title: "TRMNL Webhook URL", required: true
             input "logEnable", "bool", title: "Enable debug logging", defaultValue: true
             input name: "btnForceUpdate", type: "button", title: "Force Update Now"
+        }
+        section("Street Parking Restrictions (Alert replaces Sunset time)") {
+            paragraph "<b>Left Side Parking Restriction</b>"
+            input "parkingLeftEnabled", "bool", title: "Enable Left-Side Parking Reminder", defaultValue: true
+            input "parkingLeftWeeks", "enum", title: "Week(s) of Month", options: ["1": "1st Week", "2": "2nd Week", "3": "3rd Week", "4": "4th Week", "5": "5th Week"], multiple: true, defaultValue: ["1", "3"]
+            input "parkingLeftDay", "enum", title: "Day of Week", options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], defaultValue: "Wednesday"
+            input "parkingLeftStart", "time", title: "Restriction Start Time", defaultValue: "08:00"
+            input "parkingLeftEnd", "time", title: "Restriction End Time", defaultValue: "10:00"
+
+            paragraph "<b>Right Side Parking Restriction</b>"
+            input "parkingRightEnabled", "bool", title: "Enable Right-Side Parking Reminder", defaultValue: true
+            input "parkingRightWeeks", "enum", title: "Week(s) of Month", options: ["1": "1st Week", "2": "2nd Week", "3": "3rd Week", "4": "4th Week", "5": "5th Week"], multiple: true, defaultValue: ["1", "3"]
+            input "parkingRightDay", "enum", title: "Day of Week", options: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"], defaultValue: "Thursday"
+            input "parkingRightStart", "time", title: "Restriction Start Time", defaultValue: "08:00"
+            input "parkingRightEnd", "time", title: "Restriction End Time", defaultValue: "10:00"
         }
     }
 }
@@ -183,6 +198,9 @@ def updateTrmnl() {
 
     def locName = settings.locationName ?: ""
 
+    // Evaluate street parking restriction status
+    Map parkingAlert = evaluateParkingAlert(sunsetVal)
+
     // 4. Construct Payload
     Map payload = [
         merge_variables: [
@@ -217,7 +235,9 @@ def updateTrmnl() {
             weatherCodeDaylightTomorrow: codeDaylightTomorrow != null ? codeDaylightTomorrow : (weatherDevice.currentValue("weatherCodeTomorrow") ?: 0),
             tomorrowHumidityMin: tomorrowHumidityMin,
             tomorrowHumidityMax: tomorrowHumidityMax,
-            airQualityDaylightHrsMinTomorrow: tomorrowAqiMin
+            airQualityDaylightHrsMinTomorrow: tomorrowAqiMin,
+            parking_alert_active: parkingAlert.active,
+            parking_alert_text: parkingAlert.text
         ]
     ]
 
@@ -348,4 +368,156 @@ private String wmoCodeToDescription(Integer code) {
         99: "Thunderstorm with heavy hail"
     ]
     return wmoCodes[code] ?: "Unknown (code ${code})"
+}
+
+private Map evaluateParkingAlert(int sunsetVal) {
+    List<Map> rules = []
+
+    // Left Side Rule
+    boolean leftEnabled = (settings.parkingLeftEnabled != null) ? settings.parkingLeftEnabled.toBoolean() :
+                          ((settings.parking1Enabled != null) ? settings.parking1Enabled.toBoolean() : true)
+    if (leftEnabled) {
+        List<Integer> weeks = parseWeeks(settings.parkingLeftWeeks ?: settings.parking1Weeks ?: ["1", "3"])
+        String day = settings.parkingLeftDay ?: settings.parking1Day ?: "Wednesday"
+        int startMins = parseTimeToMinutes(settings.parkingLeftStart ?: settings.parking1Start ?: "08:00")
+        int endMins = parseTimeToMinutes(settings.parkingLeftEnd ?: settings.parking1End ?: "10:00")
+        String text = formatParkingText("LEFT", startMins, endMins)
+        rules << [side: "LEFT", day: day, weeks: weeks, startMins: startMins, endMins: endMins, displayText: text]
+    }
+
+    // Right Side Rule
+    boolean rightEnabled = (settings.parkingRightEnabled != null) ? settings.parkingRightEnabled.toBoolean() :
+                           ((settings.parking2Enabled != null) ? settings.parking2Enabled.toBoolean() : true)
+    if (rightEnabled) {
+        List<Integer> weeks = parseWeeks(settings.parkingRightWeeks ?: settings.parking2Weeks ?: ["1", "3"])
+        String day = settings.parkingRightDay ?: settings.parking2Day ?: "Thursday"
+        int startMins = parseTimeToMinutes(settings.parkingRightStart ?: settings.parking2Start ?: "08:00")
+        int endMins = parseTimeToMinutes(settings.parkingRightEnd ?: settings.parking2End ?: "10:00")
+        String text = formatParkingText("RIGHT", startMins, endMins)
+        rules << [side: "RIGHT", day: day, weeks: weeks, startMins: startMins, endMins: endMins, displayText: text]
+    }
+
+    if (rules.isEmpty()) {
+        return [active: false, text: ""]
+    }
+
+    TimeZone tz = location.timeZone ?: TimeZone.getDefault()
+    Calendar now = Calendar.getInstance(tz)
+
+    int todayDayOfWeek = now.get(Calendar.DAY_OF_WEEK)
+    int todayDayOfMonth = now.get(Calendar.DAY_OF_MONTH)
+    int todayWeekOfMonth = ((todayDayOfMonth - 1) / 7).intValue() + 1
+    int currentMinsFromMidnight = now.get(Calendar.HOUR_OF_DAY) * 60 + now.get(Calendar.MINUTE)
+
+    Calendar tomorrow = (Calendar) now.clone()
+    tomorrow.add(Calendar.DAY_OF_MONTH, 1)
+    int tomorrowDayOfWeek = tomorrow.get(Calendar.DAY_OF_WEEK)
+    int tomorrowDayOfMonth = tomorrow.get(Calendar.DAY_OF_MONTH)
+    int tomorrowWeekOfMonth = ((tomorrowDayOfMonth - 1) / 7).intValue() + 1
+
+    int effectiveSunsetMins = (sunsetVal > 0) ? sunsetVal : (19 * 60 + 30)
+
+    Map dayOfWeekMap = [
+        "Sunday": 1, "Monday": 2, "Tuesday": 3, "Wednesday": 4,
+        "Thursday": 5, "Friday": 6, "Saturday": 7
+    ]
+
+    for (Map r in rules) {
+        Integer targetDayNum = dayOfWeekMap[r.day]
+        if (!targetDayNum) continue
+
+        // Case 1: Today IS the restriction day (active from sunset night before until endMins today)
+        if (todayDayOfWeek == targetDayNum && r.weeks.contains(todayWeekOfMonth)) {
+            if (currentMinsFromMidnight <= r.endMins) {
+                return [active: true, text: r.displayText]
+            }
+        }
+
+        // Case 2: Today IS the night BEFORE the restriction day (active from sunset today onwards)
+        if (tomorrowDayOfWeek == targetDayNum && r.weeks.contains(tomorrowWeekOfMonth)) {
+            if (currentMinsFromMidnight >= effectiveSunsetMins) {
+                return [active: true, text: r.displayText]
+            }
+        }
+    }
+
+    return [active: false, text: ""]
+}
+
+private String formatParkingText(String side, int startMins, int endMins) {
+    String startStr = formatTimeShort(startMins)
+    String endStr = formatTimeShort(endMins)
+
+    if (startStr.endsWith("AM") && endStr.endsWith("AM")) {
+        startStr = startStr.replaceAll("AM", "")
+    } else if (startStr.endsWith("PM") && endStr.endsWith("PM")) {
+        startStr = startStr.replaceAll("PM", "")
+    }
+
+    return "NO PARKING ${side} SIDE: ${startStr}-${endStr}"
+}
+
+private String formatTimeShort(int totalMinutes) {
+    int h = (totalMinutes / 60).intValue() % 24
+    int m = totalMinutes % 60
+    String ampm = h >= 12 ? "PM" : "AM"
+    int displayH = h % 12
+    if (displayH == 0) displayH = 12
+    if (m == 0) {
+        return "${displayH}${ampm}"
+    } else {
+        String displayM = m < 10 ? "0${m}" : "${m}"
+        return "${displayH}:${displayM}${ampm}"
+    }
+}
+
+private List<Integer> parseWeeks(Object val) {
+    if (val == null) return [1, 3]
+    List<Integer> res = []
+    if (val instanceof List) {
+        val.each { item ->
+            String s = item.toString().trim()
+            if (s.isInteger()) res << s.toInteger()
+        }
+    } else {
+        val.toString().split(",").each { String s ->
+            String trimmed = s.trim()
+            if (trimmed.isInteger()) res << trimmed.toInteger()
+        }
+    }
+    return res.isEmpty() ? [1, 3] : res
+}
+
+private int parseTimeToMinutes(Object val) {
+    if (val == null) return 0
+    String str = val.toString().trim()
+    if (!str) return 0
+
+    if (str.contains("T")) {
+        str = str.split("T")[1]
+    }
+    if (str.contains("-") && !str.startsWith("-")) {
+        str = str.split("-")[0]
+    }
+    if (str.contains("+")) {
+        str = str.split("\\+")[0]
+    }
+
+    boolean isPM = str.toUpperCase().contains("PM")
+    boolean isAM = str.toUpperCase().contains("AM")
+    str = str.replaceAll("(?i)[a-z\\s]", "")
+
+    try {
+        def parts = str.split(":")
+        if (parts.size() >= 2) {
+            int h = parts[0].toInteger()
+            int m = parts[1].toInteger()
+            if (isPM && h < 12) h += 12
+            if (isAM && h == 12) h = 0
+            return h * 60 + m
+        }
+    } catch (e) {
+        log.error "Failed to parse time string '${val}': ${e.message}"
+    }
+    return 0
 }

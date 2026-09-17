@@ -179,6 +179,24 @@
   .status-icon--fail {
     color: #888888;
   }
+
+  .parking-alert-block {
+    background-color: #000000;
+    color: #ffffff;
+    font-size: 2.5cqh;
+    font-weight: 800;
+    padding: 0.8cqh 1.2cqh;
+    border-radius: 0.8cqh;
+    display: inline-block;
+    text-transform: uppercase;
+    letter-spacing: 0.03cqw;
+    text-align: center;
+    box-sizing: border-box;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 </style>
 
 <!-- Liquid Conditional Evaluation Logic -->
@@ -198,6 +216,8 @@
 {% assign weather_code_today = weatherCodeDaylightToday | default: weatherCodeToday | default: weather_code_today | default: 99 | plus: 0 %}
 {% assign weather_code_tomorrow = weatherCodeDaylightTomorrow | default: weatherCodeTomorrow | default: weather_code_tomorrow | default: 99 | plus: 0 %}
 {% assign uv_index = uvIndex | default: uv_index | default: ultravioletIndex | plus: 0 %}
+{% assign parking_active = parking_alert_active | default: parkingAlertActive %}
+{% assign parking_msg = parking_alert_text | default: parkingAlertText %}
 {% comment %} We will parse the raw hourly data below to calculate clearing times dynamically {% endcomment %}
 
 
@@ -774,9 +794,15 @@
 
     <!-- Bottom Divider & Sunset Info -->
     <div style="border-top: 0.8cqh solid #000000; margin-top: 3cqh; padding-top: 1.5cqh; text-align: center;">
-      <span style="font-size: 2.7cqh; font-weight: 700; color: #555555; white-space: nowrap;">
-        {{ time_meta }}
-      </span>
+      {% if parking_active == true or parking_active == "true" %}
+        <div class="parking-alert-block">
+          {{ parking_msg | default: "NO PARKING" }}
+        </div>
+      {% else %}
+        <span style="font-size: 2.7cqh; font-weight: 700; color: #555555; white-space: nowrap;">
+          {{ time_meta }}
+        </span>
+      {% endif %}
     </div>
   </div>
 
