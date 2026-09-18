@@ -10,16 +10,43 @@
 #include "weather.h"
 #include "render.h"
 #include "power.h"
+#include "pins.h"
 #include "beachrules.h"
 #include "parking.h"
 #include "aggregate.h"
 #include "devmode.h"
+#include "ota.h"
+#include "version.h"
+#include <Preferences.h>
 
 // Survives deep sleep (RTC slow memory), not a power cycle.
 RTC_DATA_ATTR static ViewModel lastView;
 RTC_DATA_ATTR static uint16_t  failCount   = 0;
 RTC_DATA_ATTR static bool      staleShown  = false;
 RTC_DATA_ATTR static uint32_t  bootCount   = 0;
+
+// Crash counter. Incremented at the top of every boot and cleared once a cycle
+// completes, so it only accumulates when the firmware fails before sleeping.
+// After SAFE_MODE_THRESHOLD consecutive failures the board stops doing anything
+// except looking for a newer firmware, which is the only remote way out of a
+// bad release. (The stock Arduino bootloader has no automatic OTA rollback.)
+static constexpr int SAFE_MODE_THRESHOLD = 3;
+
+static int bumpBootFailures() {
+  Preferences p;
+  if (!p.begin("beachday", false)) return 0;
+  int n = p.getInt("bootFail", 0) + 1;
+  p.putInt("bootFail", n);
+  p.end();
+  return n;
+}
+
+static void clearBootFailures() {
+  Preferences p;
+  if (!p.begin("beachday", false)) return;
+  if (p.getInt("bootFail", 0) != 0) p.putInt("bootFail", 0);
+  p.end();
+}
 
 static const char* const WEEKDAYS[] = {
   "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
@@ -154,6 +181,7 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const beach::Inputs& in,
 // In the dev build this hands off to an interactive loop instead of sleeping,
 // so the USB serial port stays up. Both paths never return.
 static void sleepNow(uint32_t seconds) {
+  clearBootFailures();
 #ifdef BEACHDAY_DEV
   (void)seconds;
   devLoop(lastView, lastView.valid);
@@ -166,10 +194,39 @@ static void sleepNow(uint32_t seconds) {
 void setup() {
   Serial.begin(115200);
   bootCount++;
-  Serial.printf("\n[beach] boot %u, %s\n", (unsigned)bootCount, wokeByButton() ? "button wake" : "timer/power wake");
 
   const Settings& s = loadSettings();
+
+  // KEY2 (left) held at wake forces an OTA check regardless of the interval.
+  pinMode(PIN_KEY2, INPUT_PULLUP);
+  bool forceOta = (digitalRead(PIN_KEY2) == LOW);
+
+  int failures = bumpBootFailures();
+  bool safeMode = (failures > SAFE_MODE_THRESHOLD);
+  Serial.printf("[beach] firmware %s, boot %u, %s%s\n", FIRMWARE_VERSION, (unsigned)bootCount,
+                wokeByButton() ? "button wake" : "timer/power wake",
+                safeMode ? ", SAFE MODE" : "");
+  if (forceOta) Serial.println(F("[beach] KEY2 held: forcing an update check"));
+
   renderBegin();
+
+  if (safeMode) {
+    // Do nothing but try to fetch a fix.
+    Serial.printf("[beach] %d consecutive failed boots; update-only mode\n", failures - 1);
+    renderMessage("Updating", "This display hit a problem and is",
+                  "looking for new software. Leave it on Wi-Fi.");
+    char otaStatus[64] = "";
+    if (netConnect(s, 25000)) {
+      netSyncTime(8000);
+      otaCheck(s, true, otaStatus, sizeof(otaStatus));
+      netDisconnect();
+    } else {
+      snprintf(otaStatus, sizeof(otaStatus), "no wifi");
+    }
+    Serial.printf("[beach] safe-mode ota: %s\n", otaStatus);
+    renderEnd();
+    deepSleepFor(1800);
+  }
 
   if (!s.configured()) {
     renderMessage("Beach Day needs setup", "Copy src/beachday_config.example.h to src/beachday_config.h,",
@@ -243,6 +300,17 @@ void setup() {
   renderView(lastView);
   failCount = 0;
   staleShown = false;
+
+  // Housekeeping last: the screen is already correct, so an update that fails
+  // or reboots the board costs nothing the viewer can see.
+  if (forceOta || otaDue(s)) {
+    char otaStatus[64] = "";
+    if (netConnect(s, 20000)) {
+      otaCheck(s, forceOta, otaStatus, sizeof(otaStatus));   // reboots on success
+      netDisconnect();
+      Serial.printf("[beach] ota: %s\n", otaStatus);
+    }
+  }
 
   sleepNow(secondsToNextWake(lc, in, s));
 }

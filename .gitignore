@@ -11,3 +11,6 @@ reterminal-e1001/.pio/
 
 # PlatformIO virtualenv (dev tooling, not source)
 reterminal-e1001/.venv/
+
+# Built release artifacts
+reterminal-e1001/dist/

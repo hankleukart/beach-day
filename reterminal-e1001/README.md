@@ -192,14 +192,96 @@ the header, then the board retries every `CFG_RETRY_MINUTES` (10), backing off
 to hourly after six misses. If the air-quality request alone fails, the
 forecast still renders and AQI reads 0.
 
-## Setup for other people (not built yet)
+## Updating devices you have given away
 
-Today configuration is compile-time (`beachday_config.h`). `settings.cpp` already reads
-NVS overrides for Wi-Fi and location, which is the hook for a captive-portal
-flow: hold a button at wake → the board becomes a `BeachDay-Setup` hotspot → a
-phone page collects Wi-Fi, a location (Open-Meteo's geocoding API accepts
-postal codes), a label, and the parking rules → saved to NVS. That is the next
-piece of work if this is going to be handed to someone who won't run PlatformIO.
+Each board checks a small JSON manifest for a newer firmware version and updates
+itself. Nothing connects *to* the device, so it works fine behind someone else's
+router, and the board can stay asleep most of the day.
+
+### Publishing an update
+
+```sh
+# 1. bump FIRMWARE_VERSION in src/version.h
+# 2.
+tools/release.sh --publish        # needs the gh CLI
+```
+
+That runs the rules tests, builds the release firmware, writes
+`dist/manifest.json` with the binary's size and MD5, and creates a GitHub
+release tagged `fw-v<version>` marked **latest**. Devices fetch
+`releases/latest/download/manifest.json`, compare its `version` against their
+own, and update when the two differ.
+
+Run it without `--publish` first to see the manifest and confirm the version.
+**Bumping `src/version.h` is what triggers the update** — republishing the same
+version number does nothing.
+
+### When devices pick it up
+
+- On their own within `CFG_OTA_CHECK_HOURS` (default 24). The check is skipped
+  unless that long has passed, so it costs one small HTTPS request a day.
+- Immediately if someone **holds the left button (KEY2) while the board wakes**.
+  That is the instruction to give a friend: *hold the left button and press the
+  right one.*
+
+The check runs **after** the screen has been drawn, so a failed or interrupted
+update never leaves a viewer looking at a stale or blank panel.
+
+### Safeguards
+
+- **Battery floor.** No update is started below `CFG_OTA_MIN_BATTERY_PCT`
+  (default 30%), so a flash cannot die half-written.
+- **MD5 and size.** Both are checked against the manifest. This catches the
+  realistic mistake — publishing the wrong or a truncated asset — before the
+  image is ever booted.
+- **Two OTA slots.** The new image is written to the inactive partition and only
+  becomes the boot target once fully written and verified. A power loss mid-flash
+  leaves the running firmware untouched.
+- **Safe mode.** A counter in NVS is bumped on every boot and cleared when a
+  cycle reaches sleep. After 3 consecutive boots that never reached sleep, the
+  board stops doing anything except looking for newer firmware, shows
+  *"Updating — looking for new software"*, and retries every 30 minutes. This is
+  the recovery path if a release is broken: publish a fix and the devices take it
+  themselves.
+
+### Known limits
+
+- **No automatic rollback.** The stock Arduino bootloader does not build with
+  `CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE`, so a new image that boots but
+  misbehaves stays selected. Safe mode covers the crash case; it does not cover
+  firmware that runs happily while drawing the wrong thing. Test on a bench unit
+  before publishing.
+- **TLS is not authenticated.** `setInsecure()` encrypts the transfer but does
+  not verify GitHub's certificate, the same tradeoff as the weather requests —
+  it avoids a device in a drawer bricking when a root CA rotates. Someone who
+  can actively intercept traffic on a friend's home network could serve their own
+  firmware. For a handful of units among friends that is a reasonable trade; if
+  this ever goes wider, move to ESP-IDF signed OTA, which verifies the image
+  against a public key burned into the firmware and does not depend on the
+  transport at all.
+- **Version comparison is equality, not ordering.** Any difference triggers an
+  update, so the manifest can also be used to deliberately downgrade.
+
+## Before you can give one away
+
+**Wi-Fi and location are compile-time settings** in `src/beachday_config.h`.
+That is the real blocker for handing a unit to someone else, and it is worth
+sorting out before the OTA path matters — a device that cannot join their Wi-Fi
+can never receive an update either.
+
+Two options:
+
+1. **Pre-configure each unit.** You need each friend's Wi-Fi password, build a
+   per-unit binary, and the device is dead if they change routers or password.
+   Fine for one or two boards you can take back.
+2. **Build the setup portal.** Hold a button at wake → the board becomes a
+   `BeachDay-Setup` hotspot → a phone page collects Wi-Fi, a location (Open-Meteo
+   has a free geocoding API that accepts place names and postal codes) and a
+   label → saved to NVS. `src/settings.cpp` already reads NVS overrides for
+   Wi-Fi, location and the manifest URL, so the storage half is done; what is
+   missing is the AP, the web page and the geocoding call.
+
+Option 2 is what makes these giftable. It is not built yet.
 
 ## Open items after first flash
 

@@ -40,6 +40,16 @@
 #define CFG_PARKING_RIGHT_START    (8 * 60)
 #define CFG_PARKING_RIGHT_END      (10 * 60)
 
+// ---- Over-the-air updates --------------------------------------------------
+// The board checks this URL for a newer firmware version, at most once every
+// CFG_OTA_CHECK_HOURS, and only when the battery is above the floor below.
+// Publish new firmware with tools/release.sh. Holding the LEFT button (KEY2)
+// while the board wakes forces an immediate check.
+#define CFG_OTA_ENABLED        true
+#define CFG_OTA_MANIFEST_URL   "https://github.com/hankleukart/beach-day/releases/latest/download/manifest.json"
+#define CFG_OTA_CHECK_HOURS    24
+#define CFG_OTA_MIN_BATTERY_PCT 30
+
 // ---- Network ----------------------------------------------------------------
 // HTTPS without certificate pinning: traffic is encrypted, the server is not
 // authenticated. Avoids a device in a drawer failing when a root CA rotates.

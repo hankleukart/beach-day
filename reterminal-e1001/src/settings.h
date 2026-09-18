@@ -15,6 +15,11 @@ struct Settings {
   uint16_t wakeNightMinutes = 240;
   uint16_t retryMinutes     = 10;
   bool   useTls = true;
+  // OTA (src/ota.cpp)
+  bool     otaEnabled = true;
+  char     otaManifestUrl[160] = "";
+  uint16_t otaCheckHours  = 24;
+  uint8_t  otaMinBatteryPct = 30;
   beach::ParkingRule parking[2] = {};
   int    parkingCount = 0;
 
