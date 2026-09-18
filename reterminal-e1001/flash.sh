@@ -26,4 +26,4 @@ esac
 }
 
 "$PIO" run -e "$ENV" -t upload
-exec "$PIO" device monitor
+exec "$PIO" device monitor -e "$ENV"

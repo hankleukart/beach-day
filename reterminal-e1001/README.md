@@ -47,43 +47,59 @@ Then [flash.sh](flash.sh) wraps the usual commands:
 
 ## Testing on the bench
 
-**Use the `dev` build first.** The release build deep-sleeps at the end of
-`setup()`, and because serial runs over the ESP32-S3's native USB, sleeping
-tears the serial port down a few seconds after boot — `pio device monitor`
-drops and the next upload has nothing to talk to. The `dev` build stays awake
-instead, so serial stays up and re-flashing just works.
+### Serial
 
-In the dev build the three front buttons do:
+The USB-C port goes to a **hardware USB-to-UART bridge**, so it enumerates as
+`/dev/cu.usbserial-*` and esptool resets the board via RTS. Two things follow:
 
-| Button | Action |
-| --- | --- |
-| KEY2 (left) | Step through all 9 visual states with plausible numbers |
-| KEY1 (middle) | Toggle the parking-alert bar on the current screen |
-| KEY0 (right) | Go back to the real forecast fetched at boot |
+- The port stays present no matter what the firmware does, deep sleep included.
+- `Serial` must map to **UART0** (GPIO43/44), which is why
+  [platformio.ini](platformio.ini) sets `ARDUINO_USB_CDC_ON_BOOT=0`. With that
+  flag at `1`, `Serial` goes to the ESP32-S3's native USB peripheral, which
+  nothing here is wired to — the board looks dead on serial while ESP-IDF's own
+  log lines still come through, which is a confusing way to lose an hour.
 
-That state cycling is the point: otherwise you can only ever see whichever
-state today's actual weather produces, and Grey Day or Indoor Day might not
-show up for weeks. The green LED blinks every 2 s so you can tell it is awake.
+`Ctrl-C` quits the monitor; the board keeps running.
 
-**If the upload can't find the board**, press KEY0 — it is the configured
-deep-sleep wake button, so it brings the board (and its USB port) back up.
-`ls /dev/cu.*` should then show a new entry.
+### The dev build
 
-What to check on the panel, in order:
+`./flash.sh` builds `[env:dev]`, which stays awake instead of deep-sleeping and
+turns the board into a layout test rig. Drive it from the monitor by typing, or
+from the three front buttons:
 
-1. **Serial first.** The boot log prints the verdict and every condition flag:
-   `beach_day temp 78 precip 10 wind 9 aqi 42 code 1 sun[6 AM] temp[1] rain[1] ...`
-   If that line is right, the rules are working and anything wrong is layout.
-2. **Geometry.** Hero panel and details panel should fill the 800×480 with even
-   margins, nothing clipped at the right edge.
-3. **Text fit.** The long subtitles (`Air Purifier On Max`, `But not quite
-   beachy`) and a long `NO PARKING LEFT SIDE: 11:30AM-1PM` are the ones most
-   likely to overflow.
-4. **Icons.** They are drawn from primitives, not bitmaps — recognisable
-   stand-ins for the SVGs rather than copies.
-5. **Contrast.** Pure black/white only; the template's greys render black.
+| Key | Button | Action |
+| --- | --- | --- |
+| `n` | KEY2 (left) | Step through all 9 visual states with plausible numbers |
+| `p` | KEY1 (middle) | Toggle the parking-alert bar |
+| `l` | KEY0 (right) | Back to the real forecast fetched at boot |
+| `d` | — | Dump the current view as text |
+| `R` | — | Reboot and re-fetch |
+| `?` | — | Reprint the key list |
 
-When the layout looks right, flash `./flash.sh release` and let it sleep.
+The state cycling is the point: today's real weather only ever produces one
+state, and Grey Day or Indoor Day might not turn up for weeks. The green LED
+blinks every 2 s to show the board is awake.
+
+### What to check, in order
+
+1. **Serial first.** The boot log prints the verdict, every condition flag, and
+   the daylight window it derived:
+   ```
+   [beach] local 14:22 dow 4 dom 18 (offset -25200, ntp)
+   [beach] window today 06:38-18:57  sun 9/13 hrs first 9  |  tomorrow 7/13 hrs first 11
+   [beach] beach_day  temp 78 precip 10 wind 9 aqi 42 code 1  sun[9 AM] temp[1] ... parking[-]
+   ```
+   If those are right, the rules work and anything wrong is layout. `d` reprints
+   the same detail for whatever is on screen.
+2. **Geometry.** Hero and details panels fill 800×480 with even margins, nothing
+   clipped at the right edge.
+3. **Text fit.** The long strings are the risk: `Air Purifier On Max`,
+   `But not quite beachy`, and a worst-case `NO PARKING LEFT SIDE: 11:30AM-1PM`.
+4. **Icons.** Drawn from primitives, not bitmaps — recognisable stand-ins for
+   the SVGs rather than copies.
+5. **Contrast.** Pure black/white; the template's greys render black.
+
+When the layout looks right, `./flash.sh release` and let it sleep.
 
 ## How it works
 

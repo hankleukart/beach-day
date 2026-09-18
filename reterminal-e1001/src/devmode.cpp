@@ -90,14 +90,37 @@ struct Button {
 
 void banner() {
   Serial.println();
-  Serial.println(F("=============================================="));
-  Serial.println(F(" Beach Day - DEV MODE (no deep sleep)"));
-  Serial.println(F("   KEY2 (left)   next demo state"));
-  Serial.println(F("   KEY1 (middle) toggle parking alert"));
-  Serial.println(F("   KEY0 (right)  back to the live forecast"));
-  Serial.println(F(" Serial stays up, so uploads work without"));
-  Serial.println(F(" holding BOOT."));
-  Serial.println(F("=============================================="));
+  Serial.println(F("=================================================="));
+  Serial.println(F(" Beach Day - DEV MODE (stays awake)"));
+  Serial.println(F(" Type a key here, or press a button on the board:"));
+  Serial.println(F("   n / KEY2 (left)    next demo state"));
+  Serial.println(F("   p / KEY1 (middle)  toggle parking alert"));
+  Serial.println(F("   l / KEY0 (right)   back to the live forecast"));
+  Serial.println(F("   d                  dump the current view as text"));
+  Serial.println(F("   R                  reboot and re-fetch"));
+  Serial.println(F("   ?                  show this again"));
+  Serial.println(F(" Ctrl-C quits the monitor (the board keeps running)."));
+  Serial.println(F("=================================================="));
+}
+
+void dumpView(const ViewModel& vm, const char* which) {
+  Serial.printf("[dev] --- %s ---\n", which);
+  Serial.printf("  state       %s%s\n", beach::stateId(static_cast<beach::State>(vm.state)),
+                vm.isNight ? " (night: showing tomorrow)" : "");
+  Serial.printf("  headline    %s %s / %s\n",
+                beach::stateTitleLine1(static_cast<beach::State>(vm.state)),
+                beach::stateTitleLine2(static_cast<beach::State>(vm.state)),
+                beach::stateSubtitle(static_cast<beach::State>(vm.state)));
+  Serial.printf("  conditions  sun[%d] temp[%d] rain[%d] wind[%d] aqi[%d]\n",
+                vm.condSun, vm.condTemp, vm.condPrecip, vm.condWind, vm.condAqi);
+  Serial.printf("  numbers     temp %d (%d-%d)  rain %d%%  wind %d  aqi %d (%d-%d)  uv %d  hum %d-%d%%\n",
+                vm.temp, vm.tempMin, vm.tempMax, vm.precip, vm.wind,
+                vm.aqi, vm.aqiMin, vm.aqiMax, vm.uv, vm.humMin, vm.humMax);
+  Serial.printf("  text        day='%s' cond='%s' sun='%s' footer='%s'\n",
+                vm.dayLabel, vm.conditionText, vm.sunText, vm.footer);
+  Serial.printf("  parking     %s%s\n", vm.parkingActive ? "ACTIVE " : "off",
+                vm.parkingActive ? vm.parkingText : "");
+  Serial.printf("  status      %s  battery %d%%\n", vm.updatedText, vm.batteryPct);
 }
 
 } // namespace
@@ -118,7 +141,18 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
   bool ledOn = false;
 
   for (;;) {
-    if (key2.pressed()) {
+    // Serial keys mirror the buttons, so the board can be driven from the
+    // monitor without reaching for it.
+    char cmd = 0;
+    while (Serial.available()) {
+      int c = Serial.read();
+      if (c > 0 && c != '\r' && c != '\n') cmd = (char)c;
+    }
+    if (cmd == '?') banner();
+    if (cmd == 'R') { Serial.println(F("[dev] rebooting")); Serial.flush(); ESP.restart(); }
+    if (cmd == 'd') dumpView((demoIdx >= 0) ? demo : live, (demoIdx >= 0) ? "demo view" : "live view");
+
+    if (key2.pressed() || cmd == 'n') {
       demoIdx = (demoIdx + 1) % DEMO_COUNT;
       buildDemoView(demoIdx, demo);
       if (parkingOverlay) {
@@ -128,9 +162,10 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
       Serial.printf("[dev] demo %d/%d -> %s\n", demoIdx + 1, DEMO_COUNT,
                     beach::stateId(static_cast<beach::State>(demoIdx)));
       renderView(demo);
+      dumpView(demo, "demo view");
     }
 
-    if (key1.pressed()) {
+    if (key1.pressed() || cmd == 'p') {
       parkingOverlay = !parkingOverlay;
       Serial.printf("[dev] parking alert %s\n", parkingOverlay ? "ON" : "OFF");
       ViewModel& target = (demoIdx >= 0) ? demo : live;
@@ -141,7 +176,7 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
       if (demoIdx >= 0 || liveValid) renderView(target);
     }
 
-    if (key0.pressed()) {
+    if (key0.pressed() || cmd == 'l') {
       if (!liveValid) {
         Serial.println(F("[dev] no live view captured this boot - reset to re-fetch"));
       } else {

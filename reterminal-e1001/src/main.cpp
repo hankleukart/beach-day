@@ -233,6 +233,13 @@ void setup() {
                 v.condWind, v.condAqi, v.condTime, pa.active ? pa.text : "-");
 
   buildView(in, v, pa, lc, s, batteryPct, lastView);
+  Serial.printf("[beach] window today %02d:%02d-%02d:%02d  sun %d/%d hrs first %d  |  tomorrow %d/%d hrs first %d\n",
+                in.sunriseMinutes / 60, in.sunriseMinutes % 60,
+                in.sunsetMinutes / 60, in.sunsetMinutes % 60,
+                beach::scanSun(in.today).sunHours, in.today.hourCount,
+                beach::scanSun(in.today).firstSunnyHour,
+                beach::scanSun(in.tomorrow).sunHours, in.tomorrow.hourCount,
+                beach::scanSun(in.tomorrow).firstSunnyHour);
   renderView(lastView);
   failCount = 0;
   staleShown = false;
