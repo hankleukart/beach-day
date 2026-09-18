@@ -26,17 +26,64 @@ straight over from [beach_day.liquid](../hubitat-trmnl/beach_day.liquid).
 
 ## Build and flash
 
-Needs [PlatformIO](https://platformio.org/) (`pip install platformio` or the
-VS Code extension). No Arduino IDE setup required; the board profile, PSRAM
-mode, and libraries are all pinned in [platformio.ini](platformio.ini).
+Needs [PlatformIO](https://platformio.org/). The board profile, PSRAM mode and
+libraries are all pinned in [platformio.ini](platformio.ini) — no Arduino IDE
+setup. One-time:
 
 ```sh
+python3 -m venv .venv && .venv/bin/pip install platformio
 cp src/beachday_config.example.h src/beachday_config.h   # then edit: Wi-Fi, lat/lon, name
-pio run -t upload                        # build + flash over USB-C
-pio device monitor                       # 115200 baud
 ```
 
 `beachday_config.h` is gitignored so your Wi-Fi password stays out of the repo.
+
+Then [flash.sh](flash.sh) wraps the usual commands:
+
+```sh
+./flash.sh          # dev build: stays awake, buttons run a self-test
+./flash.sh release  # real build: renders once, then deep-sleeps
+./flash.sh test     # rules tests on your Mac, no board needed
+```
+
+## Testing on the bench
+
+**Use the `dev` build first.** The release build deep-sleeps at the end of
+`setup()`, and because serial runs over the ESP32-S3's native USB, sleeping
+tears the serial port down a few seconds after boot — `pio device monitor`
+drops and the next upload has nothing to talk to. The `dev` build stays awake
+instead, so serial stays up and re-flashing just works.
+
+In the dev build the three front buttons do:
+
+| Button | Action |
+| --- | --- |
+| KEY2 (left) | Step through all 9 visual states with plausible numbers |
+| KEY1 (middle) | Toggle the parking-alert bar on the current screen |
+| KEY0 (right) | Go back to the real forecast fetched at boot |
+
+That state cycling is the point: otherwise you can only ever see whichever
+state today's actual weather produces, and Grey Day or Indoor Day might not
+show up for weeks. The green LED blinks every 2 s so you can tell it is awake.
+
+**If the upload can't find the board**, press KEY0 — it is the configured
+deep-sleep wake button, so it brings the board (and its USB port) back up.
+`ls /dev/cu.*` should then show a new entry.
+
+What to check on the panel, in order:
+
+1. **Serial first.** The boot log prints the verdict and every condition flag:
+   `beach_day temp 78 precip 10 wind 9 aqi 42 code 1 sun[6 AM] temp[1] rain[1] ...`
+   If that line is right, the rules are working and anything wrong is layout.
+2. **Geometry.** Hero panel and details panel should fill the 800×480 with even
+   margins, nothing clipped at the right edge.
+3. **Text fit.** The long subtitles (`Air Purifier On Max`, `But not quite
+   beachy`) and a long `NO PARKING LEFT SIDE: 11:30AM-1PM` are the ones most
+   likely to overflow.
+4. **Icons.** They are drawn from primitives, not bitmaps — recognisable
+   stand-ins for the SVGs rather than copies.
+5. **Contrast.** Pure black/white only; the template's greys render black.
+
+When the layout looks right, flash `./flash.sh release` and let it sleep.
 
 ## How it works
 

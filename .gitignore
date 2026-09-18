@@ -8,3 +8,6 @@ reterminal-e1001/.pio/
 
 # System files
 .DS_Store
+
+# PlatformIO virtualenv (dev tooling, not source)
+reterminal-e1001/.venv/

@@ -13,6 +13,7 @@
 #include "beachrules.h"
 #include "parking.h"
 #include "aggregate.h"
+#include "devmode.h"
 
 // Survives deep sleep (RTC slow memory), not a power cycle.
 RTC_DATA_ATTR static ViewModel lastView;
@@ -150,9 +151,16 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const beach::Inputs& in,
   return (uint32_t)secs;
 }
 
+// In the dev build this hands off to an interactive loop instead of sleeping,
+// so the USB serial port stays up. Both paths never return.
 static void sleepNow(uint32_t seconds) {
+#ifdef BEACHDAY_DEV
+  (void)seconds;
+  devLoop(lastView, lastView.valid);
+#else
   renderEnd();
   deepSleepFor(seconds);
+#endif
 }
 
 void setup() {
