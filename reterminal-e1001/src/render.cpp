@@ -405,6 +405,56 @@ void renderMessage(const char* title, const char* line1, const char* line2) {
   } while (display.nextPage());
 }
 
+void renderSetup(const char* apName, const char* ip) {
+  display.setFullWindow();
+  display.firstPage();
+  do {
+    display.fillScreen(WHITE);
+    display.fillRoundRect(MARGIN, MARGIN, W - 2 * MARGIN, H - 2 * MARGIN, RADIUS, BLACK);
+    display.fillRoundRect(MARGIN + BORDER, MARGIN + BORDER, W - 2 * MARGIN - 2 * BORDER,
+                          H - 2 * MARGIN - 2 * BORDER, RADIUS - 2, WHITE);
+
+    const int x0 = MARGIN + 44;
+    int y = MARGIN + 72;
+    drawText(x0, y, "BEACH DAY SETUP", F_BIG, BLACK, 2);
+    y += 22;
+    drawText(x0, y, "Three steps on your phone. Takes about a minute.", F_REG9, BLACK);
+
+    // Numbered steps, each a filled circle with the digit and a line of text.
+    struct Step { const char* a; const char* b; };
+    const Step steps[3] = {
+      { "Join the Wi-Fi network",              apName },
+      { "A setup page opens by itself.",       "If it doesn't, open a browser and go to:" },
+      { "Enter your Wi-Fi and your beach town,", "then tap Save. The forecast appears shortly." },
+    };
+    y += 44;
+    for (int i = 0; i < 3; i++) {
+      display.fillCircle(x0 + 16, y - 6, 17, BLACK);
+      char n[2] = { (char)('1' + i), 0 };
+      drawTextCentered(x0 + 16, y + 1, n, F_SUB, WHITE);
+      drawText(x0 + 48, y, steps[i].a, F_SUB, BLACK);
+      if (i == 0) {
+        // Network name gets the big treatment - it is the thing to type.
+        display.fillRoundRect(x0 + 48, y + 14, textWidth(steps[i].b, F_BIG, 1) + 28, 46, 6, BLACK);
+        drawText(x0 + 62, y + 47, steps[i].b, F_BIG, WHITE, 1);
+        y += 92;
+      } else if (i == 1) {
+        drawText(x0 + 48, y + 26, steps[i].b, F_REG9, BLACK);
+        char url[48];
+        snprintf(url, sizeof(url), "http://%s", ip);
+        drawText(x0 + 48, y + 56, url, F_SUB, BLACK);
+        y += 96;
+      } else {
+        drawText(x0 + 48, y + 26, steps[i].b, F_REG9, BLACK);
+        y += 70;
+      }
+    }
+
+    drawTextCentered(W / 2, H - MARGIN - 34, "This screen turns off after 10 minutes. Hold the middle button", F_REG9, BLACK);
+    drawTextCentered(W / 2, H - MARGIN - 16, "and press the right one to open setup again.", F_REG9, BLACK);
+  } while (display.nextPage());
+}
+
 void renderEnd() {
   display.hibernate();
 }

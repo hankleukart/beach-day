@@ -31,6 +31,31 @@ bool Settings::configured() const {
   return ssid[0] != '\0' && strcmp(ssid, "YOUR_WIFI") != 0;
 }
 
+bool Settings::needsGeocode() const {
+  return locationQuery[0] != '\0' && !haveCoords;
+}
+
+static const char* NVS_NS = "beachday";
+
+// Parking rule <-> NVS. Keys are <= 15 chars as NVS requires.
+static void loadParkingRule(Preferences& p, const char* side, beach::ParkingRule& r) {
+  char k[16];
+  snprintf(k, sizeof(k), "pk%son", side);  if (p.isKey(k)) r.enabled   = p.getBool(k, r.enabled);
+  snprintf(k, sizeof(k), "pk%swk", side);  if (p.isKey(k)) r.weeksMask = p.getUChar(k, r.weeksMask);
+  snprintf(k, sizeof(k), "pk%sday", side); if (p.isKey(k)) r.dayOfWeek = (int8_t)p.getChar(k, r.dayOfWeek);
+  snprintf(k, sizeof(k), "pk%sst", side);  if (p.isKey(k)) r.startMin  = (int16_t)p.getShort(k, r.startMin);
+  snprintf(k, sizeof(k), "pk%send", side); if (p.isKey(k)) r.endMin    = (int16_t)p.getShort(k, r.endMin);
+}
+
+static void storeParkingRule(Preferences& p, const char* side, const beach::ParkingRule& r) {
+  char k[16];
+  snprintf(k, sizeof(k), "pk%son", side);  p.putBool(k, r.enabled);
+  snprintf(k, sizeof(k), "pk%swk", side);  p.putUChar(k, r.weeksMask);
+  snprintf(k, sizeof(k), "pk%sday", side); p.putChar(k, (int8_t)r.dayOfWeek);
+  snprintf(k, sizeof(k), "pk%sst", side);  p.putShort(k, r.startMin);
+  snprintf(k, sizeof(k), "pk%send", side); p.putShort(k, r.endMin);
+}
+
 static void copyStr(char* dst, size_t n, const char* src) {
   strncpy(dst, src, n - 1);
   dst[n - 1] = '\0';
@@ -44,6 +69,7 @@ const Settings& loadSettings() {
   copyStr(g.password, sizeof(g.password), CFG_WIFI_PASSWORD);
   g.latitude  = CFG_LATITUDE;
   g.longitude = CFG_LONGITUDE;
+  g.haveCoords = true;
   copyStr(g.locationName, sizeof(g.locationName), CFG_LOCATION_NAME);
   g.wakeDayMinutes   = CFG_WAKE_DAY_MINUTES;
   g.wakeNightMinutes = CFG_WAKE_NIGHT_MINUTES;
@@ -62,18 +88,83 @@ const Settings& loadSettings() {
                                      CFG_PARKING_RIGHT_START, CFG_PARKING_RIGHT_END };
   g.parkingCount = 2;
 
-  // 2. NVS overrides, if a setup flow has stored any
+  // 2. NVS overrides written by the setup portal. If the portal has ever
+  //    saved a Wi-Fi network, its view of the world wins over beachday_config.h.
   Preferences prefs;
-  if (prefs.begin("beachday", /*readOnly=*/true)) {
-    if (prefs.isKey("ssid")) prefs.getString("ssid", g.ssid, sizeof(g.ssid));
-    if (prefs.isKey("pass")) prefs.getString("pass", g.password, sizeof(g.password));
-    if (prefs.isKey("lat"))  g.latitude  = prefs.getDouble("lat", g.latitude);
-    if (prefs.isKey("lon"))  g.longitude = prefs.getDouble("lon", g.longitude);
-    if (prefs.isKey("name")) prefs.getString("name", g.locationName, sizeof(g.locationName));
+  if (prefs.begin(NVS_NS, /*readOnly=*/true)) {
+    if (prefs.isKey("ssid")) {
+      g.fromPortal = true;
+      prefs.getString("ssid", g.ssid, sizeof(g.ssid));
+      prefs.getString("pass", g.password, sizeof(g.password));
+      prefs.getString("locq", g.locationQuery, sizeof(g.locationQuery));
+      prefs.getString("cc",   g.countryCode,   sizeof(g.countryCode));
+      if (prefs.isKey("label")) prefs.getString("label", g.locationName, sizeof(g.locationName));
+
+      if (prefs.isKey("lat") && prefs.isKey("lon")) {
+        g.latitude  = prefs.getDouble("lat", 0);
+        g.longitude = prefs.getDouble("lon", 0);
+        g.haveCoords = true;
+        // No label typed: fall back to the geocoded place name.
+        if (g.locationName[0] == '\0' && prefs.isKey("geoName")) {
+          prefs.getString("geoName", g.locationName, sizeof(g.locationName));
+        }
+      } else if (g.locationQuery[0] != '\0') {
+        g.haveCoords = false;      // resolve on the next connected boot
+      }
+      // else: portal left location blank, keep the compile-time coordinates
+      // (only sensible on a board that also has a real beachday_config.h).
+
+      loadParkingRule(prefs, "L", g.parking[0]);
+      loadParkingRule(prefs, "R", g.parking[1]);
+    }
     if (prefs.isKey("otaUrl")) prefs.getString("otaUrl", g.otaManifestUrl, sizeof(g.otaManifestUrl));
     prefs.end();
   }
 
   loaded = true;
   return g;
+}
+
+
+bool savePortalInput(const PortalInput& in) {
+  Preferences prefs;
+  if (!prefs.begin(NVS_NS, /*readOnly=*/false)) return false;
+  prefs.putString("ssid",  in.ssid);
+  prefs.putString("pass",  in.password);
+  prefs.putString("locq",  in.locationQuery);
+  prefs.putString("cc",    in.countryCode);
+  prefs.putString("label", in.label);
+  // A new place (or the same one retyped) must be geocoded afresh.
+  prefs.remove("lat");
+  prefs.remove("lon");
+  prefs.remove("geoName");
+  storeParkingRule(prefs, "L", in.parking[0]);
+  storeParkingRule(prefs, "R", in.parking[1]);
+  prefs.end();
+  loaded = false;              // force a re-read on next loadSettings()
+  return true;
+}
+
+void saveResolvedLocation(double lat, double lon, const char* shortName) {
+  Preferences prefs;
+  if (prefs.begin(NVS_NS, /*readOnly=*/false)) {
+    prefs.putDouble("lat", lat);
+    prefs.putDouble("lon", lon);
+    prefs.putString("geoName", shortName ? shortName : "");
+    prefs.end();
+  }
+  // Apply to the in-memory settings so this boot can carry on.
+  g.latitude = lat;
+  g.longitude = lon;
+  g.haveCoords = true;
+  if (g.locationName[0] == '\0' && shortName) copyStr(g.locationName, sizeof(g.locationName), shortName);
+}
+
+void eraseAllSettings() {
+  Preferences prefs;
+  if (prefs.begin(NVS_NS, /*readOnly=*/false)) {
+    prefs.clear();
+    prefs.end();
+  }
+  loaded = false;
 }

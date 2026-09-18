@@ -1,10 +1,18 @@
 // Beach Day — reTerminal E1001 configuration.
 //
-//   cp src/beachday_config.example.h src/beachday_config.h   (gitignored)
+// You have two ways to configure a board:
 //
-// then fill in Wi-Fi and location. Everything else has sensible defaults.
-// These are compile-time defaults; settings.cpp lets values stored in flash
-// (NVS) override them, which is where a future setup portal will write.
+//   1. The setup portal (no editing). Flash with this file as-is - the
+//      YOUR_WIFI placeholder makes the board start as a "BeachDay-Setup-xxxx"
+//      hotspot, and a phone fills in Wi-Fi, location and parking. That is the
+//      path for a board you are giving to someone else.
+//
+//   2. Compile-time (your own bench unit):
+//        cp src/beachday_config.example.h src/beachday_config.h   (gitignored)
+//      and fill in Wi-Fi and location below.
+//
+// Anything the portal has saved (NVS) takes precedence over these values.
+// Hold the MIDDLE button while pressing the RIGHT one to reopen the portal.
 #pragma once
 
 // ---- Wi-Fi ------------------------------------------------------------------

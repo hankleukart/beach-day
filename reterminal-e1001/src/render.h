@@ -28,4 +28,5 @@ struct ViewModel {
 void renderBegin();
 void renderView(const ViewModel& vm);
 void renderMessage(const char* title, const char* line1, const char* line2);
+void renderSetup(const char* apName, const char* ip);   // the setup-portal instruction card
 void renderEnd();   // hibernate the panel controller before deep sleep

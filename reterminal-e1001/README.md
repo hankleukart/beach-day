@@ -6,9 +6,9 @@ renders to the ePaper panel, and deep-sleeps until the next update.
 
 **No Hubitat hub. No TRMNL account or server. No always-on machine anywhere.**
 
-> Status: firmware written and compiling; the decision logic passes the shared
-> fixture suite on the host. Not yet flashed to hardware — expect a round of
-> layout tweaks once it is.
+> Status: first flashed 2026-09-18. Rules pass the shared fixture suite on the
+> host; setup portal, OTA updates and the dev self-test are in. Layout on the
+> real panel still needs a tuning pass.
 
 ## Hardware
 
@@ -262,26 +262,72 @@ update never leaves a viewer looking at a stale or blank panel.
 - **Version comparison is equality, not ordering.** Any difference triggers an
   update, so the manifest can also be used to deliberately downgrade.
 
-## Before you can give one away
+## Giving one to someone else
 
-**Wi-Fi and location are compile-time settings** in `src/beachday_config.h`.
-That is the real blocker for handing a unit to someone else, and it is worth
-sorting out before the OTA path matters — a device that cannot join their Wi-Fi
-can never receive an update either.
+Flash the board with the example config untouched:
 
-Two options:
+```sh
+cp src/beachday_config.example.h src/beachday_config.h   # leave YOUR_WIFI as it is
+./flash.sh release
+```
 
-1. **Pre-configure each unit.** You need each friend's Wi-Fi password, build a
-   per-unit binary, and the device is dead if they change routers or password.
-   Fine for one or two boards you can take back.
-2. **Build the setup portal.** Hold a button at wake → the board becomes a
-   `BeachDay-Setup` hotspot → a phone page collects Wi-Fi, a location (Open-Meteo
-   has a free geocoding API that accepts place names and postal codes) and a
-   label → saved to NVS. `src/settings.cpp` already reads NVS overrides for
-   Wi-Fi, location and the manifest URL, so the storage half is done; what is
-   missing is the AP, the web page and the geocoding call.
+The `YOUR_WIFI` placeholder means "not configured", so on first power-up the
+board skips straight to the setup portal. Nothing about your friend's Wi-Fi or
+address ever needs to be in your build.
 
-Option 2 is what makes these giftable. It is not built yet.
+### What your friend sees
+
+The e-paper shows the instructions itself, so there is nothing to print out:
+
+1. Join the Wi-Fi network **BeachDay-Setup-xxxx** on a phone (open network;
+   the name is on the screen).
+2. A setup page pops up on its own — the board answers every captive-portal
+   probe iOS, Android and Windows make. If it doesn't, browse to
+   `http://192.168.4.1`.
+3. Pick their Wi-Fi from the scanned list, type the password, and enter where
+   the beach is: a **postal code** (`90401`), a **town** (`Santa Monica`) or
+   **town, state** (`Springfield, IL`). Optional: a short label for the screen
+   and the street-cleaning parking schedule. Tap **Save and restart**.
+
+The board restarts, joins their Wi-Fi, geocodes the place with Open-Meteo's
+free geocoding API, stores the coordinates, and draws the forecast. The place
+name it resolved appears at the top of the hero panel — that is the
+confirmation. If it could not find the place, the screen says so and how to
+retry.
+
+The hotspot times out after 10 minutes. The LED blinks fast while the portal
+is up.
+
+### Button gestures
+
+The right button (KEY0) is the wake button. Holding another button while
+pressing it changes what the wake does:
+
+| Hold | + press | Result |
+| --- | --- | --- |
+| — | KEY0 (right) | Refresh the forecast now |
+| KEY1 (middle) | KEY0 | Open the setup portal (change Wi-Fi, place, parking) |
+| KEY2 (left) | KEY0 | Check for a firmware update immediately |
+
+### Why geocoding happens after the portal, not in it
+
+While the board is a hotspot it has no internet. Captive-portal libraries that
+geocode live do it by running station and access point at once, and that is
+their flaky part: the board must hop to the router's channel, which drops the
+phone mid-form. Saving the text and resolving it on the next connected boot is
+slower by one reboot and fails far less. The e-paper does the confirming.
+
+### Where it lives
+
+| File | Role |
+| --- | --- |
+| `src/portal.*` | Hotspot, DNS catch-all, web page, form handling |
+| `src/geocode.*` | Open-Meteo geocoding; `town, ST` prefers a matching state |
+| `src/settings.*` | NVS storage; portal values override `beachday_config.h` |
+| `renderSetup()` in `src/render.cpp` | The instruction card on the panel |
+
+**Erase all settings** at the bottom of the setup page clears NVS and restarts
+into the portal — for handing a board on to someone else.
 
 ## Open items after first flash
 

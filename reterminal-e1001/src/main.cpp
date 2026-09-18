@@ -16,6 +16,8 @@
 #include "aggregate.h"
 #include "devmode.h"
 #include "ota.h"
+#include "portal.h"
+#include "geocode.h"
 #include "version.h"
 #include <Preferences.h>
 
@@ -197,9 +199,21 @@ void setup() {
 
   const Settings& s = loadSettings();
 
-  // KEY2 (left) held at wake forces an OTA check regardless of the interval.
+  // Buttons held while waking: KEY1 (middle) opens setup, KEY2 (left) forces
+  // an update check. The wake itself is KEY0 (right), so the gesture is
+  // "hold one, press the other".
+  pinMode(PIN_KEY1, INPUT_PULLUP);
   pinMode(PIN_KEY2, INPUT_PULLUP);
-  bool forceOta = (digitalRead(PIN_KEY2) == LOW);
+  bool wantSetup = (digitalRead(PIN_KEY1) == LOW);
+  bool forceOta  = (digitalRead(PIN_KEY2) == LOW);
+
+  if (wantSetup || !s.configured()) {
+    Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
+                  wantSetup ? "middle button held" : "nothing configured");
+    clearBootFailures();          // a setup session is not a crash
+    renderBegin();
+    runSetupPortal(s);            // never returns
+  }
 
   int failures = bumpBootFailures();
   bool safeMode = (failures > SAFE_MODE_THRESHOLD);
@@ -240,6 +254,24 @@ void setup() {
   bool online = netConnect(s, 20000);
   bool clockOk = online && netSyncTime(6000);
 
+  // First connected boot after the portal: turn the typed place into coordinates.
+  if (online && s.needsGeocode()) {
+    GeoResult geo;
+    char gerr[64];
+    if (geocode(s.locationQuery, s.countryCode, s.useTls, geo, gerr, sizeof(gerr))) {
+      Serial.printf("[beach] '%s' -> %s (%.4f, %.4f)\n", s.locationQuery, geo.fullName, geo.lat, geo.lon);
+      saveResolvedLocation(geo.lat, geo.lon, geo.shortName);
+    } else {
+      Serial.printf("[beach] geocode failed: %s\n", gerr);
+      netDisconnect();
+      char line[72];
+      snprintf(line, sizeof(line), "Couldn't find \"%s\" - check the spelling or use a postal code.", s.locationQuery);
+      renderMessage("Where's the beach?", line,
+                    "Hold the middle button and press the right one to open setup.");
+      sleepNow(3600);
+    }
+  }
+
   Fetched f;
   char err[64] = "no Wi-Fi";
   bool ok = online && fetchWeather(s, f, err, sizeof(err));
@@ -262,7 +294,10 @@ void setup() {
         staleShown = true;
       }
     } else {
-      renderMessage("Can't reach the forecast", err, s.ssid);
+      char line[72];
+      snprintf(line, sizeof(line), "Can't get online via Wi-Fi \"%s\" (%s).", s.ssid, err);
+      renderMessage("No connection yet", line,
+                    "Retrying. To change Wi-Fi: hold the middle button, press the right one.");
     }
     sleepNow(retry);
   }
