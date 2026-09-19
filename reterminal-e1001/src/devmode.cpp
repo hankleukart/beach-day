@@ -6,6 +6,15 @@
 #include "power.h"
 #include "beachrules.h"
 
+#if __has_include("beachday_config.h")
+#  include "beachday_config.h"
+#else
+#  include "beachday_config.example.h"
+#endif
+#ifndef CFG_DEV_REFRESH_MINUTES
+#  define CFG_DEV_REFRESH_MINUTES 20
+#endif
+
 namespace {
 
 constexpr int DEMO_COUNT = 9;
@@ -99,6 +108,7 @@ void banner() {
   Serial.println(F("   d                  dump the current view as text"));
   Serial.println(F("   R                  reboot and re-fetch"));
   Serial.println(F("   ?                  show this again"));
+  Serial.printf(  "   (the live forecast refreshes itself every %d min)\n", CFG_DEV_REFRESH_MINUTES);
   Serial.println(F(" Ctrl-C quits the monitor (the board keeps running)."));
   Serial.println(F("=================================================="));
 }
@@ -140,7 +150,21 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
   uint32_t lastBlink = 0;
   bool ledOn = false;
 
+  // The dev build never deep-sleeps, so nothing would otherwise re-run the
+  // fetch: without this the panel shows whatever it got at boot, forever.
+  // Restarting re-uses the whole boot path rather than duplicating it here.
+  const uint32_t refreshMs = (uint32_t)CFG_DEV_REFRESH_MINUTES * 60UL * 1000UL;
+  const uint32_t startedAt = millis();
+  Serial.printf("[dev] next automatic forecast refresh in %d min\n", CFG_DEV_REFRESH_MINUTES);
+
   for (;;) {
+    // Only when the live view is on screen - never interrupt demo browsing.
+    if (demoIdx < 0 && refreshMs > 0 && millis() - startedAt > refreshMs) {
+      Serial.println(F("[dev] refresh interval reached, restarting to re-fetch"));
+      Serial.flush();
+      ESP.restart();
+    }
+
     // Serial keys mirror the buttons, so the board can be driven from the
     // monitor without reaching for it.
     char cmd = 0;

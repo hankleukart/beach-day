@@ -48,6 +48,12 @@
 #define CFG_PARKING_RIGHT_START    (8 * 60)
 #define CFG_PARKING_RIGHT_END      (10 * 60)
 
+// ---- Dev build only ---------------------------------------------------------
+// [env:dev] stays awake instead of deep-sleeping, so it has to refresh the
+// forecast on a timer. It does that by restarting, which re-runs the normal
+// boot path. Ignored by the release build, which refreshes on every wake.
+#define CFG_DEV_REFRESH_MINUTES 20
+
 // ---- Over-the-air updates --------------------------------------------------
 // The board checks this URL for a newer firmware version, at most once every
 // CFG_OTA_CHECK_HOURS, and only when the battery is above the floor below.

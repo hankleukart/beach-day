@@ -80,6 +80,29 @@ The state cycling is the point: today's real weather only ever produces one
 state, and Grey Day or Indoor Day might not turn up for weeks. The green LED
 blinks every 2 s to show the board is awake.
 
+The live forecast refreshes every `CFG_DEV_REFRESH_MINUTES` (default 20) by
+restarting, which re-runs the normal boot path. It never interrupts you while a
+demo state is on screen — press `l` to go back to the live view and the timer
+applies again. `R` refreshes immediately.
+
+### If the panel has stopped updating
+
+E-paper holds its last image with **no power at all**, so a frozen display, a
+crashed board and a flat battery all look identical. Work down this list:
+
+1. **Which build is it running?** Open the serial monitor and press `R`. The
+   banner says `DEV MODE` or the release build prints
+   `[beach] firmware x.y.z, boot N`. A dev build older than 0.2.1 never
+   re-fetched at all — it drew once at boot and stayed there.
+2. **Is it powered?** Plug in USB. If the screen was showing a stale image
+   because the battery ran down, it will boot and redraw within ~20 seconds.
+3. **Check the header.** The live view prints `Updated 2:05 PM` top-right, and
+   `OFFLINE since …` when a fetch has been failing. The latter means Wi-Fi or
+   the API, not the board.
+4. **Watch a full cycle on serial.** `R` restarts; you should see Wi-Fi connect,
+   the window/sun line, the verdict, then either `deep sleep for N s` (release)
+   or the dev banner.
+
 ### What to check, in order
 
 1. **Serial first.** The boot log prints the verdict, every condition flag, and
