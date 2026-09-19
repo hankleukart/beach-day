@@ -216,6 +216,20 @@ Run it without `--publish` first to see the manifest and confirm the version.
 **Bumping `src/version.h` is what triggers the update** — republishing the same
 version number does nothing.
 
+### The first flash has to be over USB
+
+OTA cannot bootstrap itself. A board only looks for updates if the firmware
+already on it contains the OTA code, so any board flashed before that existed
+has to be connected once:
+
+```sh
+./flash.sh release
+```
+
+After that it stays current over Wi-Fi. Same applies to any change to the OTA
+mechanism itself, the manifest URL, or the Wi-Fi handling — if the running
+firmware cannot fetch, only a cable fixes it.
+
 ### When devices pick it up
 
 - On their own within `CFG_OTA_CHECK_HOURS` (default 24). The check is skipped

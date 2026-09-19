@@ -5,6 +5,7 @@
 // leaves the last good screen up (redrawn with an OFFLINE stamp).
 #include <Arduino.h>
 #include <time.h>
+#include <sys/time.h>
 #include "settings.h"
 #include "net.h"
 #include "weather.h"
@@ -305,6 +306,16 @@ void setup() {
   // Clock: NTP if we have it, else the model's own timestamp (15-minute
   // granularity), else at least the right local date.
   time_t nowUtc = clockOk ? time(nullptr) : (f.modelNowUtc ? f.modelNowUtc : f.todayStartUtc);
+
+  // If NTP failed, adopt Open-Meteo's timestamp as the system clock. Without
+  // this the clock stays at the epoch, and otaDue() - which needs a plausible
+  // wall-clock time to rate-limit itself - would never return true, so a board
+  // on a network that blocks NTP would never look for updates.
+  if (!clockOk && nowUtc > 1700000000) {
+    struct timeval tv = { .tv_sec = nowUtc, .tv_usec = 0 };
+    settimeofday(&tv, nullptr);
+    Serial.println(F("[beach] system clock set from the forecast timestamp"));
+  }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
   Serial.printf("[beach] local %02d:%02d dow %d dom %d (offset %ld, %s)\n",
                 lc.minuteOfDay / 60, lc.minuteOfDay % 60, lc.dow, lc.dom,
