@@ -77,11 +77,17 @@ class Spec {
   JsonDocument doc_;
   bool valid_ = false;
   bool cond(JsonObjectConst c, const Inputs& in) const;
+  bool validate(JsonObjectConst root, char* err, size_t errLen) const;
   bool when(JsonObjectConst w, const Inputs& in, char* failed, size_t failedLen) const;
   double beachTempThreshold() const;
   void resolveAlsoGrab(JsonVariantConst v, const Inputs& in, const char* failedTest, char* out, size_t n) const;
   void resolveStat(JsonObjectConst st, const Inputs& in, Stat& out) const;
 };
+
+// Lets the firmware also check names against the icons it can actually draw;
+// without one, icon names are only checked against the spec's own list.
+using IconChecker = bool (*)(const char* name);
+void setIconChecker(IconChecker fn);
 
 // {token} interpolation over the inputs plus value/degreesShort/firstClearHour.
 void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n);

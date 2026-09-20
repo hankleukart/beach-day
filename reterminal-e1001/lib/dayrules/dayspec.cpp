@@ -2,6 +2,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstring>
+#include <cstdarg>
 
 namespace day {
 
@@ -9,6 +10,9 @@ static void cpy(char* dst, size_t n, const char* src) {
   if (!src) { dst[0] = '\0'; return; }
   snprintf(dst, n, "%s", src);
 }
+
+namespace { IconChecker g_iconChecker = nullptr; }
+void setIconChecker(IconChecker fn) { g_iconChecker = fn; }
 
 bool fieldValue(const Inputs& in, const char* f, double& v) {
   struct { const char* name; double val; bool ok; } table[] = {
@@ -54,24 +58,176 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
 
 // ---------------------------------------------------------------------------
 
+// Every input name the rules may reference. A typo here is the nastiest kind
+// of bug: an unknown field makes its condition silently never pass, so a day
+// quietly resolves to the wrong outcome rather than failing loudly.
+static bool isKnownField(const char* f) {
+  Inputs probe;
+  probe.hasFirstClearHour = true;   // so the optional field resolves too
+  double v;
+  return f && f[0] && fieldValue(probe, f, v);
+}
+
+static bool isKnownOp(const char* op) {
+  static const char* ops[] = { ">=", ">", "<=", "<", "==", "!=" };
+  for (auto o : ops) if (op && strcmp(op, o) == 0) return true;
+  return false;
+}
+
+namespace {
+
+struct Validator {
+  JsonObjectConst root;
+  char* err; size_t n;
+  bool fail(const char* fmt, ...) {
+    va_list ap; va_start(ap, fmt); vsnprintf(err, n, fmt, ap); va_end(ap);
+    return false;
+  }
+  // Fixed-size destination buffers mean an over-long string would be silently
+  // clipped on screen; catch it at load instead.
+  bool fits(const char* what, const char* who, const char* value, size_t cap) {
+    if (value && strlen(value) >= cap) return fail("%s: %s too long (max %u)", who, what, (unsigned)cap - 1);
+    return true;
+  }
+  bool knownIcon(const char* who, const char* what, const char* name) {
+    if (!name || !name[0]) return fail("%s: %s missing", who, what);
+    bool listed = false;
+    for (JsonVariantConst i : root["icons"].as<JsonArrayConst>())
+      if (strcmp(i | "", name) == 0) { listed = true; break; }
+    if (!listed) return fail("%s: %s '%s' not in icons[]", who, what, name);
+    if (g_iconChecker && !g_iconChecker(name)) return fail("%s: no icon art for '%s'", who, name);
+    return true;
+  }
+  bool condition(const char* who, JsonObjectConst c) {
+    const char* f = c["field"] | "";
+    if (!isKnownField(f)) return fail("%s: unknown field '%s'", who, f);
+    if (!isKnownOp(c["op"] | "")) return fail("%s: bad op '%s'", who, c["op"] | "");
+    if (!c["value"].is<double>() && !c["value"].is<int>()) return fail("%s: %s needs a numeric value", who, f);
+    return true;
+  }
+  bool bands(const char* who, JsonArrayConst b, bool wantIcon) {
+    if (b.size() == 0) return fail("%s: empty bands", who);
+    double prev = -1e18;
+    size_t i = 0;
+    for (JsonObjectConst e : b) {
+      if (!e["max"].is<double>() && !e["max"].is<int>()) return fail("%s: band %u has no max", who, (unsigned)i);
+      double m = e["max"] | 0.0;
+      if (m < prev) return fail("%s: band %u max goes backwards", who, (unsigned)i);
+      prev = m;
+      const char* req = e["requires"] | (const char*)nullptr;
+      if (req && !isKnownField(req)) return fail("%s: band requires unknown '%s'", who, req);
+      if (wantIcon) { if (!knownIcon(who, "band icon", e["icon"] | "")) return false; }
+      else if (!e["text"].is<const char*>()) return fail("%s: band %u has no text", who, (unsigned)i);
+      // A gated last band can leave a value matching nothing at all.
+      if (++i == b.size() && req) return fail("%s: last band must not have 'requires'", who);
+    }
+    return true;
+  }
+};
+
+} // namespace
+
+bool Spec::validate(JsonObjectConst root, char* err, size_t errLen) const {
+  Validator v{ root, err, errLen };
+
+  JsonArrayConst outcomes = root["outcomes"];
+  if (outcomes.size() == 0) return v.fail("no outcomes");
+  if (root["icons"].as<JsonArrayConst>().size() == 0) return v.fail("no icons[] to check names against");
+
+  size_t idx = 0;
+  for (JsonObjectConst o : outcomes) {
+    const char* id = o["id"] | "";
+    if (!id[0]) return v.fail("outcome %u has no id", (unsigned)idx);
+    if (!v.fits("id", id, id, sizeof(Outcome::id))) return false;
+    for (JsonObjectConst other : outcomes) {
+      if (other == o) break;
+      if (strcmp(other["id"] | "", id) == 0) return v.fail("duplicate outcome id '%s'", id);
+    }
+
+    JsonArrayConst title = o["title"];
+    if (title.size() == 0 || title.size() > 3) return v.fail("%s: title needs 1-3 lines", id);
+    for (JsonVariantConst t : title) if (!v.fits("title line", id, t | "", sizeof(Outcome::title[0]))) return false;
+    if (!v.fits("tagline", id, o["tagline"] | "", sizeof(Outcome::tagline))) return false;
+    if (!v.knownIcon(id, "heroIcon", o["heroIcon"] | "")) return false;
+
+    JsonObjectConst when = o["when"];
+    if (when.isNull()) return v.fail("%s: no when", id);
+    for (JsonObjectConst c : when["all"].as<JsonArrayConst>()) if (!v.condition(id, c)) return false;
+    for (JsonObjectConst c : when["any"].as<JsonArrayConst>()) if (!v.condition(id, c)) return false;
+
+    JsonArrayConst wear = o["wear"];
+    if (wear.size() != 4) return v.fail("%s: needs exactly four wear items", id);
+    for (JsonObjectConst w : wear) {
+      if (!v.fits("wear label", id, w["label"] | "", sizeof(Wear::label))) return false;
+      if (!v.knownIcon(id, "wear icon", w["icon"] | "")) return false;
+    }
+
+    JsonVariantConst ag = o["alsoGrab"];
+    if (ag.is<const char*>()) { if (!v.fits("alsoGrab", id, ag, sizeof(Outcome::alsoGrab))) return false; }
+    else if (ag.is<JsonObjectConst>()) {
+      for (JsonPairConst kv : ag["byFailedTest"].as<JsonObjectConst>()) {
+        if (!isKnownField(kv.key().c_str())) return v.fail("%s: byFailedTest '%s' is not a field", id, kv.key().c_str());
+        if (!v.fits("byFailedTest line", id, kv.value() | "", sizeof(Outcome::alsoGrab))) return false;
+      }
+      if (!ag["default"].is<const char*>()) return v.fail("%s: alsoGrab needs a default", id);
+      if (!v.fits("alsoGrab default", id, ag["default"], sizeof(Outcome::alsoGrab))) return false;
+    } else return v.fail("%s: alsoGrab must be text or an object", id);
+
+    if (o["footerSuffix"].is<const char*>() && !v.fits("footerSuffix", id, o["footerSuffix"], sizeof(Outcome::footerSuffix))) return false;
+    idx++;
+  }
+
+  // The last outcome has to catch everything, or some day matches nothing.
+  JsonObjectConst last = outcomes[outcomes.size() - 1];
+  bool catchAll = last["isFallback"] | false;
+  if (!catchAll) {
+    JsonObjectConst w = last["when"];
+    catchAll = w["all"].as<JsonArrayConst>().size() == 0 && !w["any"].is<JsonArrayConst>();
+  }
+  if (!catchAll) return v.fail("last outcome '%s' is not a catch-all", last["id"] | "?");
+
+  JsonArrayConst stats = root["stats"];
+  if (stats.size() == 0) return v.fail("no stats");
+  if (stats.size() > 6) return v.fail("more than six stats");
+  for (JsonObjectConst st : stats) {
+    const char* id = st["id"] | "";
+    if (!id[0]) return v.fail("a stat has no id");
+    if (!v.fits("stat id", id, id, sizeof(Stat::id))) return false;
+    if (!v.fits("stat label", id, st["label"] | "", sizeof(Stat::label))) return false;
+
+    if (st["icon"].is<const char*>()) { if (!v.knownIcon(id, "icon", st["icon"])) return false; }
+    else {
+      if (!isKnownField(st["icon"]["field"] | "")) return v.fail("%s: icon field unknown", id);
+      if (!v.bands(id, st["icon"]["bands"], true)) return false;
+    }
+
+    JsonObjectConst val = st["value"];
+    if (val.isNull()) return v.fail("%s: no value", id);
+    if (!isKnownField(val["field"] | "")) return v.fail("%s: value field unknown", id);
+    bool hasFormat = val["format"].is<const char*>();
+    bool hasBands = val["bands"].is<JsonArrayConst>();
+    if (hasFormat == hasBands) return v.fail("%s: value needs format or bands, not both", id);
+    if (hasBands && !v.bands(id, val["bands"], false)) return false;
+
+    JsonObjectConst word = st["word"];
+    if (word.isNull()) return v.fail("%s: no word", id);
+    if (!isKnownField(word["field"] | "")) return v.fail("%s: word field unknown", id);
+    if (!v.bands(id, word["bands"], false)) return false;
+
+    for (JsonObjectConst ov : st["overrides"].as<JsonArrayConst>()) {
+      if (!v.condition(id, ov["if"])) return false;
+      if (!v.fits("override text", id, ov["text"] | "", sizeof(Stat::word))) return false;
+    }
+  }
+  err[0] = '\0';
+  return true;
+}
+
 bool Spec::load(const char* json, size_t len, char* err, size_t errLen) {
   JsonDocument fresh;
   DeserializationError e = deserializeJson(fresh, json, len);
   if (e) { snprintf(err, errLen, "json: %s", e.c_str()); return false; }
-  JsonArrayConst outcomes = fresh["outcomes"];
-  if (outcomes.size() == 0) { snprintf(err, errLen, "no outcomes"); return false; }
-  JsonObjectConst last = outcomes[outcomes.size() - 1];
-  bool lastCatchesAll = last["isFallback"] | false;
-  if (!lastCatchesAll) {
-    JsonArrayConst all = last["when"]["all"];
-    lastCatchesAll = last["when"].is<JsonObjectConst>() && all.isNull() == false && all.size() == 0;
-  }
-  if (!lastCatchesAll) { snprintf(err, errLen, "last outcome is not a catch-all"); return false; }
-  for (JsonObjectConst o : outcomes) {
-    if (!o["id"].is<const char*>()) { snprintf(err, errLen, "outcome without id"); return false; }
-    if (o["wear"].as<JsonArrayConst>().size() != 4) { snprintf(err, errLen, "%s: needs exactly four wear items", o["id"] | "?"); return false; }
-  }
-  if (fresh["stats"].as<JsonArrayConst>().size() == 0) { snprintf(err, errLen, "no stats"); return false; }
+  if (!validate(fresh.as<JsonObjectConst>(), err, errLen)) return false;
   doc_ = fresh;
   valid_ = true;
   err[0] = '\0';

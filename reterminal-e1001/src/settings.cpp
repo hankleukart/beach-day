@@ -30,6 +30,21 @@
 #  define CFG_RULES_CHECK_HOURS 24
 #endif
 
+// Who wins when both beachday_config.h and the setup portal have Wi-Fi?
+//
+// On a deployed board: the portal, always. Its owner set that, and it has to
+// survive firmware updates - they have no config file.
+//
+// On the bench: the config file. You reflash constantly and edit the config,
+// and having saved values silently win means redoing setup after every flash.
+#ifndef CFG_CONFIG_WINS
+#  ifdef BEACHDAY_DEV
+#    define CFG_CONFIG_WINS true
+#  else
+#    define CFG_CONFIG_WINS false
+#  endif
+#endif
+
 static Settings g;
 static bool loaded = false;
 
@@ -124,6 +139,16 @@ const Settings& loadSettings() {
 
       loadParkingRule(prefs, "L", g.parking[0]);
       loadParkingRule(prefs, "R", g.parking[1]);
+
+      // Bench builds: hand Wi-Fi back to the config file if it has real
+      // credentials. Location and parking still come from the portal.
+      if (CFG_CONFIG_WINS && strcmp(CFG_WIFI_SSID, "YOUR_WIFI") != 0 && CFG_WIFI_SSID[0]) {
+        if (strcmp(g.ssid, CFG_WIFI_SSID) != 0 || strcmp(g.password, CFG_WIFI_PASSWORD) != 0) {
+          copyStr(g.ssid, sizeof(g.ssid), CFG_WIFI_SSID);
+          copyStr(g.password, sizeof(g.password), CFG_WIFI_PASSWORD);
+          g.configWon = true;
+        }
+      }
     }
     if (prefs.isKey("otaUrl")) prefs.getString("otaUrl", g.otaManifestUrl, sizeof(g.otaManifestUrl));
     if (prefs.isKey("rulesUrl")) prefs.getString("rulesUrl", g.rulesUrl, sizeof(g.rulesUrl));

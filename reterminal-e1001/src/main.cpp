@@ -162,6 +162,7 @@ void setup() {
                 safeMode ? ", SAFE MODE" : "");
   if (failures) Serial.printf("[beach] %d consecutive crash%s\n", failures, failures == 1 ? "" : "es");
   Serial.printf("[beach] wi-fi '%s' %s\n", s.ssid,
+                s.configWon  ? "(from beachday_config.h, overriding the saved network - dev build)" :
                 s.fromPortal ? "(saved by the setup portal - beachday_config.h is NOT used; hold the middle button to change it)"
                              : "(from beachday_config.h)");
   if (forceOta) Serial.println(F("[beach] KEY2 held: forcing update + rules check"));

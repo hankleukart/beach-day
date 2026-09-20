@@ -5,6 +5,7 @@
 #include <time.h>
 #include "net.h"
 #include "spec_embedded.h"
+#include "icons.h"
 
 namespace {
 day::Spec g;
@@ -37,6 +38,9 @@ bool loadFromFs(char* status, size_t n) {
 day::Spec& spec() { return g; }
 
 bool specLoad(char* status, size_t n) {
+  // Names are checked against the art actually compiled in, not just the
+  // spec's own icons[] list.
+  day::setIconChecker(iconExists);
   if (loadFromFs(status, n)) return true;
   char err[96];
   if (g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, err, sizeof(err))) {

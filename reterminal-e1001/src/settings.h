@@ -15,6 +15,7 @@ struct Settings {
   char   locationQuery[48] = "";    // what the person typed in the portal
   char   countryCode[4] = "";       // optional 2-letter hint for geocoding
   bool   fromPortal   = false;      // NVS (portal) values are in effect
+  bool   configWon    = false;      // ...but beachday_config.h overrode the Wi-Fi (dev builds)
   uint16_t wakeDayMinutes   = 60;
   uint16_t wakeNightMinutes = 240;
   uint16_t retryMinutes     = 10;

@@ -5,6 +5,7 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <string>
 #include "dayspec.h"
 #include "derive.h"
 
@@ -43,14 +44,104 @@ void test_spec_loads() {
   TEST_ASSERT_EQUAL_STRING("jacket_day", spec.outcomeId(6));
 }
 
-void test_rejects_bad_specs() {
-  day::Spec s; char err[96];
-  TEST_ASSERT_FALSE(s.load("{ nope", 6, err, sizeof(err)));
-  const char* noCatchAll = R"({"outcomes":[{"id":"x","when":{"all":[{"field":"tempMaxF","op":">=","value":1}]},"wear":[{},{},{},{}]}],"stats":[{}]})";
-  TEST_ASSERT_FALSE_MESSAGE(s.load(noCatchAll, strlen(noCatchAll), err, sizeof(err)), "should reject a last outcome that is not a catch-all");
-  const char* threeWear = R"({"outcomes":[{"id":"x","when":{"all":[]},"wear":[{},{},{}]}],"stats":[{}]})";
-  TEST_ASSERT_FALSE_MESSAGE(s.load(threeWear, strlen(threeWear), err, sizeof(err)), "should reject three wear tiles");
+// Builds a minimal-but-valid spec, then lets a test break one thing in it.
+static std::string specWith(const std::string& find, const std::string& replace) {
+  std::string base = R"({
+    "icons": ["tshirt","sun"],
+    "outcomes": [
+      { "id": "only", "title": ["ONLY"], "tagline": "T", "heroIcon": "tshirt",
+        "when": { "all": [] },
+        "wear": [ {"label":"A","icon":"tshirt"},{"label":"B","icon":"tshirt"},{"label":"C","icon":"tshirt"},{"label":"D","icon":"tshirt"} ],
+        "alsoGrab": "grab" }
+    ],
+    "stats": [
+      { "id": "s1", "label": "S", "icon": "sun",
+        "value": { "field": "tempMaxF", "format": "{value}" },
+        "word": { "field": "tempMaxF", "bands": [ { "max": 200, "text": "w" } ] } }
+    ]
+  })";
+  if (!find.empty()) {
+    size_t at = base.find(find);
+    TEST_ASSERT_TRUE_MESSAGE(at != std::string::npos, "fixture anchor missing");
+    base.replace(at, find.size(), replace);
+  }
+  return base;
+}
+
+static void rejects(const char* why, const std::string& json) {
+  day::Spec s; char err[128] = "";
+  bool loaded = s.load(json.c_str(), json.size(), err, sizeof(err));
+  if (loaded) { TEST_FAIL_MESSAGE(why); }
   TEST_ASSERT_FALSE(s.valid());
+  printf("      rejected (%s): %s\n", why, err);
+}
+
+void test_rejects_bad_specs() {
+  day::Spec s; char err[128];
+  TEST_ASSERT_FALSE(s.load("{ nope", 6, err, sizeof(err)));
+  // the fixture itself must be good, or every case below passes for free
+  TEST_ASSERT_TRUE_MESSAGE(s.load(specWith("", "").c_str(), specWith("", "").size(), err, sizeof(err)), err);
+
+  rejects("unknown field in a condition",
+          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxx","op":">=","value":1}] })"));
+  rejects("unknown operator",
+          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":"=>","value":1}] })"));
+  rejects("condition with no numeric value",
+          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":">="}] })"));
+  rejects("hero icon not in icons[]",     specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sombrero")"));
+  rejects("wear icon not in icons[]",     specWith(R"({"label":"A","icon":"tshirt"},)", R"({"label":"A","icon":"kilt"},)"));
+  rejects("last outcome not a catch-all", specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":">=","value":99}] })"));
+  rejects("only three wear items",        specWith(R"(,{"label":"D","icon":"tshirt"} ])", R"( ])"));
+  rejects("title line too long for the buffer",
+          specWith(R"("title": ["ONLY"])", R"("title": ["ABSOLUTELY ENORMOUS"])"));
+  rejects("too many title lines",
+          specWith(R"("title": ["ONLY"])", R"("title": ["A","B","C","D"])"));
+  rejects("byFailedTest keyed on a non-field",
+          specWith(R"("alsoGrab": "grab")", R"("alsoGrab": { "byFailedTest": { "windy": "x" }, "default": "y" })"));
+  rejects("alsoGrab object with no default",
+          specWith(R"("alsoGrab": "grab")", R"("alsoGrab": { "byFailedTest": { "windMaxMph": "x" } })"));
+  rejects("stat value field unknown",
+          specWith(R"("value": { "field": "tempMaxF", "format": "{value}" })", R"("value": { "field": "nope", "format": "{value}" })"));
+  rejects("stat value with both format and bands",
+          specWith(R"("value": { "field": "tempMaxF", "format": "{value}" })",
+                   R"("value": { "field": "tempMaxF", "format": "{value}", "bands": [{"max":1,"text":"a"}] })"));
+  rejects("bands that go backwards",
+          specWith(R"("bands": [ { "max": 200, "text": "w" } ])", R"("bands": [ { "max": 50, "text": "a" }, { "max": 10, "text": "b" } ])"));
+  rejects("last band gated on an optional input",
+          specWith(R"("bands": [ { "max": 200, "text": "w" } ])",
+                   R"("bands": [ { "max": 200, "text": "w", "requires": "firstClearHour" } ])"));
+  rejects("band requiring an unknown field",
+          specWith(R"("bands": [ { "max": 200, "text": "w" } ])",
+                   R"("bands": [ { "max": 10, "text": "a", "requires": "nope" }, { "max": 200, "text": "w" } ])"));
+}
+
+void test_rejects_duplicate_ids() {
+  // two outcomes sharing an id, the second still a catch-all
+  std::string j = R"({
+    "icons": ["tshirt"],
+    "outcomes": [
+      { "id": "same", "title": ["A"], "tagline": "T", "heroIcon": "tshirt", "when": { "all": [] },
+        "wear": [ {"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"} ],
+        "alsoGrab": "x" },
+      { "id": "same", "title": ["B"], "tagline": "T", "heroIcon": "tshirt", "when": { "all": [] },
+        "wear": [ {"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"} ],
+        "alsoGrab": "x" }
+    ],
+    "stats": [ { "id": "s", "label": "S", "icon": "tshirt",
+                 "value": { "field": "tempMaxF", "format": "{value}" },
+                 "word": { "field": "tempMaxF", "bands": [ { "max": 200, "text": "w" } ] } } ] })";
+  rejects("duplicate outcome id", j);
+}
+
+void test_icon_checker_catches_missing_art() {
+  // The spec lists an icon the renderer has no art for.
+  day::setIconChecker([](const char* n) { return strcmp(n, "tshirt") == 0; });
+  rejects("icon listed but no art compiled in", specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sun")"));
+  day::setIconChecker(nullptr);
+  // ...and with no checker it is accepted again, since icons[] does list it.
+  day::Spec s; char err[128];
+  std::string j = specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sun")");
+  TEST_ASSERT_TRUE_MESSAGE(s.load(j.c_str(), j.size(), err, sizeof(err)), err);
 }
 
 void test_beach_day() {
@@ -223,6 +314,8 @@ int main(int, char**) {
   UNITY_BEGIN();
   RUN_TEST(test_spec_loads);
   RUN_TEST(test_rejects_bad_specs);
+  RUN_TEST(test_rejects_duplicate_ids);
+  RUN_TEST(test_icon_checker_catches_missing_art);
   RUN_TEST(test_beach_day);
   RUN_TEST(test_rain_beats_everything);
   RUN_TEST(test_cold_beats_hot_paths);
