@@ -143,7 +143,7 @@ void test_jacket_footer_has_no_suffix() {
 void test_stats() {
   auto s = run(base());
   TEST_ASSERT_EQUAL_INT(5, s.statCount);
-  TEST_ASSERT_EQUAL_STRING("SUNSHINE", s.stats[0].label);
+  TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("sun", s.stats[0].icon);
   TEST_ASSERT_EQUAL_STRING("All day", s.stats[0].value);
   TEST_ASSERT_EQUAL_STRING("clear", s.stats[0].word);
@@ -153,7 +153,11 @@ void test_stats() {
   TEST_ASSERT_EQUAL_STRING("dry", s.stats[2].word);
   TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[3].value);
   TEST_ASSERT_EQUAL_STRING("calm", s.stats[3].word);
-  TEST_ASSERT_EQUAL_STRING("Good", s.stats[4].value);
+  TEST_ASSERT_EQUAL_STRING("HIGH TEMP", s.stats[1].label);
+  TEST_ASSERT_EQUAL_STRING("WIND", s.stats[3].label);
+  // AIR QUALITY shows the AQI itself; the word carries the meaning.
+  TEST_ASSERT_EQUAL_STRING("AIR QUALITY", s.stats[4].label);
+  TEST_ASSERT_EQUAL_STRING("40", s.stats[4].value);
   TEST_ASSERT_EQUAL_STRING("clean", s.stats[4].word);
 }
 

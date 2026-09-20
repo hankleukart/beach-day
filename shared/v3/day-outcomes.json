@@ -193,7 +193,7 @@
   "stats": [
     {
       "id": "sunshine",
-      "label": "SUNSHINE",
+      "label": "SUN",
       "icon": { "field": "cloudCoverAvgPct", "bands": [
         { "max": 35, "icon": "sun" },
         { "max": 75, "icon": "cloud" },
@@ -220,7 +220,7 @@
     },
     {
       "id": "warmest",
-      "label": "WARMEST",
+      "label": "HIGH TEMP",
       "icon": "thermometer",
       "value": { "field": "tempMaxF", "format": "{value}°F" },
       "word": {
@@ -255,7 +255,7 @@
     },
     {
       "id": "breeze",
-      "label": "BREEZE",
+      "label": "WIND",
       "icon": "wind",
       "value": { "field": "windMaxMph", "format": "{value} mph" },
       "word": {
@@ -270,17 +270,9 @@
     },
     {
       "id": "air",
-      "label": "AIR",
+      "label": "AIR QUALITY",
       "icon": "leaf",
-      "value": {
-        "field": "aqiMax",
-        "bands": [
-          { "max": 50, "text": "Good" },
-          { "max": 100, "text": "Fair" },
-          { "max": 150, "text": "Poor" },
-          { "max": 500, "text": "Bad" }
-        ]
-      },
+      "value": { "field": "aqiMax", "format": "{value}" },
       "word": {
         "field": "aqiMax",
         "bands": [

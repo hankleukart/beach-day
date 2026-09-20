@@ -21,16 +21,16 @@ constexpr int COL_X0 = 312, COL_X1 = 778;            // right column content bou
 constexpr int COL_W = COL_X1 - COL_X0;
 
 // ---- type ramp --------------------------------------------------------------
-const TextStyle T_EYEBROW  { Face::Body,      11, 3.0f, Role::Paper };
+const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
-const TextStyle T_TAGLINE  { Face::Body,      11, 3.0f, Role::Paper };
+const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
-const TextStyle T_CORNER   { Face::Body,      11, 0,    Role::Ink };
+const TextStyle T_CORNER   { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_STATLBL  { Face::Body,      10, 2.0f, Role::Caption };
+const TextStyle T_STATLBL  { Face::Body,      11, 2.0f, Role::Caption };
 const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
 const TextStyle T_STATWORD { Face::BodyLight, 12, 0,    Role::Caption };
 const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
@@ -65,70 +65,86 @@ void drawHero(const ViewModel& vm) {
 
 void drawRight(const ViewModel& vm) {
   const day::Screen& s = vm.screen;
+  char lines[2][160];
 
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
-  textDrawRight(T_CORNER, COL_X1, 46, s.corner1);
+  textDrawRight(T_CORNER, COL_X1, 42, s.corner1);
   textDrawRight(T_CORNER, COL_X1, 62, s.corner2);
 
-  // Subline (wrap to two lines if it must)
-  char lines[2][160];
+  // Subline (wraps to two lines if it must)
   int n = textWrap(T_SUBLINE, s.subline, COL_W, lines, 2);
-  int y = 86;
-  for (int i = 0; i < n; i++) { textDraw(T_SUBLINE, COL_X0, y, lines[i]); y += 18; }
-  int ruleY = (n > 1) ? 108 : 104;
+  int y = 88;
+  for (int i = 0; i < n; i++) { textDraw(T_SUBLINE, COL_X0, y, lines[i]); y += 19; }
+  int ruleY = y + 2;
   paintHLine(COL_X0, COL_X1, ruleY, 3, Role::Ink);
 
-  // WEAR TODAY + four tiles
-  int sectY = ruleY + 24;
-  textDraw(T_SECTION, COL_X0, sectY, s.wearHeading);
-  const int tileY = sectY + 14, tileH = 90, gap = 12;
+  // Wear tiles. No heading: the four pictures say what they are, and the row
+  // it used to occupy is worth more to the stat strip.
+  const int tileY = ruleY + 20, tileH = 92, gap = 12;
   const int tileW = (COL_W - 3 * gap) / 4;
+  const bool tileAccents = paintAccentsLegibleAt(44);
   for (int i = 0; i < 4; i++) {
     int x = COL_X0 + i * (tileW + gap);
     paintRoundRectStroke(x, tileY, tileW, tileH, 12, 2, Role::Ink);
     if (i < s.outcome.wearCount) {
       const day::Wear& w = s.outcome.wear[i];
-      drawIcon(w.icon, x + tileW / 2, tileY + 36, 44);
+      IconStyle ist; ist.accents = tileAccents;
+      drawIcon(w.icon, x + tileW / 2, tileY + 36, 44, ist);
       TextStyle st = T_TILE;
       while (st.px > 10 && textWidth(st, w.label) > tileW - 10) st.px -= 1;
-      textDrawCentered(st, x + tileW / 2, tileY + 78, w.label);
+      textDrawCentered(st, x + tileW / 2, tileY + 80, w.label);
     }
   }
 
   // Also grab (up to two lines)
   int alsoY = tileY + tileH + 26;
   n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, 2);
-  for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 18; }
+  for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 19; }
+  const int alsoBottom = alsoY - 19 + 5;
 
-  // Stat strip
-  const int bandY = 306, bandH = 92;
-  paintRoundRect(COL_X0, bandY, COL_W, bandH, 10, Role::Band);
-  int cols = s.statCount > 5 ? 5 : s.statCount;
-  if (cols > 0) {
-    float colW = (float)COL_W / cols;
-    for (int i = 0; i < cols; i++) {
-      const day::Stat& st = s.stats[i];
-      int cx = COL_X0 + (int)(colW * i + colW / 2);
-      drawIcon(st.icon, cx, bandY + 21, 22);
-      textDrawCentered(T_STATLBL, cx, bandY + 44, st.label);
-      TextStyle val = T_STATVAL;
-      while (val.px > 15 && textWidth(val, st.value) > (int)colW - 8) val.px -= 1;
-      textDrawCentered(val, cx, bandY + 72, st.value);
-      textDrawCentered(T_STATWORD, cx, bandY + 86, st.word);
+  // Footer pill, anchored to the bottom
+  const int pillH = 38, pillY = H - 30 - pillH;
+
+  // Stat strip fills whatever is left between them
+  const int bandY = alsoBottom + 14;
+  const int bandH = (pillY - 14) - bandY;
+  if (bandH >= 56) {
+    paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
+    int cols = s.statCount > 5 ? 5 : s.statCount;
+    if (cols > 0) {
+      // Centre the column contents in whatever height the band ended up with.
+      const int iconPx = 24, contentH = iconPx + 10 + 14 + 6 + 26 + 4 + 14;
+      int top = bandY + (bandH - contentH) / 2;
+      if (top < bandY + 6) top = bandY + 6;
+      const bool statAccents = paintAccentsLegibleAt(iconPx);
+      float colW = (float)COL_W / cols;
+      for (int i = 0; i < cols; i++) {
+        const day::Stat& st = s.stats[i];
+        int cx = COL_X0 + (int)(colW * i + colW / 2);
+        IconStyle ist; ist.accents = statAccents;
+        drawIcon(st.icon, cx, top + iconPx / 2, iconPx, ist);
+        // Labels are letter-spaced small caps; a long one like AIR QUALITY
+        // gives up its tracking before it gives up size.
+        TextStyle lbl = T_STATLBL;
+        while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > (int)colW - 8) lbl.tracking -= 0.4f;
+        while (lbl.px > 8 && textWidth(lbl, st.label) > (int)colW - 8) lbl.px -= 1;
+        textDrawCentered(lbl, cx, top + iconPx + 14, st.label);
+        TextStyle val = T_STATVAL;
+        while (val.px > 15 && textWidth(val, st.value) > (int)colW - 10) val.px -= 1;
+        textDrawCentered(val, cx, top + iconPx + 14 + 30, st.value);
+        textDrawCentered(T_STATWORD, cx, top + iconPx + 14 + 30 + 16, st.word);
+      }
     }
   }
 
-  // Footer pill: parking alert takes the slot when active
-  const int pillY = 412, pillH = 38;
   paintRoundRect(COL_X0, pillY, COL_W, pillH, 9, Role::Ink);
   const char* footer = vm.parkingActive ? vm.parkingText : s.footer;
   TextStyle ft = T_FOOTER;
   while (ft.px > 12 && textWidth(ft, footer) > COL_W - 24) ft.px -= 1;
   textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
 
-  // Freshness, quietly
-  if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, 470, vm.statusText);
+  if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, H - 10, vm.statusText);
 }
 
 void frame() {

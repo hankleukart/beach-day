@@ -80,3 +80,15 @@ void paintThickLine(int x0, int y0, int x1, int y1, int w, Role role) {
 void paintHLine(int x0, int x1, int y, int thickness, Role role) {
   for (int i = 0; i < thickness; i++) paintSpan(y + i, x0, x1, role);
 }
+
+void paintBandPanel(int x, int y, int w, int h, int rad) {
+  // Mono: outline only. The design calls for #F2F2F2, and the nearest 1-bit
+  // equivalent - a dot field - sits directly behind the stat values and makes
+  // them unreadable. An outline carries the same grouping with no cost to type.
+  paintRoundRectStroke(x, y, w, h, rad, 2, Role::Ink);
+}
+
+bool paintAccentsLegibleAt(int featurePx) {
+  // A 25% dot pattern inside a 22px icon is noise, not colour.
+  return featurePx >= 40;
+}

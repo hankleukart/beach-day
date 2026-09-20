@@ -17,3 +17,9 @@ void paintRoundRectStroke(int x, int y, int w, int h, int rad, int stroke, Role 
 void paintDisc(int cx, int cy, int r, Role role);
 void paintThickLine(int x0, int y0, int x1, int y1, int w, Role role);
 void paintHLine(int x0, int x1, int y, int thickness, Role role);
+
+// The stat strip's backing. On a 1-bit panel a dot field behind type destroys
+// it, so this is an outline here; a colour panel fills it with the band tone.
+void paintBandPanel(int x, int y, int w, int h, int rad);
+// False when an accent fill would read as noise rather than colour at this size.
+bool paintAccentsLegibleAt(int featurePx);
