@@ -1,5 +1,10 @@
 # Shared Rules
 
+> **On the `v3-redesign` branch.** `rules.json` here is free to become v3 and
+> may not match `hubitat-trmnl/`, which is frozen on v2 — see
+> [docs-design/v3-notes.md](../docs-design/v3-notes.md). On `main` both targets
+> agree.
+
 This folder is the source of truth for **what Beach Day decides**. Each hardware
 target implements these rules in its own language; none of them should invent
 thresholds of their own.
