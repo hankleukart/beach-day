@@ -147,10 +147,23 @@ void setup() {
     runSetupPortal(s);
   }
 
-  int failures = bumpBootFailures();
-  bool safeMode = (failures > SAFE_MODE_THRESHOLD);
-  Serial.printf("[beach] firmware %s, boot %u, %s%s\n", FIRMWARE_VERSION, (unsigned)bootCount,
-                wokeByButton() ? "button wake" : "timer/power wake", safeMode ? ", SAFE MODE" : "");
+  // Only a genuine crash counts. A power cycle, the reset button or a firmware
+  // upload also interrupts a boot, and those used to be counted - four flashes
+  // in a day put a board into safe mode.
+  int failures = 0;
+  if (lastResetWasCrash()) failures = bumpBootFailures(); else clearBootFailures();
+#ifdef BEACHDAY_DEV
+  bool safeMode = false;       // on the bench you want to see the crash, not hide it
+#else
+  bool safeMode = (failures >= SAFE_MODE_THRESHOLD);
+#endif
+  Serial.printf("[beach] firmware %s, boot %u, %s, reset: %s%s\n", FIRMWARE_VERSION, (unsigned)bootCount,
+                wokeByButton() ? "button wake" : "timer/power wake", resetReasonText(),
+                safeMode ? ", SAFE MODE" : "");
+  if (failures) Serial.printf("[beach] %d consecutive crash%s\n", failures, failures == 1 ? "" : "es");
+  Serial.printf("[beach] wi-fi '%s' %s\n", s.ssid,
+                s.fromPortal ? "(saved by the setup portal - beachday_config.h is NOT used; hold the middle button to change it)"
+                             : "(from beachday_config.h)");
   if (forceOta) Serial.println(F("[beach] KEY2 held: forcing update + rules check"));
 
   renderBegin();
@@ -164,11 +177,13 @@ void setup() {
   Serial.printf("[beach] rules from %s\n", specStatus);
 
   if (safeMode) {
-    Serial.printf("[beach] %d consecutive failed boots; update-only mode\n", failures - 1);
+    Serial.println(F("[beach] update-only mode; the next boot will try normally again"));
     renderMessage("Updating", "This display hit a problem and is looking for new software.", "Leave it on Wi-Fi.");
     char st[64] = "no wifi";
     if (netConnect(s, 25000)) { netSyncTime(8000); otaCheck(s, true, st, sizeof(st)); netDisconnect(); }
     Serial.printf("[beach] safe-mode ota: %s\n", st);
+    // Start the count over so safe mode is "every Nth boot", never a dead end.
+    clearBootFailures();
     renderEnd();
     deepSleepFor(1800);
   }

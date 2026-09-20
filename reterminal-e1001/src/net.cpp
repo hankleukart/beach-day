@@ -12,7 +12,10 @@ bool netConnect(const Settings& s, uint32_t timeoutMs) {
   uint32_t start = millis();
   while (WiFi.status() != WL_CONNECTED) {
     if (millis() - start > timeoutMs) {
-      Serial.printf("[net] Wi-Fi timeout (status %d)\n", WiFi.status());
+      int st = WiFi.status();
+      const char* hint = st == WL_NO_SSID_AVAIL ? "network not found - name wrong or out of range" :
+                         st == WL_CONNECT_FAILED || st == WL_DISCONNECTED ? "rejected - usually a wrong password" : "";
+      Serial.printf("[net] Wi-Fi timeout (status %d%s%s)\n", st, hint[0] ? ": " : "", hint);
       return false;
     }
     delay(100);

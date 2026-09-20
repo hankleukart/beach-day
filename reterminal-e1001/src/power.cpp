@@ -1,6 +1,7 @@
 #include "power.h"
 #include <Arduino.h>
 #include <esp_sleep.h>
+#include <esp_system.h>
 #include <driver/rtc_io.h>
 #include "pins.h"
 
@@ -33,6 +34,29 @@ int batteryPercent(float v) {
 }
 
 bool wokeByButton() { return esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1; }
+
+bool lastResetWasCrash() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_PANIC: case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT:
+    case ESP_RST_WDT: case ESP_RST_BROWNOUT: return true;
+    default: return false;   // POWERON, EXT (flash/reset button), SW, DEEPSLEEP
+  }
+}
+
+const char* resetReasonText() {
+  switch (esp_reset_reason()) {
+    case ESP_RST_POWERON: return "power-on";
+    case ESP_RST_EXT: return "reset pin";
+    case ESP_RST_SW: return "software restart";
+    case ESP_RST_PANIC: return "CRASH (panic)";
+    case ESP_RST_INT_WDT: return "CRASH (interrupt watchdog)";
+    case ESP_RST_TASK_WDT: return "CRASH (task watchdog)";
+    case ESP_RST_WDT: return "CRASH (watchdog)";
+    case ESP_RST_DEEPSLEEP: return "deep-sleep wake";
+    case ESP_RST_BROWNOUT: return "brownout";
+    default: return "unknown";
+  }
+}
 
 void deepSleepFor(uint32_t seconds) {
   if (seconds < 60) seconds = 60;
