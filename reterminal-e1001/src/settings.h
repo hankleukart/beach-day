@@ -24,6 +24,9 @@ struct Settings {
   char     otaManifestUrl[160] = "";
   uint16_t otaCheckHours  = 24;
   uint8_t  otaMinBatteryPct = 30;
+  // Runtime rules (src/specstore.cpp)
+  char     rulesUrl[160] = "";
+  uint16_t rulesCheckHours = 24;
   beach::ParkingRule parking[2] = {};
   int    parkingCount = 0;
 

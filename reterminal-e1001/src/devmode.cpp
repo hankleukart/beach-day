@@ -4,7 +4,8 @@
 #include <cstring>
 #include "pins.h"
 #include "power.h"
-#include "beachrules.h"
+#include "specstore.h"
+#include "settings.h"
 
 #if __has_include("beachday_config.h")
 #  include "beachday_config.h"
@@ -17,205 +18,118 @@
 
 namespace {
 
-constexpr int DEMO_COUNT = 9;
+// One set of numbers per outcome in the spec, run through the REAL engine so
+// the copy on screen is the copy in the JSON. Order matches outcomes[].
+struct Preset { const char* name; day::Inputs in; };
 
-// Numbers chosen so each state's checklist marks agree with why it fired.
-void buildDemoView(int idx, ViewModel& vm) {
-  auto st = static_cast<beach::State>(idx % DEMO_COUNT);
-  vm = ViewModel{};
-  vm.valid = true;
-  vm.state = static_cast<uint8_t>(st);
-
-  // Sensible baseline: a passing day, then break whatever this state needs.
-  vm.temp = 78; vm.tempMin = 62; vm.tempMax = 78;
-  vm.precip = 10; vm.wind = 9;
-  vm.aqi = 42; vm.aqiMin = 18; vm.aqiMax = 42;
-  vm.uv = 7; vm.humMin = 41; vm.humMax = 63;
-  vm.condTemp = vm.condPrecip = vm.condWind = vm.condAqi = vm.condSun = true;
-  snprintf(vm.conditionText, sizeof(vm.conditionText), "Mainly clear");
-  snprintf(vm.sunText, sizeof(vm.sunText), "All day");
-  snprintf(vm.dayLabel, sizeof(vm.dayLabel), "THURSDAY");
-  snprintf(vm.footer, sizeof(vm.footer), "Sunset: 6:57 PM");
-  snprintf(vm.locationName, sizeof(vm.locationName), "Santa Monica");
-  snprintf(vm.updatedText, sizeof(vm.updatedText), "Demo %d/%d", idx + 1, DEMO_COUNT);
-  vm.batteryPct = 76;
-
-  switch (st) {
-    case beach::State::BeachDay:
-      break;
-    case beach::State::NightTime:
-      vm.isNight = true;
-      snprintf(vm.dayLabel, sizeof(vm.dayLabel), "TOMORROW (FRIDAY)");
-      snprintf(vm.footer, sizeof(vm.footer), "Sunrise: 6:39 AM");
-      break;
-    case beach::State::IndoorDay:
-      vm.aqi = 168; vm.aqiMax = 168; vm.aqiMin = 121; vm.condAqi = false;
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Fog");
-      break;
-    case beach::State::RainDay:
-      vm.precip = 72; vm.condPrecip = false;
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Moderate rain");
-      snprintf(vm.sunText, sizeof(vm.sunText), "Cloudy");
-      vm.condSun = false;
-      break;
-    case beach::State::WindDay:
-      vm.wind = 24; vm.condWind = false;
-      break;
-    case beach::State::ChillyDay:
-      vm.temp = 58; vm.tempMax = 58; vm.tempMin = 49; vm.condTemp = false;
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Overcast");
-      break;
-    case beach::State::NiceDay:
-      vm.temp = 71; vm.tempMax = 71; vm.condTemp = false;
-      vm.clearingLater = true;
-      snprintf(vm.sunText, sizeof(vm.sunText), "At 11 AM");
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Partly cloudy");
-      break;
-    case beach::State::GreyDay:
-      vm.condSun = false;
-      snprintf(vm.sunText, sizeof(vm.sunText), "2 hrs");
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Overcast");
-      break;
-    case beach::State::JustADay:
-      vm.precip = 28; vm.condPrecip = false;
-      snprintf(vm.conditionText, sizeof(vm.conditionText), "Partly cloudy");
-      break;
-  }
+day::Inputs mk(double tmin, double tmax, double rain, double wind, double aqi, double cloud, int clearAt, const char* cond) {
+  day::Inputs i;
+  i.tempMinF = tmin; i.tempMaxF = tmax; i.tempSwingF = tmax - tmin;
+  i.precipChanceMaxPct = rain; i.windMaxMph = wind; i.aqiMax = aqi; i.aqiMin = aqi > 20 ? aqi - 15 : 5;
+  i.humidityMinPct = 49; i.humidityMaxPct = 83; i.cloudCoverAvgPct = cloud;
+  i.hasFirstClearHour = clearAt >= 0; i.firstClearHour = clearAt;
+  snprintf(i.conditionSummary, sizeof(i.conditionSummary), "%s", cond);
+  snprintf(i.sunsetLocal, sizeof(i.sunsetLocal), "7:08 PM");
+  snprintf(i.weekdayName, sizeof(i.weekdayName), "Wednesday");
+  return i;
 }
 
-// Debounced falling edge on an active-low button.
+const Preset PRESETS[] = {
+  { "rain boots",     mk(52, 58, 80, 12, 30, 95, -1, "Moderate rain") },
+  { "big coat",       mk(38, 47,  5,  9, 25, 60, 10, "Overcast") },
+  { "beach",          mk(74, 89,  2,  9, 61, 10,  6, "Clear sky") },
+  { "sun hat (wind)", mk(70, 86,  5, 22, 40, 20,  7, "Mainly clear") },
+  { "layers",         mk(50, 76,  5,  8, 35, 45, 11, "Partly cloudy") },
+  { "t-shirt (near)", mk(60, 74,  8, 10, 30, 30,  9, "Partly cloudy") },
+  { "jacket",         mk(54, 63, 15, 11, 45, 80, -1, "Overcast") },
+};
+constexpr int PRESET_COUNT = sizeof(PRESETS) / sizeof(PRESETS[0]);
+
 struct Button {
-  int pin;
-  bool last = true;
+  int pin; bool last = true;
   explicit Button(int p) : pin(p) { pinMode(p, INPUT_PULLUP); }
-  bool pressed() {
-    bool now = digitalRead(pin);
-    bool fell = (last && !now);
-    last = now;
-    if (fell) delay(40);
-    return fell;
-  }
+  bool pressed() { bool now = digitalRead(pin); bool fell = (last && !now); last = now; if (fell) delay(40); return fell; }
 };
 
 void banner() {
   Serial.println();
   Serial.println(F("=================================================="));
-  Serial.println(F(" Beach Day - DEV MODE (stays awake)"));
+  Serial.println(F(" Beach Day v3 - DEV MODE (stays awake)"));
   Serial.println(F(" Type a key here, or press a button on the board:"));
-  Serial.println(F("   n / KEY2 (left)    next demo state"));
+  Serial.println(F("   n / KEY2 (left)    next demo outcome"));
   Serial.println(F("   p / KEY1 (middle)  toggle parking alert"));
   Serial.println(F("   l / KEY0 (right)   back to the live forecast"));
-  Serial.println(F("   d                  dump the current view as text"));
+  Serial.println(F("   d                  dump the current screen as text"));
   Serial.println(F("   R                  reboot and re-fetch"));
   Serial.println(F("   ?                  show this again"));
   Serial.printf(  "   (the live forecast refreshes itself every %d min)\n", CFG_DEV_REFRESH_MINUTES);
-  Serial.println(F(" Ctrl-C quits the monitor (the board keeps running)."));
+  Serial.printf(  " rules: %s v%s, %d outcomes\n", spec().name(), spec().version(), spec().outcomeCount());
   Serial.println(F("=================================================="));
 }
 
-void dumpView(const ViewModel& vm, const char* which) {
+void dump(const ViewModel& vm, const char* which) {
+  const day::Screen& s = vm.screen;
   Serial.printf("[dev] --- %s ---\n", which);
-  Serial.printf("  state       %s%s\n", beach::stateId(static_cast<beach::State>(vm.state)),
-                vm.isNight ? " (night: showing tomorrow)" : "");
-  Serial.printf("  headline    %s %s / %s\n",
-                beach::stateTitleLine1(static_cast<beach::State>(vm.state)),
-                beach::stateTitleLine2(static_cast<beach::State>(vm.state)),
-                beach::stateSubtitle(static_cast<beach::State>(vm.state)));
-  Serial.printf("  conditions  sun[%d] temp[%d] rain[%d] wind[%d] aqi[%d]\n",
-                vm.condSun, vm.condTemp, vm.condPrecip, vm.condWind, vm.condAqi);
-  Serial.printf("  numbers     temp %d (%d-%d)  rain %d%%  wind %d  aqi %d (%d-%d)  uv %d  hum %d-%d%%\n",
-                vm.temp, vm.tempMin, vm.tempMax, vm.precip, vm.wind,
-                vm.aqi, vm.aqiMin, vm.aqiMax, vm.uv, vm.humMin, vm.humMax);
-  Serial.printf("  text        day='%s' cond='%s' sun='%s' footer='%s'\n",
-                vm.dayLabel, vm.conditionText, vm.sunText, vm.footer);
-  Serial.printf("  parking     %s%s\n", vm.parkingActive ? "ACTIVE " : "off",
-                vm.parkingActive ? vm.parkingText : "");
-  Serial.printf("  status      %s  battery %d%%\n", vm.updatedText, vm.batteryPct);
+  Serial.printf("  outcome   %s%s\n", s.outcome.id, s.tomorrow ? " (tomorrow)" : "");
+  Serial.printf("  hero      %s | %s %s %s | %s\n", s.eyebrow, s.outcome.title[0], s.outcome.title[1], s.outcome.title[2], s.outcome.tagline);
+  Serial.printf("  header    %s | %s | %s\n", s.weekday, s.corner1, s.corner2);
+  Serial.printf("  subline   %s\n", s.subline);
+  Serial.printf("  wear      "); for (int i = 0; i < s.outcome.wearCount; i++) Serial.printf("[%s:%s] ", s.outcome.wear[i].label, s.outcome.wear[i].icon); Serial.println();
+  Serial.printf("  also      %s\n", s.outcome.alsoGrab);
+  for (int i = 0; i < s.statCount; i++) Serial.printf("  stat      %-9s %-6s %-12s %s\n", s.stats[i].label, s.stats[i].icon, s.stats[i].value, s.stats[i].word);
+  Serial.printf("  footer    %s\n", vm.parkingActive ? vm.parkingText : s.footer);
+  Serial.printf("  status    %s\n", vm.statusText);
 }
 
 } // namespace
 
 void devLoop(const ViewModel& liveView, bool liveValid) {
   banner();
-
-  ViewModel live = liveView;
-  ViewModel demo;
-  int demoIdx = -1;          // -1 = showing the live view
-  bool parkingOverlay = false;
+  ViewModel live = liveView, demo;
+  int demoIdx = -1;
+  bool parking = false;
+  const Settings& s = loadSettings();
 
   Button key2(PIN_KEY2), key1(PIN_KEY1), key0(PIN_KEY0);
-  pinMode(PIN_LED, OUTPUT);
-  digitalWrite(PIN_LED, HIGH);
-
-  uint32_t lastBlink = 0;
-  bool ledOn = false;
-
-  // The dev build never deep-sleeps, so nothing would otherwise re-run the
-  // fetch: without this the panel shows whatever it got at boot, forever.
-  // Restarting re-uses the whole boot path rather than duplicating it here.
+  pinMode(PIN_LED, OUTPUT); digitalWrite(PIN_LED, HIGH);
+  uint32_t lastBlink = 0; bool ledOn = false;
   const uint32_t refreshMs = (uint32_t)CFG_DEV_REFRESH_MINUTES * 60UL * 1000UL;
   const uint32_t startedAt = millis();
-  Serial.printf("[dev] next automatic forecast refresh in %d min\n", CFG_DEV_REFRESH_MINUTES);
 
   for (;;) {
-    // Only when the live view is on screen - never interrupt demo browsing.
     if (demoIdx < 0 && refreshMs > 0 && millis() - startedAt > refreshMs) {
-      Serial.println(F("[dev] refresh interval reached, restarting to re-fetch"));
-      Serial.flush();
-      ESP.restart();
+      Serial.println(F("[dev] refresh interval reached, restarting to re-fetch")); Serial.flush(); ESP.restart();
     }
-
-    // Serial keys mirror the buttons, so the board can be driven from the
-    // monitor without reaching for it.
     char cmd = 0;
-    while (Serial.available()) {
-      int c = Serial.read();
-      if (c > 0 && c != '\r' && c != '\n') cmd = (char)c;
-    }
+    while (Serial.available()) { int c = Serial.read(); if (c > 0 && c != '\r' && c != '\n') cmd = (char)c; }
     if (cmd == '?') banner();
     if (cmd == 'R') { Serial.println(F("[dev] rebooting")); Serial.flush(); ESP.restart(); }
-    if (cmd == 'd') dumpView((demoIdx >= 0) ? demo : live, (demoIdx >= 0) ? "demo view" : "live view");
+    if (cmd == 'd') dump((demoIdx >= 0) ? demo : live, (demoIdx >= 0) ? "demo" : "live");
 
     if (key2.pressed() || cmd == 'n') {
-      demoIdx = (demoIdx + 1) % DEMO_COUNT;
-      buildDemoView(demoIdx, demo);
-      if (parkingOverlay) {
-        demo.parkingActive = true;
-        snprintf(demo.parkingText, sizeof(demo.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
-      }
-      Serial.printf("[dev] demo %d/%d -> %s\n", demoIdx + 1, DEMO_COUNT,
-                    beach::stateId(static_cast<beach::State>(demoIdx)));
-      renderView(demo);
-      dumpView(demo, "demo view");
+      demoIdx = (demoIdx + 1) % PRESET_COUNT;
+      demo = ViewModel{};
+      demo.valid = spec().evaluate(PRESETS[demoIdx].in, demo.screen, s.locationName, false);
+      demo.parkingActive = parking;
+      snprintf(demo.parkingText, sizeof(demo.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
+      snprintf(demo.statusText, sizeof(demo.statusText), "Demo %d/%d \xC2\xB7 %s", demoIdx + 1, PRESET_COUNT, PRESETS[demoIdx].name);
+      Serial.printf("[dev] demo %d/%d '%s' -> %s\n", demoIdx + 1, PRESET_COUNT, PRESETS[demoIdx].name, demo.screen.outcome.id);
+      renderScreen(demo);
+      dump(demo, "demo");
     }
-
     if (key1.pressed() || cmd == 'p') {
-      parkingOverlay = !parkingOverlay;
-      Serial.printf("[dev] parking alert %s\n", parkingOverlay ? "ON" : "OFF");
-      ViewModel& target = (demoIdx >= 0) ? demo : live;
-      target.parkingActive = parkingOverlay;
-      if (parkingOverlay) {
-        snprintf(target.parkingText, sizeof(target.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
-      }
-      if (demoIdx >= 0 || liveValid) renderView(target);
+      parking = !parking;
+      ViewModel& t = (demoIdx >= 0) ? demo : live;
+      t.parkingActive = parking;
+      snprintf(t.parkingText, sizeof(t.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
+      Serial.printf("[dev] parking alert %s\n", parking ? "ON" : "OFF");
+      if (demoIdx >= 0 || liveValid) renderScreen(t);
     }
-
     if (key0.pressed() || cmd == 'l') {
-      if (!liveValid) {
-        Serial.println(F("[dev] no live view captured this boot - reset to re-fetch"));
-      } else {
-        demoIdx = -1;
-        Serial.println(F("[dev] showing the live forecast"));
-        renderView(live);
-      }
+      if (!liveValid) Serial.println(F("[dev] no live view this boot - press R to re-fetch"));
+      else { demoIdx = -1; Serial.println(F("[dev] showing the live forecast")); renderScreen(live); }
     }
-
-    // Slow heartbeat so it's obvious the board is awake.
-    if (millis() - lastBlink > 2000) {
-      lastBlink = millis();
-      ledOn = !ledOn;
-      digitalWrite(PIN_LED, ledOn ? LOW : HIGH);   // LED is inverted
-    }
+    if (millis() - lastBlink > 2000) { lastBlink = millis(); ledOn = !ledOn; digitalWrite(PIN_LED, ledOn ? LOW : HIGH); }
     delay(20);
   }
 }

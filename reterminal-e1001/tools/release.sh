@@ -28,7 +28,7 @@ echo "==> Version $VERSION  (repo $REPO, tag $TAG)"
 echo "==> Running the rules tests"
 "$PIO" test -e native
 
-echo "==> Building the release firmware"
+echo "==> Building the release firmware (rules are embedded as the fallback copy)"
 "$PIO" run -e reterminal_e1001
 
 mkdir -p "$OUT"

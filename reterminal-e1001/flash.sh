@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 # Build, flash and monitor the reTerminal E1001.
 #
-#   ./flash.sh            dev build: stays awake, buttons run a self-test
+#   ./flash.sh            dev build: stays awake, buttons cycle the outcomes
 #   ./flash.sh release    real build: renders once, then deep-sleeps
+#   ./flash.sh rules      push only shared/v3/day-outcomes.json to the board
 #   ./flash.sh test       run the rules tests on this Mac, no board needed
+#
+# Firmware uploads also upload the LittleFS image, which carries the rules
+# JSON; the firmware falls back to a built-in copy if the image is missing.
 #
 # If the upload can't find the board, press KEY0 (the right-hand button) to
 # wake it and run this again.
@@ -14,9 +18,10 @@ PIO=.venv/bin/pio
 
 case "${1:-dev}" in
   test)    exec "$PIO" test -e native ;;
+  rules)   exec "$PIO" run -e reterminal_e1001 -t uploadfs ;;
   release) ENV=reterminal_e1001 ;;
   dev)     ENV=dev ;;
-  *)       echo "usage: $0 [dev|release|test]"; exit 1 ;;
+  *)       echo "usage: $0 [dev|release|rules|test]"; exit 1 ;;
 esac
 
 [ -f src/beachday_config.h ] || {
@@ -26,4 +31,5 @@ esac
 }
 
 "$PIO" run -e "$ENV" -t upload
+"$PIO" run -e "$ENV" -t uploadfs
 exec "$PIO" device monitor -e "$ENV"

@@ -1,9 +1,9 @@
 # Shared Rules
 
-> **On the `v3-redesign` branch.** `rules.json` here is free to become v3 and
-> may not match `hubitat-trmnl/`, which is frozen on v2 — see
-> [docs-design/v3-notes.md](../docs-design/v3-notes.md). On `main` both targets
-> agree.
+> **On the `v3-redesign` branch.** The reTerminal now runs
+> [v3/day-outcomes.json](v3/day-outcomes.json) — a different schema, loaded at
+> run time. `rules.json` below is v2 and still describes `hubitat-trmnl/`, which
+> is frozen. See [docs-design/v3-notes.md](../docs-design/v3-notes.md).
 
 This folder is the source of truth for **what Beach Day decides**. Each hardware
 target implements these rules in its own language; none of them should invent

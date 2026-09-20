@@ -23,6 +23,12 @@
 #ifndef CFG_OTA_MIN_BATTERY_PCT
 #  define CFG_OTA_MIN_BATTERY_PCT 30
 #endif
+#ifndef CFG_RULES_URL
+#  define CFG_RULES_URL "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.json"
+#endif
+#ifndef CFG_RULES_CHECK_HOURS
+#  define CFG_RULES_CHECK_HOURS 24
+#endif
 
 static Settings g;
 static bool loaded = false;
@@ -79,6 +85,8 @@ const Settings& loadSettings() {
   copyStr(g.otaManifestUrl, sizeof(g.otaManifestUrl), CFG_OTA_MANIFEST_URL);
   g.otaCheckHours    = CFG_OTA_CHECK_HOURS;
   g.otaMinBatteryPct = CFG_OTA_MIN_BATTERY_PCT;
+  copyStr(g.rulesUrl, sizeof(g.rulesUrl), CFG_RULES_URL);
+  g.rulesCheckHours  = CFG_RULES_CHECK_HOURS;
 
   g.parking[0] = beach::ParkingRule{ CFG_PARKING_LEFT_ENABLED, "LEFT",
                                      beach::weeks(CFG_PARKING_LEFT_WEEKS), CFG_PARKING_LEFT_DAY,
@@ -118,6 +126,7 @@ const Settings& loadSettings() {
       loadParkingRule(prefs, "R", g.parking[1]);
     }
     if (prefs.isKey("otaUrl")) prefs.getString("otaUrl", g.otaManifestUrl, sizeof(g.otaManifestUrl));
+    if (prefs.isKey("rulesUrl")) prefs.getString("rulesUrl", g.rulesUrl, sizeof(g.rulesUrl));
     prefs.end();
   }
 

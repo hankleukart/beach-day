@@ -1,0 +1,336 @@
+{
+  "version": "1.0",
+  "name": "Venice Beach Display — day outcomes",
+  "description": "Rules for picking one outcome per day and rendering the e-ink screen. Evaluate outcomes in array order and stop at the first whose `when` passes; `jacket_day` is the catch-all and must stay last.",
+
+  "location": {
+    "label": "VENICE BEACH",
+    "note": "Shown as the eyebrow on the left panel. Change per install."
+  },
+
+  "units": {
+    "temperature": "fahrenheit",
+    "wind": "mph",
+    "precipitation": "percent_chance",
+    "airQuality": "us_aqi"
+  },
+
+  "inputs": {
+    "tempMinF": { "type": "number", "description": "Lowest temp during daylight hours" },
+    "tempMaxF": { "type": "number", "description": "Highest temp during daylight hours" },
+    "tempSwingF": { "type": "number", "derived": "tempMaxF - tempMinF" },
+    "precipChanceMaxPct": { "type": "number", "description": "Peak hourly chance of rain during daylight" },
+    "windMaxMph": { "type": "number", "description": "Peak sustained wind during daylight" },
+    "aqiMax": { "type": "number" },
+    "aqiMin": { "type": "number" },
+    "humidityMinPct": { "type": "number" },
+    "humidityMaxPct": { "type": "number" },
+    "cloudCoverAvgPct": { "type": "number", "description": "Daylight average, drives the SUNSHINE stat" },
+    "conditionSummary": { "type": "string", "description": "Short phrase from the weather API, e.g. 'Clear sky'" },
+    "sunsetLocal": { "type": "string", "format": "h:mm A" },
+    "weekdayName": { "type": "string" },
+    "firstClearHour": { "type": "number", "nullable": true, "description": "First daylight hour with cloudCover <= 30; used by the 'After {h}' sunshine value" }
+  },
+
+  "evaluation": {
+    "strategy": "first_match",
+    "note": "Wet and cold are checked before hot so a cold rainy day can never resolve to a warm-weather outfit. beach_day must be checked before sun_hat_day: they share the hot-and-sunny base, and only wind, air quality and cloud cover separate them."
+  },
+
+  "outcomes": [
+    {
+      "id": "rain_boots_day",
+      "title": ["RAIN", "BOOTS", "DAY!"],
+      "tagline": "PUDDLES AHEAD",
+      "heroIcon": "rain_boot",
+      "when": {
+        "any": [
+          { "field": "precipChanceMaxPct", "op": ">=", "value": 50 }
+        ]
+      },
+      "wear": [
+        { "id": "rain_boots", "label": "Rain boots", "icon": "rain_boot" },
+        { "id": "raincoat", "label": "Raincoat", "icon": "raincoat" },
+        { "id": "umbrella", "label": "Umbrella", "icon": "umbrella" },
+        { "id": "warm_layer", "label": "Warm layer", "icon": "sweater" }
+      ],
+      "alsoGrab": "Also grab: dry socks for the backpack.",
+      "footerSuffix": "boots off at the door!"
+    },
+    {
+      "id": "big_coat_day",
+      "title": ["BIG", "COAT", "DAY!"],
+      "tagline": "HATS AND MITTENS",
+      "heroIcon": "puffy_coat",
+      "when": {
+        "all": [
+          { "field": "tempMaxF", "op": "<", "value": 52 }
+        ]
+      },
+      "wear": [
+        { "id": "puffy_coat", "label": "Puffy coat", "icon": "puffy_coat" },
+        { "id": "warm_hat", "label": "Warm hat", "icon": "beanie" },
+        { "id": "mittens", "label": "Mittens", "icon": "mittens" },
+        { "id": "scarf", "label": "Scarf", "icon": "scarf" }
+      ],
+      "alsoGrab": "Also grab: warm socks, and tuck a hat in every pocket.",
+      "footerSuffix": "it gets dark early!"
+    },
+    {
+      "id": "beach_day",
+      "title": ["BEACH", "DAY!"],
+      "tagline": "PACK THE CAR",
+      "heroIcon": "sun_and_waves",
+      "isBeachDay": true,
+      "when": {
+        "all": [
+          { "field": "tempMaxF", "op": ">=", "value": 78 },
+          { "field": "precipChanceMaxPct", "op": "<=", "value": 20 },
+          { "field": "windMaxMph", "op": "<=", "value": 15 },
+          { "field": "aqiMax", "op": "<", "value": 100 },
+          { "field": "cloudCoverAvgPct", "op": "<=", "value": 35 }
+        ]
+      },
+      "wear": [
+        { "id": "swimsuit", "label": "Swimsuit", "icon": "swim_trunks" },
+        { "id": "sun_hat", "label": "Sun hat", "icon": "sun_hat" },
+        { "id": "sunscreen", "label": "Sunscreen", "icon": "sunscreen" },
+        { "id": "towel", "label": "Towel", "icon": "towel" }
+      ],
+      "alsoGrab": "Also grab: water bottles and something for shade.",
+      "footerSuffix": "home before dark!"
+    },
+    {
+      "id": "sun_hat_day",
+      "title": ["SUN", "HAT", "DAY!"],
+      "tagline": "STAY IN THE SHADE",
+      "heroIcon": "sun_hat",
+      "when": {
+        "all": [
+          { "field": "tempMaxF", "op": ">=", "value": 78 }
+        ]
+      },
+      "note": "Reached only when a hot day failed one of beach_day's other tests. Build the alsoGrab line from whichever test failed so the screen explains itself.",
+      "wear": [
+        { "id": "sun_hat", "label": "Sun hat", "icon": "sun_hat" },
+        { "id": "tshirt", "label": "T-shirt", "icon": "tshirt" },
+        { "id": "sunscreen", "label": "Sunscreen", "icon": "sunscreen" },
+        { "id": "water_bottle", "label": "Water bottle", "icon": "water_bottle" }
+      ],
+      "alsoGrab": {
+        "byFailedTest": {
+          "windMaxMph": "Too windy at the water today — the shady park is the better pick.",
+          "aqiMax": "The air is hazy today — keep it short outside and shady.",
+          "cloudCoverAvgPct": "Grey overhead but still hot — sunscreen anyway, it burns through.",
+          "precipChanceMaxPct": "Hot with a shower possible — shade now, umbrella nearby."
+        },
+        "default": "Hot one today — shade and refills."
+      },
+      "footerSuffix": "sunscreen until then!"
+    },
+    {
+      "id": "layers_day",
+      "title": ["LAYERS", "DAY!"],
+      "tagline": "PEEL THEM OFF LATER",
+      "heroIcon": "hoodie",
+      "when": {
+        "all": [
+          { "field": "tempSwingF", "op": ">=", "value": 22 }
+        ]
+      },
+      "note": "The one outcome where a single garment can't answer the question. Checked after the hot and cold extremes so it only catches genuinely in-between days.",
+      "wear": [
+        { "id": "tshirt", "label": "T-shirt", "icon": "tshirt" },
+        { "id": "hoodie", "label": "Hoodie", "icon": "hoodie" },
+        { "id": "long_pants", "label": "Long pants", "icon": "long_pants" },
+        { "id": "sneakers", "label": "Sneakers", "icon": "sneaker" }
+      ],
+      "alsoGrab": "It warms up {tempSwingF} degrees today — pack somewhere to stash the hoodie.",
+      "footerSuffix": "hoodie back on after that."
+    },
+    {
+      "id": "tshirt_day",
+      "title": ["T-SHIRT", "DAY!"],
+      "tagline": "SHORTS WEATHER",
+      "heroIcon": "tshirt",
+      "when": {
+        "all": [
+          { "field": "tempMaxF", "op": ">=", "value": 68 }
+        ]
+      },
+      "wear": [
+        { "id": "tshirt", "label": "T-shirt", "icon": "tshirt" },
+        { "id": "shorts", "label": "Shorts", "icon": "shorts" },
+        { "id": "sneakers", "label": "Sneakers", "icon": "sneaker" },
+        { "id": "sun_hat", "label": "Sun hat", "icon": "sun_hat" }
+      ],
+      "alsoGrab": {
+        "whenNearBeachThreshold": "{degreesShort} degrees short of a beach day — lovely for the park, chilly in the water.",
+        "nearBeachThresholdWithinF": 6,
+        "default": "Also grab: a light sweater for after dinner."
+      },
+      "footerSuffix": "plenty of park time."
+    },
+    {
+      "id": "jacket_day",
+      "title": ["JACKET", "DAY!"],
+      "tagline": "GRAB ONE BY THE DOOR",
+      "heroIcon": "jacket",
+      "isFallback": true,
+      "when": { "all": [] },
+      "note": "Catch-all: anything cool, grey or unremarkable that isn't wet, freezing, hot or swingy.",
+      "wear": [
+        { "id": "jacket", "label": "Jacket", "icon": "jacket" },
+        { "id": "long_sleeves", "label": "Long sleeves", "icon": "sweater" },
+        { "id": "long_pants", "label": "Long pants", "icon": "long_pants" },
+        { "id": "sneakers", "label": "Sneakers", "icon": "sneaker" }
+      ],
+      "alsoGrab": "Also grab: a hoodie for the ride home — it cools off fast.",
+      "footerSuffix": null
+    }
+  ],
+
+  "stats": [
+    {
+      "id": "sunshine",
+      "label": "SUNSHINE",
+      "icon": { "field": "cloudCoverAvgPct", "bands": [
+        { "max": 35, "icon": "sun" },
+        { "max": 75, "icon": "cloud" },
+        { "max": 100, "icon": "rain_cloud" }
+      ]},
+      "value": {
+        "field": "cloudCoverAvgPct",
+        "bands": [
+          { "max": 20, "text": "All day" },
+          { "max": 55, "text": "A little" },
+          { "max": 85, "text": "After {firstClearHour}", "requires": "firstClearHour" },
+          { "max": 100, "text": "None" }
+        ]
+      },
+      "word": {
+        "field": "cloudCoverAvgPct",
+        "bands": [
+          { "max": 20, "text": "clear" },
+          { "max": 55, "text": "peeks out" },
+          { "max": 85, "text": "clearing" },
+          { "max": 100, "text": "hiding" }
+        ]
+      }
+    },
+    {
+      "id": "warmest",
+      "label": "WARMEST",
+      "icon": "thermometer",
+      "value": { "field": "tempMaxF", "format": "{value}°F" },
+      "word": {
+        "field": "tempMaxF",
+        "bands": [
+          { "max": 52, "text": "cold" },
+          { "max": 62, "text": "chilly" },
+          { "max": 70, "text": "cool" },
+          { "max": 78, "text": "mild" },
+          { "max": 88, "text": "warm" },
+          { "max": 200, "text": "hot" }
+        ]
+      },
+      "overrides": [
+        { "if": { "field": "tempSwingF", "op": ">=", "value": 22 }, "text": "swingy" }
+      ]
+    },
+    {
+      "id": "rain",
+      "label": "RAIN",
+      "icon": "raindrop",
+      "value": { "field": "precipChanceMaxPct", "format": "{value}%" },
+      "word": {
+        "field": "precipChanceMaxPct",
+        "bands": [
+          { "max": 10, "text": "dry" },
+          { "max": 30, "text": "mostly dry" },
+          { "max": 55, "text": "showers" },
+          { "max": 100, "text": "wet" }
+        ]
+      }
+    },
+    {
+      "id": "breeze",
+      "label": "BREEZE",
+      "icon": "wind",
+      "value": { "field": "windMaxMph", "format": "{value} mph" },
+      "word": {
+        "field": "windMaxMph",
+        "bands": [
+          { "max": 8, "text": "calm" },
+          { "max": 13, "text": "light" },
+          { "max": 19, "text": "breezy" },
+          { "max": 200, "text": "gusty" }
+        ]
+      }
+    },
+    {
+      "id": "air",
+      "label": "AIR",
+      "icon": "leaf",
+      "value": {
+        "field": "aqiMax",
+        "bands": [
+          { "max": 50, "text": "Good" },
+          { "max": 100, "text": "Fair" },
+          { "max": 150, "text": "Poor" },
+          { "max": 500, "text": "Bad" }
+        ]
+      },
+      "word": {
+        "field": "aqiMax",
+        "bands": [
+          { "max": 50, "text": "clean" },
+          { "max": 100, "text": "hazy" },
+          { "max": 150, "text": "stay in" },
+          { "max": 500, "text": "stay in" }
+        ]
+      }
+    }
+  ],
+
+  "screen": {
+    "sections": {
+      "eyebrow": "{location.label}",
+      "headline": "{outcome.title joined by line break}",
+      "tagline": "{outcome.tagline}",
+      "weekday": "{weekdayName}",
+      "cornerStats": "Humidity {humidityMinPct}–{humidityMaxPct}%\nAir quality {aqiMin}–{aqiMax}",
+      "subline": "{conditionSummary} · {tempMinF}° this morning, {tempMaxF}° this afternoon",
+      "wearHeading": "WEAR TODAY",
+      "wearTiles": "{outcome.wear} — exactly four, icon over label",
+      "alsoGrab": "{outcome.alsoGrab}",
+      "statStrip": "{stats} — five columns: icon, label, value, word",
+      "footer": "Sun goes down at {sunsetLocal}{outcome.footerSuffix ? ' — ' + footerSuffix : '.'}"
+    },
+    "rules": [
+      "Never phrase a stat as a question and never show a checkmark — the value plus its plain word carries the verdict.",
+      "Exactly four wear tiles per outcome so the grid never reflows.",
+      "Every outcome except beach_day is named after a garment.",
+      "Copy stays readable by a first-grader: short words, one idea per line."
+    ]
+  },
+
+  "icons": [
+    "sun", "sun_and_waves", "cloud", "rain_cloud", "raindrop", "wind", "leaf", "thermometer",
+    "sun_hat", "sunscreen", "swim_trunks", "towel", "water_bottle",
+    "tshirt", "shorts", "sneaker", "sweater", "hoodie", "jacket", "long_pants",
+    "raincoat", "rain_boot", "umbrella", "puffy_coat", "beanie", "mittens", "scarf"
+  ],
+
+  "design": {
+    "rendering": "1-bit e-ink, no greyscale dithering in type",
+    "canvas": { "width": 1200, "height": 825 },
+    "leftPanelWidth": 420,
+    "colors": { "ink": "#111111", "paper": "#FFFFFF", "band": "#F2F2F2", "caption": "#4A4A4A" },
+    "fonts": {
+      "display": { "family": "Fraunces", "weight": 900, "usedFor": ["headline", "weekday", "stat values"] },
+      "body": { "family": "Nunito", "weights": [600, 700, 800], "usedFor": ["labels", "taglines", "alsoGrab", "footer"] }
+    },
+    "iconStyle": { "viewBox": "0 0 48 48", "stroke": "currentColor", "strokeWidth": 2.6, "fill": "none", "linecap": "round", "linejoin": "round" }
+  }
+}

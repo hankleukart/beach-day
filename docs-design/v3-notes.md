@@ -56,6 +56,31 @@ genuinely fluid, consider generating the render tables too.
 - Does the night-mode flip to tomorrow survive?
 - Do the parking alerts stay, or were they always a separate concern?
 
+## Decisions made while building (2026-09-20)
+
+- **Rules are loaded at run time.** `shared/v3/day-outcomes.json` is the spec
+  as written; `lib/dayrules` interprets it (first-match outcomes, `all`/`any`
+  conditions, banded stats, `byFailedTest` / near-threshold copy, `{token}`
+  templates). It ships on LittleFS, is embedded as a fallback, and is
+  re-fetched daily from GitHub — copy and thresholds change on every unit with
+  no firmware update.
+- **Fonts and icons are vector on the device.** Real Fraunces Black and Nunito
+  TTFs (instanced + subset offline, 56 KB) rasterised by `stb_truetype`; icons
+  are 48-unit command lists interpreted at any size. One asset per face/icon
+  for every panel. Bitmaps were built first and dropped: crisper at 11 px, but
+  a second pipeline per target was the wrong trade.
+- **Colour is a role, not a pixel.** Everything draws in `Role`s (`paint.h`);
+  the E1001 table maps accents to dot patterns, the E1002 will map them to its
+  six inks. Icons carry SUN/WATER/LEAF/WARM fills for that day.
+- **800×480 re-layout, not a scale.** The 1200×825 mock is a different aspect
+  ratio; proportions were kept (35% hero panel, same vertical rhythm).
+- **Evening flip kept, pre-dawn flip dropped.** After sunset−1h the screen
+  plans tomorrow; at 5 AM it shows today, which v2 got wrong.
+- **Parking alert kept**, in the footer pill slot.
+- **Hubitat target frozen on v2**, as planned.
+
 ## Log
 
 - 2026-09-20 — branch created off `v2.0-reterminal`.
+- 2026-09-20 — spec received; runtime engine, vector fonts/icons, v3 layout
+  built; firmware 0.3.0 builds; 13 engine tests green. Not yet on glass.

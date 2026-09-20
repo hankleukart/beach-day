@@ -3,7 +3,8 @@
 #pragma once
 #include <cstdint>
 #include <initializer_list>
-#include "rules_config.h"
+// PARKING_SUNSET_FALLBACK_MIN: 19:30 local (shared/rules.json v2 parkingAlert.sunsetFallbackMinutes)
+constexpr int PARKING_SUNSET_FALLBACK_MIN = 1170;
 
 namespace beach {
 

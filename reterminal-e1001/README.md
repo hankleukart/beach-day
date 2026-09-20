@@ -6,9 +6,9 @@ renders to the ePaper panel, and deep-sleeps until the next update.
 
 **No Hubitat hub. No TRMNL account or server. No always-on machine anywhere.**
 
-> Status: first flashed 2026-09-18. Rules pass the shared fixture suite on the
-> host; setup portal, OTA updates and the dev self-test are in. Layout on the
-> real panel still needs a tuning pass.
+> Status (v3-redesign branch): firmware 0.3.0 builds; the runtime rules
+> engine passes its host tests; layout, fonts and icons are not yet seen on
+> glass. Expect a tuning pass.
 
 ## Hardware
 
@@ -69,15 +69,15 @@ from the three front buttons:
 
 | Key | Button | Action |
 | --- | --- | --- |
-| `n` | KEY2 (left) | Step through all 9 visual states with plausible numbers |
+| `n` | KEY2 (left) | Step through the outcomes with preset numbers, run through the real rules |
 | `p` | KEY1 (middle) | Toggle the parking-alert bar |
 | `l` | KEY0 (right) | Back to the real forecast fetched at boot |
 | `d` | — | Dump the current view as text |
 | `R` | — | Reboot and re-fetch |
 | `?` | — | Reprint the key list |
 
-The state cycling is the point: today's real weather only ever produces one
-state, and Grey Day or Indoor Day might not turn up for weeks. The green LED
+The cycling is the point: today's real weather only ever produces one
+outcome, and Rain Boots Day might not turn up for months. The green LED
 blinks every 2 s to show the board is awake.
 
 The live forecast refreshes every `CFG_DEV_REFRESH_MINUTES` (default 20) by
@@ -116,11 +116,16 @@ crashed board and a flat battery all look identical. Work down this list:
    the same detail for whatever is on screen.
 2. **Geometry.** Hero and details panels fill 800×480 with even margins, nothing
    clipped at the right edge.
-3. **Text fit.** The long strings are the risk: `Air Purifier On Max`,
-   `But not quite beachy`, and a worst-case `NO PARKING LEFT SIDE: 11:30AM-1PM`.
-4. **Icons.** Drawn from primitives, not bitmaps — recognisable stand-ins for
-   the SVGs rather than copies.
-5. **Contrast.** Pure black/white; the template's greys render black.
+3. **Text fit.** The long strings are the risk: the sun-hat "also grab" lines,
+   `PEEL THEM OFF LATER`, a three-line `RAIN / BOOTS / DAY!`, and the footer
+   with a long suffix. Headline and footer shrink to fit; watch for it.
+4. **Small type.** The 10–12 px labels are the one place on-device
+   rasterising can look rougher than the mock. If they do, nudge sizes in the
+   type ramp at the top of `render.cpp`.
+5. **Icons.** Compare against `docs-design/icons-preview.png`; the leaf fill
+   and umbrella scallops are already on the list.
+6. **The band.** The stat strip is a 12.5% dot field standing in for `#F2F2F2`.
+   If it fights the text, switch it to an outline in `paint.cpp`.
 
 When the layout looks right, `./flash.sh release` and let it sleep.
 
@@ -130,65 +135,101 @@ When the layout looks right, `./flash.sh release` and let it sleep.
 deep sleep ──wake──▶ Wi-Fi ──▶ NTP ──▶ Open-Meteo forecast + air quality
                                               │
                                               ▼
-                                  aggregate  (lib/beachrules/aggregate.cpp)
-                                  each day's own sunrise→sunset hours:
-                                  max precip, AQI min/max, humidity min/max,
-                                  weather-code mode, sunny-hour scan
+                                  derive   (lib/dayrules/derive.cpp)
+                                  that day's sunrise→sunset hours: temp
+                                  min/max/swing, rain, wind, AQI, humidity,
+                                  cloud average, first clear hour
                                               │
                                               ▼
-                                  evaluate   (lib/beachrules/beachrules.cpp)
-                                  six conditions → one of nine states
+                                  rules     (lib/dayrules/dayspec.cpp)
+                                  shared/v3/day-outcomes.json, loaded at
+                                  run time: one outcome, four wear tiles,
+                                  the also-grab line, five stats, all copy
                                               │
                                               ▼
-                                  render 800×480 ──▶ hibernate panel ──▶ deep sleep
+                                  render 800×480 ──▶ hibernate ──▶ deep sleep
 ```
 
-Two keyless Open-Meteo endpoints, requested with `timezone=auto` and
-`timeformat=unixtime` so the API tells us the local offset (DST included) and
-every timestamp is unambiguous:
+### The rules are data
 
-- `api.open-meteo.com/v1/forecast` — hourly humidity / precip probability /
-  weather code, daily highs, lows, wind, UV, sunrise, sunset
-- `air-quality-api.open-meteo.com/v1/air-quality` — hourly `us_aqi`
+[shared/v3/day-outcomes.json](../shared/v3/day-outcomes.json) is the whole
+personality of the display: the outcomes and their order, every threshold,
+every line of copy, which icon goes in which tile. The firmware **interprets**
+it; nothing about a Rain Boots Day is compiled in. Three places it can come
+from, in order:
+
+1. **LittleFS** on the board — `./flash.sh rules` (or any full flash) puts the
+   current file there. Edit the JSON, run that, done. No rebuild.
+2. **Fetched** — once a day (`CFG_RULES_CHECK_HOURS`) the board pulls
+   `CFG_RULES_URL`. A fetched file replaces the stored one only after it
+   parses and passes the engine's checks (four wear tiles per outcome, a
+   catch-all last), so a bad edit can't take a friend's display down.
+3. **Embedded** — a copy baked in at build time, the fallback if both above
+   are missing.
+
+`./flash.sh test` replays the JSON through the engine on your Mac: outcome
+precedence (wet beats cold beats hot), the `byFailedTest` copy for Sun Hat Day,
+the near-threshold line for T-shirt Day, stat bands and the `swingy` override.
+
+### Fonts and icons are vectors
+
+The design's typefaces — Fraunces Black and Nunito — ship as real TTFs
+(instanced to the exact weights and subset to the characters the copy can use,
+56 KB total; `tools/prep_fonts.py`) and are rasterised on the device by
+`stb_truetype` at whatever size the layout asks for. Icons are small command
+lists in a 48-unit box (`tools/gen_icons.py` is the source of truth and
+renders an aliased preview to `docs-design/icons-preview.png`), interpreted at
+100 px for the hero, 44 px in tiles, 22 px in the stat strip. One asset per
+face and per icon, for any panel size.
+
+### Colour is a role
+
+Everything draws in roles — ink, paper, caption, band, and the accent fills
+SUN / WATER / LEAF / WARM that icons carry — and [src/paint.cpp](src/paint.cpp)
+is the only place a role becomes a pixel. On this mono panel accents are a 25%
+dot pattern and the stat band is 12.5%. A reTerminal E1002 gets a second table
+mapping the same roles to its six inks; the layout, fonts and icons don't
+change.
 
 ### Files
 
 ```
-platformio.ini            board, PSRAM mode, libraries, host test env
+platformio.ini            board, LittleFS, pre-build hook, host test env
 src/
-  main.cpp                the wake→fetch→decide→draw→sleep cycle
-  beachday_config.example.h  copy to beachday_config.h; Wi-Fi, location, parking, intervals
-  settings.*              beachday_config.h defaults, overridable from NVS (for a future setup portal)
-  weather.*               Open-Meteo requests, JSON → RawForecast; no rules here
-  render.*                GxEPD2 drawing: hero panel, checklist, footer, icons
-  power.*                 battery ADC, deep sleep with KEY0 as a wake button
-  net.*                   Wi-Fi, NTP, HTTPS GET
-  pins.h                  E1001 GPIO map
-lib/beachrules/           pure C++ — no Arduino — shared logic
-  rules_config.h          GENERATED from shared/rules.json
-  beachrules.*            six conditions, nine-state priority, sun scan
-  aggregate.*             Open-Meteo samples → rule inputs (the asymmetries live here)
-  parking.*               street-cleaning alert window
-  wmo.*                   WMO code → text
-test/test_rules/
-  test_rules.cpp          Unity tests
-  fixtures.h              GENERATED from shared/fixtures/rules-cases.json
-tools/gen.py              regenerates both GENERATED files
+  main.cpp                wake → fetch → derive → rules → draw → sleep
+  render.*                the 800×480 layout (hero panel, tiles, stat strip, footer pill)
+  paint.*                 roles → pixels; the mono table lives here
+  text.*                  stb_truetype text: width, draw, wrap
+  icons.* icons_data.h    vector icon interpreter + GENERATED command tables
+  fontdata.h              GENERATED: the three TTFs as byte arrays
+  specstore.*             rules from LittleFS / fetch / embedded, with validation
+  spec_embedded.h         GENERATED at build time from shared/v3/day-outcomes.json
+  weather.*               Open-Meteo → day::Raw (temp, humidity, rain, code, cloud, wind, AQI)
+  settings.* portal.* geocode.* ota.* power.* net.* devmode.* pins.h
+lib/dayrules/             the engine (dayspec.*) and derivation (derive.*) — no Arduino
+lib/beachrules/           parking alert + WMO table, shared with v2
+lib/stb/                  stb_truetype.h (public domain)
+test/test_dayrules/       host tests over the real JSON
+tools/
+  gen_icons.py            icon vectors → icons_data.h + preview
+  prep_fonts.py           TTF instance + subset → fontdata.h    (fetch_fonts.sh gets sources)
+  pio_prebuild.py         copies the rules to data/ and embeds them
+  release.sh              OTA publish
 ```
 
-## Keeping the rules in sync
+## Changing the rules
 
-The rules exist once, in `shared/`. This target does not hand-copy them:
+Edit [shared/v3/day-outcomes.json](../shared/v3/day-outcomes.json), then:
 
 ```sh
-# after editing ../shared/rules.json or ../shared/fixtures/rules-cases.json
-python3 tools/gen.py        # rewrites rules_config.h and fixtures.h
-pio test -e native          # replays every fixture through lib/beachrules on your Mac
+./flash.sh test      # engine still agrees with the file
+./flash.sh rules     # push just the JSON to the board on your desk
+git push             # every other board picks it up within a day
 ```
 
-If a threshold in `rules.json` changes and the firmware does not agree, the
-test names the case. The Liquid template still has to be edited by hand — it
-runs on TRMNL's servers and cannot read this repo.
+Adding an outcome means adding an entry with exactly four `wear` items and an
+icon name that exists (see `icons` in the JSON; unknown names draw a crossed
+box). New icon → add a few lines to `tools/gen_icons.py`, rerun it, rebuild.
 
 ## Wake schedule and battery
 

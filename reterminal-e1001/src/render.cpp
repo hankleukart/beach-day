@@ -2,370 +2,137 @@
 #include <Arduino.h>
 #include <SPI.h>
 #include <GxEPD2_BW.h>
-#include <Fonts/FreeSansBold24pt7b.h>
-#include <Fonts/FreeSansBold18pt7b.h>
-#include <Fonts/FreeSansBold12pt7b.h>
-#include <Fonts/FreeSansBold9pt7b.h>
-#include <Fonts/FreeSans9pt7b.h>
-#include <cmath>
 #include <cstring>
 #include "pins.h"
-#include "beachrules.h"
+#include "paint.h"
+#include "text.h"
+#include "icons.h"
 
 namespace {
 
 SPIClass hspi(HSPI);
-// Full-height page buffer (800*480/8 = 48 KB): one pass per refresh.
 GxEPD2_BW<GxEPD2_750_GDEY075T7, GxEPD2_750_GDEY075T7::HEIGHT>
     display(GxEPD2_750_GDEY075T7(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
 
-constexpr uint16_t BLACK = GxEPD_BLACK;
-constexpr uint16_t WHITE = GxEPD_WHITE;
-
-// ---- geometry (1cqh = 4.8 px, 1cqw = 8 px on this panel) -------------------
+// ---- geometry: the 1200x825 mock re-laid at 800x480, same proportions ------
 constexpr int W = 800, H = 480;
-constexpr int MARGIN = 12, GAP = 14, BORDER = 4, RADIUS = 7;
-constexpr int HERO_X = MARGIN, HERO_Y = MARGIN, HERO_W = 317, HERO_H = H - 2 * MARGIN;
-constexpr int DET_X = HERO_X + HERO_W + GAP, DET_Y = MARGIN;
-constexpr int DET_W = W - DET_X - MARGIN, DET_H = HERO_H;
-constexpr int HERO_PAD_X = 32, DET_PAD_X = 40, PAD_Y = 29;
-constexpr int ICON = 134;                  // 28cqh
-constexpr int TITLE_LINE = 58;             // 11cqh * 1.1
+constexpr int LEFT_W = 282;                    // 35% like the mock
+constexpr int COL_X0 = 312, COL_X1 = 778;            // right column content bounds
+constexpr int COL_W = COL_X1 - COL_X0;
 
-const GFXfont* const F_TITLE = &FreeSansBold24pt7b;  // cap ~34 px
-const GFXfont* const F_BIG   = &FreeSansBold18pt7b;  // cap ~25 px
-const GFXfont* const F_SUB   = &FreeSansBold12pt7b;  // cap ~17 px
-const GFXfont* const F_BOLD9 = &FreeSansBold9pt7b;   // cap ~13 px
-const GFXfont* const F_REG9  = &FreeSans9pt7b;
+// ---- type ramp --------------------------------------------------------------
+const TextStyle T_EYEBROW  { Face::Body,      11, 3.0f, Role::Paper };
+const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
+const TextStyle T_TAGLINE  { Face::Body,      11, 3.0f, Role::Paper };
+const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
+const TextStyle T_CORNER   { Face::Body,      11, 0,    Role::Ink };
+const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
+const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
+const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_STATLBL  { Face::Body,      10, 2.0f, Role::Caption };
+const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
+const TextStyle T_STATWORD { Face::BodyLight, 12, 0,    Role::Caption };
+const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
+const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
+const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
+const TextStyle T_MSG_B    { Face::BodyLight, 16, 0,    Role::Ink };
 
-int capHeight(const GFXfont* f) {
-  if (f == F_TITLE) return 34;
-  if (f == F_BIG)   return 25;
-  if (f == F_SUB)   return 17;
-  return 13;
-}
-
-// ---- text ------------------------------------------------------------------
-// '~' in a string draws a degree sign (the bundled fonts stop at ASCII 0x7E).
-constexpr int DEGREE_ADVANCE = 9;
-
-int glyphAdvance(const GFXfont* f, char c) {
-  if ((uint8_t)c < f->first || (uint8_t)c > f->last) return 0;
-  return pgm_read_byte(&f->glyph[(uint8_t)c - f->first].xAdvance);
-}
-
-int textWidth(const char* s, const GFXfont* f, int spacing = 0) {
-  int w = 0, n = 0;
-  for (; *s; s++, n++) w += (*s == '~') ? DEGREE_ADVANCE : glyphAdvance(f, *s);
-  if (n > 1) w += spacing * (n - 1);
-  return w;
-}
-
-int drawText(int x, int y, const char* s, const GFXfont* f, uint16_t color, int spacing = 0) {
-  display.setFont(f);
-  display.setTextColor(color);
-  display.setCursor(x, y);
-  for (; *s; s++) {
-    if (*s == '~') {
-      int cx = display.getCursorX() + 3;
-      int cy = y - capHeight(f) + 3;
-      display.drawCircle(cx, cy, 3, color);
-      display.drawCircle(cx, cy, 2, color);
-      display.setCursor(display.getCursorX() + DEGREE_ADVANCE, y);
-    } else {
-      display.write(*s);
-    }
-    if (spacing) display.setCursor(display.getCursorX() + spacing, y);
-  }
-  return display.getCursorX();
-}
-
-void drawTextCentered(int cx, int y, const char* s, const GFXfont* f, uint16_t c, int sp = 0) {
-  drawText(cx - textWidth(s, f, sp) / 2, y, s, f, c, sp);
-}
-void drawTextRight(int xr, int y, const char* s, const GFXfont* f, uint16_t c, int sp = 0) {
-  drawText(xr - textWidth(s, f, sp), y, s, f, c, sp);
-}
-
-void upperCopy(char* dst, size_t n, const char* src) {
-  size_t i = 0;
-  for (; i + 1 < n && src[i]; i++) dst[i] = (char)toupper((unsigned char)src[i]);
-  dst[i] = '\0';
-}
-
-// Truncate `value` with ".." so label+value fits in maxW.
-void drawLabelValue(int x, int y, const char* label, const char* value, int maxW) {
-  int lx = drawText(x, y, label, F_BOLD9, BLACK);
-  lx += 5;
-  int avail = maxW - (lx - x);
-  char buf[40];
-  strncpy(buf, value, sizeof(buf) - 1);
-  buf[sizeof(buf) - 1] = '\0';
-  if (textWidth(buf, F_REG9) > avail) {
-    size_t len = strlen(buf);
-    while (len > 3 && textWidth(buf, F_REG9) > avail) {
-      buf[len - 1] = '\0';
-      len--;
-      buf[len - 1] = '.'; buf[len - 2] = '.';
-    }
-  }
-  drawText(lx, y, buf, F_REG9, BLACK);
-}
-
-// ---- shapes ----------------------------------------------------------------
-void thickLine(int x0, int y0, int x1, int y1, int w, uint16_t c) {
-  int r = w / 2;
-  int dx = abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
-  int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
-  int err = dx + dy;
-  for (;;) {
-    display.fillCircle(x0, y0, r, c);
-    if (x0 == x1 && y0 == y1) break;
-    int e2 = 2 * err;
-    if (e2 >= dy) { err += dy; x0 += sx; }
-    if (e2 <= dx) { err += dx; y0 += sy; }
-  }
-}
-
-void ring(int cx, int cy, int r, int w, uint16_t fg, uint16_t bg) {
-  display.fillCircle(cx, cy, r, fg);
-  display.fillCircle(cx, cy, r - w, bg);
-}
-
-void dashedHLine(int x0, int x1, int y, uint16_t c) {
-  for (int x = x0; x < x1; x += 10) display.drawFastHLine(x, y, min(6, x1 - x), c);
-}
-
-void cloudSilhouette(int cx, int cy, float k, int inset, uint16_t c) {
-  display.fillCircle(cx - 22 * k, cy + 8 * k,  24 * k - inset, c);
-  display.fillCircle(cx + 4 * k,  cy - 8 * k,  30 * k - inset, c);
-  display.fillCircle(cx + 30 * k, cy + 10 * k, 22 * k - inset, c);
-  int rr = max(1, (int)(8 * k) - inset);
-  display.fillRoundRect(cx - 40 * k + inset, cy + 8 * k, 88 * k - 2 * inset, 26 * k - inset, rr, c);
-}
-
-void cloud(int cx, int cy, float k, uint16_t fg, uint16_t bg) {
-  int stroke = max(3, (int)(8 * k));
-  cloudSilhouette(cx, cy, k, 0, fg);
-  cloudSilhouette(cx, cy, k, stroke, bg);
-}
-
-void sun(int cx, int cy, float k, int stroke, uint16_t fg, uint16_t bg) {
-  ring(cx, cy, 24 * k, stroke, fg, bg);
-  for (int i = 0; i < 8; i++) {
-    float a = i * (float)M_PI / 4.0f;
-    thickLine(cx + cosf(a) * 36 * k, cy + sinf(a) * 36 * k,
-              cx + cosf(a) * 52 * k, cy + sinf(a) * 52 * k, stroke, fg);
-  }
-}
-
-void wave(int x0, int x1, int y, int amp, uint16_t c) {
-  for (int x = x0; x <= x1; x++) {
-    int yy = y + (int)lroundf(amp * sinf((x - x0) * 2.0f * (float)M_PI / 56.0f));
-    display.fillCircle(x, yy, 3, c);
-  }
-}
-
-void heroIcon(beach::State st, bool clearingLater, int cx, int cy, uint16_t fg, uint16_t bg) {
-  using beach::State;
-  switch (st) {
-    case State::BeachDay:
-      sun(cx, cy - 16, 0.8f, 7, fg, bg);
-      wave(cx - 56, cx + 56, cy + 40, 5, fg);
-      wave(cx - 56, cx + 56, cy + 58, 5, fg);
-      break;
-    case State::NightTime:
-      display.fillCircle(cx, cy, 46, fg);
-      display.fillCircle(cx + 22, cy - 18, 42, bg);
-      break;
-    case State::IndoorDay:
-      thickLine(cx - 52, cy - 2,  cx,      cy - 48, 8, fg);
-      thickLine(cx,      cy - 48, cx + 52, cy - 2,  8, fg);
-      thickLine(cx - 42, cy - 10, cx - 42, cy + 48, 8, fg);
-      thickLine(cx + 42, cy - 10, cx + 42, cy + 48, 8, fg);
-      thickLine(cx - 42, cy + 48, cx + 42, cy + 48, 8, fg);
-      thickLine(cx - 12, cy + 48, cx - 12, cy + 12, 6, fg);
-      thickLine(cx - 12, cy + 12, cx + 12, cy + 12, 6, fg);
-      thickLine(cx + 12, cy + 12, cx + 12, cy + 48, 6, fg);
-      break;
-    case State::RainDay:
-      cloud(cx, cy - 16, 0.85f, fg, bg);
-      for (int dx : { -24, 0, 24 }) thickLine(cx + dx, cy + 30, cx + dx, cy + 54, 7, fg);
-      break;
-    case State::WindDay:
-      thickLine(cx - 54, cy - 26, cx + 18, cy - 26, 7, fg);
-      ring(cx + 18, cy - 38, 12, 7, fg, bg);
-      thickLine(cx - 54, cy + 2,  cx + 38, cy + 2,  7, fg);
-      ring(cx + 38, cy + 14, 12, 7, fg, bg);
-      thickLine(cx - 54, cy + 30, cx + 6,  cy + 30, 7, fg);
-      ring(cx + 6, cy + 42, 12, 7, fg, bg);
-      break;
-    case State::NiceDay:
-      if (clearingLater) {
-        sun(cx + 26, cy - 26, 0.55f, 6, fg, bg);
-        cloud(cx - 8, cy + 14, 0.8f, fg, bg);
-      } else {
-        sun(cx, cy, 1.0f, 8, fg, bg);
-      }
-      break;
-    case State::GreyDay:
-      cloud(cx + 18, cy - 20, 0.65f, fg, bg);
-      cloud(cx - 6,  cy + 12, 0.9f, fg, bg);
-      break;
-    case State::ChillyDay:
-    case State::JustADay:
-    default:
-      cloud(cx, cy, 1.0f, fg, bg);
-      break;
-  }
-}
-
-// 24x24 pass / fail glyphs
-void statusIcon(int x, int y, bool pass) {
-  if (pass) {
-    thickLine(x + 3, y + 13, x + 9,  y + 19, 4, BLACK);
-    thickLine(x + 9, y + 19, x + 21, y + 5,  4, BLACK);
-  } else {
-    // umbrella canopy (arc) + pole, struck through
-    display.fillCircle(x + 12, y + 13, 9, BLACK);
-    display.fillCircle(x + 12, y + 13, 6, WHITE);
-    display.fillRect(x + 2, y + 13, 21, 12, WHITE);
-    thickLine(x + 12, y + 13, x + 12, y + 22, 2, BLACK);
-    thickLine(x + 20, y + 4, x + 4, y + 20, 3, BLACK);
-  }
-}
-
-void batteryGlyph(int x, int y, int pct) {
-  display.drawRect(x, y, 20, 11, BLACK);
-  display.fillRect(x + 20, y + 3, 2, 5, BLACK);
-  int fill = (16 * pct + 50) / 100;
-  if (fill > 0) display.fillRect(x + 2, y + 2, fill, 7, BLACK);
-}
-
-// ---- panels ----------------------------------------------------------------
 void drawHero(const ViewModel& vm) {
-  auto st = static_cast<beach::State>(vm.state);
-  bool yes = (st == beach::State::BeachDay);
-  uint16_t fg = yes ? WHITE : BLACK;
-  uint16_t bg = yes ? BLACK : WHITE;
+  const day::Outcome& oc = vm.screen.outcome;
+  paintRect(0, 0, LEFT_W, H, Role::Ink);
+  const int cx = LEFT_W / 2;
 
-  display.fillRoundRect(HERO_X, HERO_Y, HERO_W, HERO_H, RADIUS, BLACK);
-  if (!yes) {
-    display.fillRoundRect(HERO_X + BORDER, HERO_Y + BORDER, HERO_W - 2 * BORDER,
-                          HERO_H - 2 * BORDER, RADIUS - 2, WHITE);
+  textDrawCentered(T_EYEBROW, cx, 44, vm.screen.eyebrow);
+
+  // Headline block sits at the visual centre; three-line titles shift up.
+  const int lineH = 46;
+  int lines = oc.titleLines;
+  int lastBaseline = (lines >= 3) ? 340 : 318;
+  int firstBaseline = lastBaseline - (lines - 1) * lineH;
+  int iconCy = firstBaseline - 46 - 56;         // 100px icon above the block
+  IconStyle heroStyle; heroStyle.ink = Role::Paper; heroStyle.paper = Role::Ink; heroStyle.accents = false;
+  drawIcon(oc.heroIcon, cx, iconCy, 100, heroStyle);
+
+  for (int i = 0; i < lines; i++) {
+    // Fit check: shrink a long word rather than clip it.
+    TextStyle st = T_HEADLINE;
+    while (st.px > 30 && textWidth(st, oc.title[i]) > LEFT_W - 28) st.px -= 2;
+    textDrawCentered(st, cx, firstBaseline + i * lineH, oc.title[i]);
   }
-
-  int cx = HERO_X + HERO_W / 2;
-  bool hasLoc = vm.locationName[0] != '\0';
-  int total = (hasLoc ? 27 : 0) + ICON + 19 + (34 + TITLE_LINE) + 10 + 13;
-  int y = HERO_Y + (HERO_H - total) / 2;
-
-  if (hasLoc) {
-    char loc[24];
-    upperCopy(loc, sizeof(loc), vm.locationName);
-    drawTextCentered(cx, y + 13, loc, F_BOLD9, fg, 2);
-    y += 27;
-  }
-  heroIcon(st, vm.clearingLater, cx, y + ICON / 2, fg, bg);
-  y += ICON + 19;
-
-  char l1[16], l2[16];
-  upperCopy(l1, sizeof(l1), beach::stateTitleLine1(st));
-  upperCopy(l2, sizeof(l2), beach::stateTitleLine2(st));
-  drawTextCentered(cx, y + 34, l1, F_TITLE, fg, 3);
-  drawTextCentered(cx, y + 34 + TITLE_LINE, l2, F_TITLE, fg, 3);
-  y += 34 + TITLE_LINE + 10;
-
-  char sub[32];
-  upperCopy(sub, sizeof(sub), beach::stateSubtitle(st));
-  drawTextCentered(cx, y + 13, sub, F_BOLD9, fg, 1);
+  textDrawCentered(T_TAGLINE, cx, 434, oc.tagline);
 }
 
-void drawDetails(const ViewModel& vm) {
-  display.fillRoundRect(DET_X, DET_Y, DET_W, DET_H, RADIUS, BLACK);
-  display.fillRoundRect(DET_X + BORDER, DET_Y + BORDER, DET_W - 2 * BORDER,
-                        DET_H - 2 * BORDER, RADIUS - 2, WHITE);
+void drawRight(const ViewModel& vm) {
+  const day::Screen& s = vm.screen;
 
-  const int x0 = DET_X + DET_PAD_X;
-  const int x1 = DET_X + DET_W - DET_PAD_X;
-  const int iw = x1 - x0;
-  int y = DET_Y + PAD_Y;
+  // Weekday + corner stats
+  textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
+  textDrawRight(T_CORNER, COL_X1, 46, s.corner1);
+  textDrawRight(T_CORNER, COL_X1, 62, s.corner2);
 
-  // Header: weekday left, battery + freshness right
-  if (vm.isNight) drawText(x0, y + 17, vm.dayLabel, F_BOLD9, BLACK, 1);
-  else            drawText(x0, y + 17, vm.dayLabel, F_SUB, BLACK, 1);
-  int rx = x1;
-  if (vm.batteryPct >= 0) {
-    batteryGlyph(x1 - 22, y + 5, vm.batteryPct);
-    rx = x1 - 22 - 8;
-  }
-  drawTextRight(rx, y + 17, vm.updatedText, F_REG9, BLACK);
-  y += 21 + 6;
+  // Subline (wrap to two lines if it must)
+  char lines[2][160];
+  int n = textWrap(T_SUBLINE, s.subline, COL_W, lines, 2);
+  int y = 86;
+  for (int i = 0; i < n; i++) { textDraw(T_SUBLINE, COL_X0, y, lines[i]); y += 18; }
+  int ruleY = (n > 1) ? 108 : 104;
+  paintHLine(COL_X0, COL_X1, ruleY, 3, Role::Ink);
 
-  // Two columns of detail lines
-  const int colW = 186;
-  const int colR = x0 + colW + 8;
-  char buf[40];
-  drawLabelValue(x0, y + 13, vm.isNight ? "Tomorrow:" : "Today:", vm.conditionText, colW);
-  snprintf(buf, sizeof(buf), "%d to %d~F", vm.tempMin, vm.tempMax);
-  drawLabelValue(x0, y + 13 + 17, "Temps:", buf, colW);
-  snprintf(buf, sizeof(buf), "%d to %d%%", vm.humMin, vm.humMax);
-  drawLabelValue(colR, y + 13, "Humidity:", buf, x1 - colR);
-  snprintf(buf, sizeof(buf), "%d to %d", vm.aqiMin, vm.aqiMax);
-  drawLabelValue(colR, y + 13 + 17, "Air quality:", buf, x1 - colR);
-  y += 13 + 17 + 4 + 7;
-  display.fillRect(x0, y, iw, BORDER, BLACK);
-  y += BORDER;
-
-  // Footer geometry first so the table can flex into what is left
-  const int innerBottom   = DET_Y + DET_H - PAD_Y;
-  const int footerH       = vm.parkingActive ? 26 : 13;
-  const int footerTop     = innerBottom - footerH;
-  const int footerBorderY = footerTop - 7 - BORDER;
-  const int tableBottom   = footerBorderY - 14;
-  const int tableTop      = y + 4;
-  const int rowH          = (tableBottom - tableTop) / 5;
-
-  char thTemp[24], thRain[24], thWind[24], thAqi[24];
-  snprintf(thTemp, sizeof(thTemp), "high above %d~F?", beach::TEMP_BEACH_MIN);
-  snprintf(thRain, sizeof(thRain), "below %d%%?", (int)beach::PRECIP_BEACH_MAX);
-  snprintf(thWind, sizeof(thWind), "max %d mph?", (int)beach::WIND_BEACH_MAX);
-  snprintf(thAqi,  sizeof(thAqi),  "max below %d?", beach::AQI_BEACH_MAX);
-  char vTemp[12], vRain[12], vWind[16], vAqi[12];
-  snprintf(vTemp, sizeof(vTemp), "%d~F", vm.temp);
-  snprintf(vRain, sizeof(vRain), "%d%%", vm.precip);
-  snprintf(vWind, sizeof(vWind), "%d mph", vm.wind);
-  snprintf(vAqi,  sizeof(vAqi),  "%d", vm.aqi);
-
-  struct Row { const char* name; const char* threshold; const char* value; bool pass; };
-  const Row rows[5] = {
-    { "Sun",         "coming out?", vm.sunText, vm.condSun },
-    { "Temperature", thTemp,        vTemp,      vm.condTemp },
-    { "Rain Chance", thRain,        vRain,      vm.condPrecip },
-    { "Wind",        thWind,        vWind,      vm.condWind },
-    { "Air Quality", thAqi,         vAqi,       vm.condAqi },
-  };
-  for (int i = 0; i < 5; i++) {
-    int top = tableTop + i * rowH;
-    int vc  = top + rowH / 2;
-    drawText(x0 + 8, vc - 3,  rows[i].name,      F_BOLD9, BLACK);
-    drawText(x0 + 8, vc + 13, rows[i].threshold, F_REG9,  BLACK);
-    int iconX = x1 - 8 - 24;
-    statusIcon(iconX, vc - 12, rows[i].pass);
-    drawTextRight(iconX - 16, vc + 7, rows[i].value, F_SUB, BLACK);
-    if (i < 4) dashedHLine(x0, x1, top + rowH - 1, BLACK);
+  // WEAR TODAY + four tiles
+  int sectY = ruleY + 24;
+  textDraw(T_SECTION, COL_X0, sectY, s.wearHeading);
+  const int tileY = sectY + 14, tileH = 90, gap = 12;
+  const int tileW = (COL_W - 3 * gap) / 4;
+  for (int i = 0; i < 4; i++) {
+    int x = COL_X0 + i * (tileW + gap);
+    paintRoundRectStroke(x, tileY, tileW, tileH, 12, 2, Role::Ink);
+    if (i < s.outcome.wearCount) {
+      const day::Wear& w = s.outcome.wear[i];
+      drawIcon(w.icon, x + tileW / 2, tileY + 36, 44);
+      TextStyle st = T_TILE;
+      while (st.px > 10 && textWidth(st, w.label) > tileW - 10) st.px -= 1;
+      textDrawCentered(st, x + tileW / 2, tileY + 78, w.label);
+    }
   }
 
-  // Footer: parking alert replaces the sun line
-  display.fillRect(x0, footerBorderY, iw, BORDER, BLACK);
-  if (vm.parkingActive) {
-    display.fillRoundRect(x0, footerTop, iw, 26, 4, BLACK);
-    char t[40];
-    upperCopy(t, sizeof(t), vm.parkingText);
-    drawTextCentered((x0 + x1) / 2, footerTop + 18, t, F_BOLD9, WHITE, 1);
-  } else {
-    drawTextCentered((x0 + x1) / 2, footerTop + 13, vm.footer, F_BOLD9, BLACK);
+  // Also grab (up to two lines)
+  int alsoY = tileY + tileH + 26;
+  n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, 2);
+  for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 18; }
+
+  // Stat strip
+  const int bandY = 306, bandH = 92;
+  paintRoundRect(COL_X0, bandY, COL_W, bandH, 10, Role::Band);
+  int cols = s.statCount > 5 ? 5 : s.statCount;
+  if (cols > 0) {
+    float colW = (float)COL_W / cols;
+    for (int i = 0; i < cols; i++) {
+      const day::Stat& st = s.stats[i];
+      int cx = COL_X0 + (int)(colW * i + colW / 2);
+      drawIcon(st.icon, cx, bandY + 21, 22);
+      textDrawCentered(T_STATLBL, cx, bandY + 44, st.label);
+      TextStyle val = T_STATVAL;
+      while (val.px > 15 && textWidth(val, st.value) > (int)colW - 8) val.px -= 1;
+      textDrawCentered(val, cx, bandY + 72, st.value);
+      textDrawCentered(T_STATWORD, cx, bandY + 86, st.word);
+    }
   }
+
+  // Footer pill: parking alert takes the slot when active
+  const int pillY = 412, pillH = 38;
+  paintRoundRect(COL_X0, pillY, COL_W, pillH, 9, Role::Ink);
+  const char* footer = vm.parkingActive ? vm.parkingText : s.footer;
+  TextStyle ft = T_FOOTER;
+  while (ft.px > 12 && textWidth(ft, footer) > COL_W - 24) ft.px -= 1;
+  textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
+
+  // Freshness, quietly
+  if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, 470, vm.statusText);
+}
+
+void frame() {
+  paintRoundRectStroke(12, 12, W - 24, H - 24, 8, 4, Role::Ink);
 }
 
 } // namespace
@@ -379,15 +146,17 @@ void renderBegin() {
   display.init(0, true, 10, false);
   display.setRotation(0);
   display.setTextWrap(false);
+  paintBegin(&display);
+  textInit();
 }
 
-void renderView(const ViewModel& vm) {
+void renderScreen(const ViewModel& vm) {
   display.setFullWindow();
   display.firstPage();
   do {
-    display.fillScreen(WHITE);
+    display.fillScreen(GxEPD_WHITE);
     drawHero(vm);
-    drawDetails(vm);
+    drawRight(vm);
   } while (display.nextPage());
 }
 
@@ -395,13 +164,14 @@ void renderMessage(const char* title, const char* line1, const char* line2) {
   display.setFullWindow();
   display.firstPage();
   do {
-    display.fillScreen(WHITE);
-    display.fillRoundRect(MARGIN, MARGIN, W - 2 * MARGIN, H - 2 * MARGIN, RADIUS, BLACK);
-    display.fillRoundRect(MARGIN + BORDER, MARGIN + BORDER, W - 2 * MARGIN - 2 * BORDER,
-                          H - 2 * MARGIN - 2 * BORDER, RADIUS - 2, WHITE);
-    drawTextCentered(W / 2, H / 2 - 40, title, F_BIG, BLACK, 1);
-    if (line1) drawTextCentered(W / 2, H / 2 + 10, line1, F_SUB, BLACK);
-    if (line2) drawTextCentered(W / 2, H / 2 + 44, line2, F_REG9, BLACK);
+    display.fillScreen(GxEPD_WHITE);
+    frame();
+    textDrawCentered(T_MSG_H, W / 2, H / 2 - 36, title);
+    char lines[2][160];
+    int y = H / 2 + 8;
+    if (line1) { int n = textWrap(T_MSG_B, line1, W - 120, lines, 2); for (int i = 0; i < n; i++) { textDrawCentered(T_MSG_B, W / 2, y, lines[i]); y += 22; } }
+    y += 8;
+    if (line2) { int n = textWrap(T_MSG_B, line2, W - 120, lines, 2); for (int i = 0; i < n; i++) { textDrawCentered(T_MSG_B, W / 2, y, lines[i]); y += 22; } }
   } while (display.nextPage());
 }
 
@@ -409,52 +179,40 @@ void renderSetup(const char* apName, const char* ip) {
   display.setFullWindow();
   display.firstPage();
   do {
-    display.fillScreen(WHITE);
-    display.fillRoundRect(MARGIN, MARGIN, W - 2 * MARGIN, H - 2 * MARGIN, RADIUS, BLACK);
-    display.fillRoundRect(MARGIN + BORDER, MARGIN + BORDER, W - 2 * MARGIN - 2 * BORDER,
-                          H - 2 * MARGIN - 2 * BORDER, RADIUS - 2, WHITE);
+    display.fillScreen(GxEPD_WHITE);
+    frame();
+    const int x0 = 60;
+    int y = 84;
+    textDraw(TextStyle{ Face::Display, 34, 0, Role::Ink }, x0, y, "Beach Day setup");
+    y += 26;
+    textDraw(T_MSG_B, x0, y, "Three steps on your phone. Takes about a minute.");
 
-    const int x0 = MARGIN + 44;
-    int y = MARGIN + 72;
-    drawText(x0, y, "BEACH DAY SETUP", F_BIG, BLACK, 2);
-    y += 22;
-    drawText(x0, y, "Three steps on your phone. Takes about a minute.", F_REG9, BLACK);
+    const TextStyle step { Face::Body, 17, 0, Role::Ink };
+    const TextStyle num  { Face::Display, 18, 0, Role::Paper };
+    y += 52;
+    // 1
+    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "1");
+    textDraw(step, x0 + 48, y, "Join the Wi-Fi network");
+    const TextStyle ap { Face::Display, 30, 0.5f, Role::Paper };
+    int apW = textWidth(ap, apName) + 30;
+    paintRoundRect(x0 + 48, y + 14, apW, 46, 8, Role::Ink);
+    textDraw(ap, x0 + 63, y + 47, apName);
+    y += 96;
+    // 2
+    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "2");
+    textDraw(step, x0 + 48, y, "A setup page opens by itself.");
+    textDraw(T_MSG_B, x0 + 48, y + 26, "If it doesn't, open a browser and go to:");
+    char url[48]; snprintf(url, sizeof(url), "http://%s", ip);
+    textDraw(TextStyle{ Face::Body, 20, 0, Role::Ink }, x0 + 48, y + 56, url);
+    y += 98;
+    // 3
+    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "3");
+    textDraw(step, x0 + 48, y, "Enter your Wi-Fi and your beach town, then tap Save.");
+    textDraw(T_MSG_B, x0 + 48, y + 26, "The forecast appears about a minute later.");
 
-    // Numbered steps, each a filled circle with the digit and a line of text.
-    struct Step { const char* a; const char* b; };
-    const Step steps[3] = {
-      { "Join the Wi-Fi network",              apName },
-      { "A setup page opens by itself.",       "If it doesn't, open a browser and go to:" },
-      { "Enter your Wi-Fi and your beach town,", "then tap Save. The forecast appears shortly." },
-    };
-    y += 44;
-    for (int i = 0; i < 3; i++) {
-      display.fillCircle(x0 + 16, y - 6, 17, BLACK);
-      char n[2] = { (char)('1' + i), 0 };
-      drawTextCentered(x0 + 16, y + 1, n, F_SUB, WHITE);
-      drawText(x0 + 48, y, steps[i].a, F_SUB, BLACK);
-      if (i == 0) {
-        // Network name gets the big treatment - it is the thing to type.
-        display.fillRoundRect(x0 + 48, y + 14, textWidth(steps[i].b, F_BIG, 1) + 28, 46, 6, BLACK);
-        drawText(x0 + 62, y + 47, steps[i].b, F_BIG, WHITE, 1);
-        y += 92;
-      } else if (i == 1) {
-        drawText(x0 + 48, y + 26, steps[i].b, F_REG9, BLACK);
-        char url[48];
-        snprintf(url, sizeof(url), "http://%s", ip);
-        drawText(x0 + 48, y + 56, url, F_SUB, BLACK);
-        y += 96;
-      } else {
-        drawText(x0 + 48, y + 26, steps[i].b, F_REG9, BLACK);
-        y += 70;
-      }
-    }
-
-    drawTextCentered(W / 2, H - MARGIN - 34, "This screen turns off after 10 minutes. Hold the middle button", F_REG9, BLACK);
-    drawTextCentered(W / 2, H - MARGIN - 16, "and press the right one to open setup again.", F_REG9, BLACK);
+    textDrawCentered(T_STATUS, W / 2, H - 42, "This screen turns off after 10 minutes. Hold the middle button");
+    textDrawCentered(T_STATUS, W / 2, H - 28, "and press the right one to open setup again.");
   } while (display.nextPage());
 }
 
-void renderEnd() {
-  display.hibernate();
-}
+void renderEnd() { display.hibernate(); }

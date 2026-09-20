@@ -1,38 +1,37 @@
-// Beach Day for the Seeed reTerminal E1001.
+// Beach Day v3 for the Seeed reTerminal E1001.
 //
-// Every wake: Wi-Fi -> NTP -> Open-Meteo -> aggregate -> rules -> draw -> sleep.
-// The panel keeps its image while the board sleeps, so a failed fetch just
-// leaves the last good screen up (redrawn with an OFFLINE stamp).
+// Every wake: Wi-Fi -> NTP -> Open-Meteo -> derive the day's numbers -> run
+// the runtime rules (shared/v3/day-outcomes.json) -> draw -> sleep. The
+// panel keeps its image while the board sleeps, so a failed fetch just leaves
+// the last good screen up, stamped OFFLINE.
 #include <Arduino.h>
 #include <time.h>
 #include <sys/time.h>
+#include <Preferences.h>
 #include "settings.h"
 #include "net.h"
 #include "weather.h"
 #include "render.h"
 #include "power.h"
 #include "pins.h"
-#include "beachrules.h"
-#include "parking.h"
-#include "aggregate.h"
-#include "devmode.h"
 #include "ota.h"
 #include "portal.h"
 #include "geocode.h"
+#include "specstore.h"
 #include "version.h"
-#include <Preferences.h>
+#include "derive.h"
+#include "parking.h"
+#include "devmode.h"
 
 // Survives deep sleep (RTC slow memory), not a power cycle.
 RTC_DATA_ATTR static ViewModel lastView;
-RTC_DATA_ATTR static uint16_t  failCount   = 0;
-RTC_DATA_ATTR static bool      staleShown  = false;
-RTC_DATA_ATTR static uint32_t  bootCount   = 0;
+RTC_DATA_ATTR static uint16_t  failCount  = 0;
+RTC_DATA_ATTR static bool      staleShown = false;
+RTC_DATA_ATTR static uint32_t  bootCount  = 0;
 
-// Crash counter. Incremented at the top of every boot and cleared once a cycle
-// completes, so it only accumulates when the firmware fails before sleeping.
-// After SAFE_MODE_THRESHOLD consecutive failures the board stops doing anything
-// except looking for a newer firmware, which is the only remote way out of a
-// bad release. (The stock Arduino bootloader has no automatic OTA rollback.)
+// Crash counter: bumped every boot, cleared when a cycle reaches sleep. After
+// SAFE_MODE_THRESHOLD consecutive failures the board only looks for new
+// firmware - the remote way out of a bad release.
 static constexpr int SAFE_MODE_THRESHOLD = 3;
 
 static int bumpBootFailures() {
@@ -43,7 +42,6 @@ static int bumpBootFailures() {
   p.end();
   return n;
 }
-
 static void clearBootFailures() {
   Preferences p;
   if (!p.begin("beachday", false)) return;
@@ -51,20 +49,12 @@ static void clearBootFailures() {
   p.end();
 }
 
-static const char* const WEEKDAYS[] = {
-  "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
-
 struct LocalClock {
-  time_t utc = 0;
-  int32_t off = 0;
-  long   days = 0;
-  int    minuteOfDay = 0;
-  int    secondOfMinute = 0;
-  int    dow = 0, dom = 1;
-  int    tomorrowDow = 0, tomorrowDom = 1;
+  time_t utc = 0; int32_t off = 0; long days = 0;
+  int minuteOfDay = 0, secondOfMinute = 0;
+  int dow = 0, dom = 1, tomorrowDow = 0, tomorrowDom = 1;
 };
 
-// days since 1970-01-01 -> civil y/m/d (Howard Hinnant's algorithm)
 static void civilFromDays(long z, int& y, int& m, int& d) {
   z += 719468;
   long era = (z >= 0 ? z : z - 146096) / 146097;
@@ -80,13 +70,12 @@ static void civilFromDays(long z, int& y, int& m, int& d) {
 
 static LocalClock makeClock(time_t utc, int32_t off) {
   LocalClock c;
-  c.utc = utc;
-  c.off = off;
+  c.utc = utc; c.off = off;
   c.days = localDays(utc, off);
   c.minuteOfDay = localMinuteOfDay(utc, off);
   long secs = ((long)utc + off) % 60;
   c.secondOfMinute = (int)(secs < 0 ? secs + 60 : secs);
-  c.dow = (int)(((c.days % 7) + 11) % 7);          // 1970-01-01 was a Thursday (4)
+  c.dow = (int)(((c.days % 7) + 11) % 7);          // 1970-01-01 was a Thursday
   int y, m;
   civilFromDays(c.days, y, m, c.dom);
   c.tomorrowDow = (c.dow + 1) % 7;
@@ -94,95 +83,28 @@ static LocalClock makeClock(time_t utc, int32_t off) {
   return c;
 }
 
-static void fmtClock(int minutes, char* out, size_t n) {
-  int h = (minutes / 60) % 24, m = minutes % 60;
-  const char* ampm = h >= 12 ? "PM" : "AM";
-  int dh = h % 12;
-  if (dh == 0) dh = 12;
-  snprintf(out, n, "%d:%02d %s", dh, m, ampm);
-}
-
-static void upperInPlace(char* s) {
-  for (; *s; s++) *s = (char)toupper((unsigned char)*s);
-}
-
-static void buildView(const beach::Inputs& in, const beach::Verdict& v,
-                      const beach::ParkingAlert& pa, const LocalClock& lc,
-                      const Settings& s, int batteryPct, ViewModel& vm) {
-  const beach::DayInputs& d = *v.shown;
-  vm = ViewModel{};
-  vm.valid = true;
-  vm.state = static_cast<uint8_t>(v.state);
-  vm.isNight = v.isNight;
-  vm.condSun = v.condForecast;
-  vm.condTemp = v.condTemp;
-  vm.condPrecip = v.condPrecip;
-  vm.condWind = v.condWind;
-  vm.condAqi = v.condAqi;
-  vm.temp = d.temp; vm.tempMin = d.tempMin; vm.tempMax = d.temp;
-  vm.precip = d.precipProb; vm.wind = d.wind;
-  vm.aqi = d.aqi; vm.aqiMin = d.aqiMin; vm.aqiMax = d.aqi; vm.uv = d.uv;
-  vm.humMin = d.humidityMin; vm.humMax = d.humidityMax;
-  snprintf(vm.conditionText, sizeof(vm.conditionText), "%s", d.conditionText);
-
-  if (v.isNight) snprintf(vm.dayLabel, sizeof(vm.dayLabel), "Tomorrow (%s)", WEEKDAYS[lc.tomorrowDow]);
-  else           snprintf(vm.dayLabel, sizeof(vm.dayLabel), "%s", WEEKDAYS[lc.dow]);
-  upperInPlace(vm.dayLabel);
-
-  beach::sunRowText(v, vm.sunText, sizeof(vm.sunText));
-  vm.clearingLater = v.sun.clearingLater;
-
-  char t[16];
-  if (in.sunriseMinutes == 0 || in.sunsetMinutes == 0) {
-    snprintf(vm.footer, sizeof(vm.footer), "Always");
-  } else if (lc.minuteOfDay >= in.sunriseMinutes && lc.minuteOfDay < in.sunsetMinutes) {
-    fmtClock(in.sunsetMinutes, t, sizeof(t));
-    snprintf(vm.footer, sizeof(vm.footer), "Sunset: %s", t);
-  } else {
-    fmtClock(in.sunriseMinutes, t, sizeof(t));
-    snprintf(vm.footer, sizeof(vm.footer), "Sunrise: %s", t);
-  }
-
-  vm.parkingActive = pa.active;
-  snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
-  snprintf(vm.locationName, sizeof(vm.locationName), "%s", s.locationName);
-  fmtClock(lc.minuteOfDay, t, sizeof(t));
-  snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %s", t);
-  vm.batteryPct = (int8_t)batteryPct;
-}
-
-// Sleep until the next regular interval, or the next moment the display
-// would change (sunrise, sunset-1h, sunset, a parking cutoff), whichever first.
-static uint32_t secondsToNextWake(const LocalClock& lc, const beach::Inputs& in,
-                                  const Settings& s) {
+// Sleep until the next regular interval or the next moment the screen would
+// change (sunrise, the evening flip to tomorrow, sunset, a parking cutoff).
+static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, const Settings& s) {
   const int now = lc.minuteOfDay;
-  bool sunKnown = in.sunriseMinutes > 0 && in.sunsetMinutes > 0;
-  bool dayPeriod = !sunKnown || (now >= in.sunriseMinutes - 60 && now < in.sunsetMinutes);
+  int sunrise = raw.day[0].sunriseMin, sunset = raw.day[0].sunsetMin;
+  bool sunKnown = sunrise > 0 && sunset > 0;
+  bool dayPeriod = !sunKnown || (now >= sunrise - 60 && now < sunset);
   int next = now + (dayPeriod ? s.wakeDayMinutes : s.wakeNightMinutes);
-
-  auto consider = [&](int boundary) {
-    // wake one minute past the boundary so the new state is unambiguous
-    if (boundary > now && boundary + 1 < next) next = boundary + 1;
-  };
-  if (sunKnown) {
-    consider(in.sunriseMinutes);
-    consider(in.sunsetMinutes - beach::SUNSET_BUFFER_MIN);
-    consider(in.sunsetMinutes);
-    consider(in.sunriseMinutes + 1440);
-  }
+  auto consider = [&](int b) { if (b > now && b + 1 < next) next = b + 1; };
+  if (sunKnown) { consider(sunrise); consider(sunset - 60); consider(sunset); consider(sunrise + 1440); }
   for (int i = 0; i < s.parkingCount; i++) {
     const beach::ParkingRule& r = s.parking[i];
     if (!r.enabled) continue;
-    bool today = (lc.dow == r.dayOfWeek) && (r.weeksMask & (1u << (beach::weekOfMonth(lc.dom) - 1)));
-    if (today) consider(r.endMin);
+    if (lc.dow == r.dayOfWeek && (r.weeksMask & (1u << (beach::weekOfMonth(lc.dom) - 1)))) consider(r.endMin);
   }
   long secs = (long)(next - now) * 60 - lc.secondOfMinute;
   if (secs < 120) secs = 120;
   return (uint32_t)secs;
 }
 
-// In the dev build this hands off to an interactive loop instead of sleeping,
-// so the USB serial port stays up. Both paths never return.
+static void fmtClock(int minutes, char* out, size_t n) { day::formatClock12(minutes, out, n); }
+
 static void sleepNow(uint32_t seconds) {
   clearBootFailures();
 #ifdef BEACHDAY_DEV
@@ -194,15 +116,24 @@ static void sleepNow(uint32_t seconds) {
 #endif
 }
 
+static void logScreen(const day::Screen& sc, const day::Inputs& in) {
+  Serial.printf("[day] %s%s  tmin %d tmax %d swing %d rain %d wind %d aqi %d-%d hum %d-%d cloud %d clear@%d  '%s'\n",
+                sc.outcome.id, sc.tomorrow ? " (tomorrow)" : "",
+                (int)in.tempMinF, (int)in.tempMaxF, (int)in.tempSwingF, (int)in.precipChanceMaxPct,
+                (int)in.windMaxMph, (int)in.aqiMin, (int)in.aqiMax, (int)in.humidityMinPct, (int)in.humidityMaxPct,
+                (int)in.cloudCoverAvgPct, in.hasFirstClearHour ? in.firstClearHour : -1, in.conditionSummary);
+  Serial.printf("[day] %s / %s | %s\n", sc.outcome.title[0], sc.outcome.tagline, sc.outcome.alsoGrab);
+  for (int i = 0; i < sc.statCount; i++)
+    Serial.printf("[day]   %-9s %-10s %s\n", sc.stats[i].label, sc.stats[i].value, sc.stats[i].word);
+  Serial.printf("[day] %s\n", sc.footer);
+}
+
 void setup() {
   Serial.begin(115200);
   bootCount++;
 
   const Settings& s = loadSettings();
 
-  // Buttons held while waking: KEY1 (middle) opens setup, KEY2 (left) forces
-  // an update check. The wake itself is KEY0 (right), so the gesture is
-  // "hold one, press the other".
   pinMode(PIN_KEY1, INPUT_PULLUP);
   pinMode(PIN_KEY2, INPUT_PULLUP);
   bool wantSetup = (digitalRead(PIN_KEY1) == LOW);
@@ -211,42 +142,35 @@ void setup() {
   if (wantSetup || !s.configured()) {
     Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
                   wantSetup ? "middle button held" : "nothing configured");
-    clearBootFailures();          // a setup session is not a crash
+    clearBootFailures();
     renderBegin();
-    runSetupPortal(s);            // never returns
+    runSetupPortal(s);
   }
 
   int failures = bumpBootFailures();
   bool safeMode = (failures > SAFE_MODE_THRESHOLD);
   Serial.printf("[beach] firmware %s, boot %u, %s%s\n", FIRMWARE_VERSION, (unsigned)bootCount,
-                wokeByButton() ? "button wake" : "timer/power wake",
-                safeMode ? ", SAFE MODE" : "");
-  if (forceOta) Serial.println(F("[beach] KEY2 held: forcing an update check"));
+                wokeByButton() ? "button wake" : "timer/power wake", safeMode ? ", SAFE MODE" : "");
+  if (forceOta) Serial.println(F("[beach] KEY2 held: forcing update + rules check"));
 
   renderBegin();
 
+  char specStatus[96];
+  if (!specLoad(specStatus, sizeof(specStatus))) {
+    // Cannot happen with a valid embedded copy, but never draw a blank screen silently.
+    renderMessage("Rules missing", specStatus, "Re-flash this display.");
+    sleepNow(3600);
+  }
+  Serial.printf("[beach] rules from %s\n", specStatus);
+
   if (safeMode) {
-    // Do nothing but try to fetch a fix.
     Serial.printf("[beach] %d consecutive failed boots; update-only mode\n", failures - 1);
-    renderMessage("Updating", "This display hit a problem and is",
-                  "looking for new software. Leave it on Wi-Fi.");
-    char otaStatus[64] = "";
-    if (netConnect(s, 25000)) {
-      netSyncTime(8000);
-      otaCheck(s, true, otaStatus, sizeof(otaStatus));
-      netDisconnect();
-    } else {
-      snprintf(otaStatus, sizeof(otaStatus), "no wifi");
-    }
-    Serial.printf("[beach] safe-mode ota: %s\n", otaStatus);
+    renderMessage("Updating", "This display hit a problem and is looking for new software.", "Leave it on Wi-Fi.");
+    char st[64] = "no wifi";
+    if (netConnect(s, 25000)) { netSyncTime(8000); otaCheck(s, true, st, sizeof(st)); netDisconnect(); }
+    Serial.printf("[beach] safe-mode ota: %s\n", st);
     renderEnd();
     deepSleepFor(1800);
-  }
-
-  if (!s.configured()) {
-    renderMessage("Beach Day needs setup", "Copy src/beachday_config.example.h to src/beachday_config.h,",
-                  "add your Wi-Fi and location, then flash again.");
-    sleepNow(3600);
   }
 
   int batteryPct = batteryPercent(batteryVolts());
@@ -255,20 +179,17 @@ void setup() {
   bool online = netConnect(s, 20000);
   bool clockOk = online && netSyncTime(6000);
 
-  // First connected boot after the portal: turn the typed place into coordinates.
   if (online && s.needsGeocode()) {
-    GeoResult geo;
-    char gerr[64];
+    GeoResult geo; char gerr[64];
     if (geocode(s.locationQuery, s.countryCode, s.useTls, geo, gerr, sizeof(gerr))) {
       Serial.printf("[beach] '%s' -> %s (%.4f, %.4f)\n", s.locationQuery, geo.fullName, geo.lat, geo.lon);
       saveResolvedLocation(geo.lat, geo.lon, geo.shortName);
     } else {
       Serial.printf("[beach] geocode failed: %s\n", gerr);
       netDisconnect();
-      char line[72];
+      char line[96];
       snprintf(line, sizeof(line), "Couldn't find \"%s\" - check the spelling or use a postal code.", s.locationQuery);
-      renderMessage("Where's the beach?", line,
-                    "Hold the middle button and press the right one to open setup.");
+      renderMessage("Where's the beach?", line, "Hold the middle button and press the right one to open setup.");
       sleepNow(3600);
     }
   }
@@ -284,81 +205,77 @@ void setup() {
     uint32_t retry = (uint32_t)s.retryMinutes * 60 * (failCount >= 6 ? 6 : 1);
     if (lastView.valid) {
       if (!staleShown) {
-        // Keep the last verdict up, but say it is old.
-        char stamp[32];
-        snprintf(stamp, sizeof(stamp), "%s", lastView.updatedText);
+        char stamp[40]; snprintf(stamp, sizeof(stamp), "%s", lastView.statusText);
         const char* at = strstr(stamp, "Updated ");
-        snprintf(lastView.updatedText, sizeof(lastView.updatedText), "OFFLINE since %s",
-                 at ? stamp + 8 : stamp);
+        snprintf(lastView.statusText, sizeof(lastView.statusText), "OFFLINE since %s", at ? stamp + 8 : stamp);
         lastView.stale = true;
-        renderView(lastView);
+        renderScreen(lastView);
         staleShown = true;
       }
     } else {
-      char line[72];
+      char line[96];
       snprintf(line, sizeof(line), "Can't get online via Wi-Fi \"%s\" (%s).", s.ssid, err);
-      renderMessage("No connection yet", line,
-                    "Retrying. To change Wi-Fi: hold the middle button, press the right one.");
+      renderMessage("No connection yet", line, "Retrying. To change Wi-Fi: hold the middle button, press the right one.");
     }
     sleepNow(retry);
   }
 
-  // Clock: NTP if we have it, else the model's own timestamp (15-minute
-  // granularity), else at least the right local date.
   time_t nowUtc = clockOk ? time(nullptr) : (f.modelNowUtc ? f.modelNowUtc : f.todayStartUtc);
-
-  // If NTP failed, adopt Open-Meteo's timestamp as the system clock. Without
-  // this the clock stays at the epoch, and otaDue() - which needs a plausible
-  // wall-clock time to rate-limit itself - would never return true, so a board
-  // on a network that blocks NTP would never look for updates.
   if (!clockOk && nowUtc > 1700000000) {
     struct timeval tv = { .tv_sec = nowUtc, .tv_usec = 0 };
     settimeofday(&tv, nullptr);
-    Serial.println(F("[beach] system clock set from the forecast timestamp"));
   }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
-  Serial.printf("[beach] local %02d:%02d dow %d dom %d (offset %ld, %s)\n",
-                lc.minuteOfDay / 60, lc.minuteOfDay % 60, lc.dow, lc.dom,
-                (long)f.utcOffsetSec, clockOk ? "ntp" : "model time");
 
-  beach::Inputs in;
-  beach::aggregate(f.raw, in);
-  in.nowMinutes = (int16_t)lc.minuteOfDay;
-  beach::Verdict v = beach::evaluate(in);
+  // After the evening flip (sunset - 1h) the screen plans tomorrow. Before
+  // dawn it still shows today: "Thursday" at 5 AM Thursday is right.
+  int sunset = f.raw.day[0].sunsetMin;
+  bool tomorrow = (sunset > 0 && lc.minuteOfDay >= sunset - 60 && f.raw.day[1].valid);
+  int d = tomorrow ? 1 : 0;
+
+  day::Inputs in;
+  day::derive(f.raw, d, tomorrow ? lc.tomorrowDow : lc.dow, in);
+
+  ViewModel vm;
+  vm.valid = spec().evaluate(in, vm.screen, s.locationName, tomorrow);
+  if (!vm.valid) {
+    renderMessage("Rules problem", "The rules file loaded but produced no outcome.", "Check shared/v3/day-outcomes.json.");
+    sleepNow(3600);
+  }
 
   beach::ParkingInput pin{ (int16_t)lc.minuteOfDay, (int8_t)lc.dow, (int8_t)lc.dom,
-                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, in.sunsetMinutes };
+                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset };
   beach::ParkingAlert pa = beach::evaluateParking(s.parking, s.parkingCount, pin);
+  vm.parkingActive = pa.active;
+  snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
 
-  Serial.printf("[beach] %s  temp %d precip %d wind %d aqi %d code %d  sun[%s] temp[%d] rain[%d] wind[%d] aqi[%d] time[%d]  parking[%s]\n",
-                beach::stateId(v.state), v.shown->temp, v.shown->precipProb, v.shown->wind,
-                v.shown->aqi, v.shown->weatherCode, v.sun.clearingTime, v.condTemp, v.condPrecip,
-                v.condWind, v.condAqi, v.condTime, pa.active ? pa.text : "-");
+  char t[16]; fmtClock(lc.minuteOfDay, t, sizeof(t));
+  snprintf(vm.statusText, sizeof(vm.statusText), "Updated %s \xC2\xB7 %d%%", t, batteryPct);
 
-  buildView(in, v, pa, lc, s, batteryPct, lastView);
-  Serial.printf("[beach] window today %02d:%02d-%02d:%02d  sun %d/%d hrs first %d  |  tomorrow %d/%d hrs first %d\n",
-                in.sunriseMinutes / 60, in.sunriseMinutes % 60,
-                in.sunsetMinutes / 60, in.sunsetMinutes % 60,
-                beach::scanSun(in.today).sunHours, in.today.hourCount,
-                beach::scanSun(in.today).firstSunnyHour,
-                beach::scanSun(in.tomorrow).sunHours, in.tomorrow.hourCount,
-                beach::scanSun(in.tomorrow).firstSunnyHour);
-  renderView(lastView);
+  Serial.printf("[beach] local %02d:%02d %s dom %d (offset %ld, %s)%s\n", lc.minuteOfDay / 60, lc.minuteOfDay % 60,
+                day::weekdayName(lc.dow), lc.dom, (long)f.utcOffsetSec, clockOk ? "ntp" : "model time",
+                pa.active ? "  PARKING" : "");
+  logScreen(vm.screen, in);
+
+  lastView = vm;
+  renderScreen(lastView);
   failCount = 0;
   staleShown = false;
 
-  // Housekeeping last: the screen is already correct, so an update that fails
-  // or reboots the board costs nothing the viewer can see.
-  if (forceOta || otaDue(s)) {
-    char otaStatus[64] = "";
+  // Housekeeping after the screen is right: rules first (visible next wake),
+  // then firmware (reboots on success).
+  bool rulesDue = forceOta || specFetchDue(s);
+  bool otaWanted = forceOta || otaDue(s);
+  if (rulesDue || otaWanted) {
+    char st[96] = "";
     if (netConnect(s, 20000)) {
-      otaCheck(s, forceOta, otaStatus, sizeof(otaStatus));   // reboots on success
+      if (rulesDue) { specFetch(s, st, sizeof(st)); Serial.printf("[beach] %s\n", st); }
+      if (otaWanted) { otaCheck(s, forceOta, st, sizeof(st)); Serial.printf("[beach] ota: %s\n", st); }
       netDisconnect();
-      Serial.printf("[beach] ota: %s\n", otaStatus);
     }
   }
 
-  sleepNow(secondsToNextWake(lc, in, s));
+  sleepNow(secondsToNextWake(lc, f.raw, s));
 }
 
 void loop() {}
