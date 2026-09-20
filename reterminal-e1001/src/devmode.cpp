@@ -6,6 +6,7 @@
 #include "power.h"
 #include "specstore.h"
 #include "settings.h"
+#include "portal.h"
 
 #if __has_include("beachday_config.h")
 #  include "beachday_config.h"
@@ -60,6 +61,7 @@ void banner() {
   Serial.println(F("   p / KEY1 (middle)  toggle parking alert"));
   Serial.println(F("   l / KEY0 (right)   back to the live forecast"));
   Serial.println(F("   d                  dump the current screen as text"));
+  Serial.println(F("   w                  open the Wi-Fi setup portal now"));
   Serial.println(F("   R                  reboot and re-fetch"));
   Serial.println(F("   ?                  show this again"));
   Serial.printf(  "   (the live forecast refreshes itself every %d min)\n", CFG_DEV_REFRESH_MINUTES);
@@ -104,6 +106,7 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
     while (Serial.available()) { int c = Serial.read(); if (c > 0 && c != '\r' && c != '\n') cmd = (char)c; }
     if (cmd == '?') banner();
     if (cmd == 'R') { Serial.println(F("[dev] rebooting")); Serial.flush(); ESP.restart(); }
+    if (cmd == 'w') { Serial.println(F("[dev] opening the setup portal")); runSetupPortal(loadSettings()); }
     if (cmd == 'd') dump((demoIdx >= 0) ? demo : live, (demoIdx >= 0) ? "demo" : "live");
 
     if (key2.pressed() || cmd == 'n') {

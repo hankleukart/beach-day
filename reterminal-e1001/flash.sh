@@ -4,6 +4,8 @@
 #   ./flash.sh            dev build: stays awake, buttons cycle the outcomes
 #   ./flash.sh release    real build: renders once, then deep-sleeps
 #   ./flash.sh rules      push only shared/v3/day-outcomes.json to the board
+#   ./flash.sh erase      wipe saved settings (Wi-Fi, location, parking) and reflash
+#                         - use when you want beachday_config.h to win again
 #   ./flash.sh test       run the rules tests on this Mac, no board needed
 #
 # Firmware uploads also upload the LittleFS image, which carries the rules
@@ -19,9 +21,10 @@ PIO=.venv/bin/pio
 case "${1:-dev}" in
   test)    exec "$PIO" test -e native ;;
   rules)   exec "$PIO" run -e reterminal_e1001 -t uploadfs ;;
+  erase)   echo "Erasing all saved settings..."; "$PIO" run -e reterminal_e1001 -t erase; ENV=reterminal_e1001 ;;
   release) ENV=reterminal_e1001 ;;
   dev)     ENV=dev ;;
-  *)       echo "usage: $0 [dev|release|rules|test]"; exit 1 ;;
+  *)       echo "usage: $0 [dev|release|rules|erase|test]"; exit 1 ;;
 esac
 
 [ -f src/beachday_config.h ] || {
