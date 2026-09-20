@@ -177,6 +177,16 @@ void setup() {
   Serial.printf("[beach] rules from %s\n", specStatus);
 
   if (safeMode) {
+    if (failures >= SAFE_MODE_THRESHOLD * 4) {
+      // Safe mode itself keeps crashing, so its own network call is suspect.
+      // Sit still and say so rather than burning the battery in a reboot loop.
+      Serial.println(F("[beach] safe mode is crashing too; halting until reflashed"));
+      renderMessage("Needs a cable", "This display keeps restarting and can't fix itself.",
+                    "Reconnect it to a computer and reflash.");
+      clearBootFailures();
+      renderEnd();
+      deepSleepFor(6 * 3600);
+    }
     Serial.println(F("[beach] update-only mode; the next boot will try normally again"));
     renderMessage("Updating", "This display hit a problem and is looking for new software.", "Leave it on Wi-Fi.");
     char st[64] = "no wifi";
@@ -209,7 +219,7 @@ void setup() {
     }
   }
 
-  Fetched f;
+  static Fetched f;              // ~1.5 KB: keep it off the stack
   char err[64] = "no Wi-Fi";
   bool ok = online && fetchWeather(s, f, err, sizeof(err));
   netDisconnect();
@@ -248,10 +258,10 @@ void setup() {
   bool tomorrow = (sunset > 0 && lc.minuteOfDay >= sunset - 60 && f.raw.day[1].valid);
   int d = tomorrow ? 1 : 0;
 
-  day::Inputs in;
+  static day::Inputs in;
   day::derive(f.raw, d, tomorrow ? lc.tomorrowDow : lc.dow, in);
 
-  ViewModel vm;
+  static ViewModel vm;           // ~1.4 KB
   vm.valid = spec().evaluate(in, vm.screen, s.locationName, tomorrow);
   if (!vm.valid) {
     renderMessage("Rules problem", "The rules file loaded but produced no outcome.", "Check shared/v3/day-outcomes.json.");
@@ -271,6 +281,9 @@ void setup() {
                 day::weekdayName(lc.dow), lc.dom, (long)f.utcOffsetSec, clockOk ? "ntp" : "model time",
                 pa.active ? "  PARKING" : "");
   logScreen(vm.screen, in);
+
+  Serial.printf("[beach] free heap %u, stack headroom %u bytes\n",
+                (unsigned)ESP.getFreeHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
 
   lastView = vm;
   renderScreen(lastView);
