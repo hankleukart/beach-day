@@ -29,7 +29,9 @@
     "conditionSummary": { "type": "string", "description": "Short phrase from the weather API, e.g. 'Clear sky'" },
     "sunsetLocal": { "type": "string", "format": "h:mm A" },
     "weekdayName": { "type": "string" },
-    "firstClearHour": { "type": "number", "nullable": true, "description": "First daylight hour with cloudCover <= 30; used by the 'After {h}' sunshine value" }
+    "firstClearHour": { "type": "number", "nullable": true, "description": "First daylight hour with cloudCover <= 30" },
+    "sunRunHours": { "type": "number", "description": "Length of the longest unbroken run of daylight hours with cloudCover <= 30" },
+    "sunWindow": { "type": "token", "description": "That run as a compact interval, e.g. '1P-4P'. Empty when nothing is clear." }
   },
 
   "evaluation": {
@@ -200,21 +202,20 @@
         { "max": 100, "icon": "rain_cloud" }
       ]},
       "value": {
-        "field": "cloudCoverAvgPct",
+        "field": "sunRunHours",
         "bands": [
-          { "max": 20, "text": "All day" },
-          { "max": 55, "text": "A little" },
-          { "max": 85, "text": "After {firstClearHour}", "requires": "firstClearHour" },
-          { "max": 100, "text": "None" }
+          { "max": 0, "text": "None" },
+          { "max": 2, "text": "Brief" },
+          { "max": 24, "text": "{sunWindow}" }
         ]
       },
       "word": {
-        "field": "cloudCoverAvgPct",
+        "field": "sunRunHours",
         "bands": [
-          { "max": 20, "text": "clear" },
-          { "max": 55, "text": "peeks out" },
-          { "max": 85, "text": "clearing" },
-          { "max": 100, "text": "hiding" }
+          { "max": 0, "text": "none" },
+          { "max": 2, "text": "barely" },
+          { "max": 4, "text": "a stretch" },
+          { "max": 24, "text": "clear" }
         ]
       }
     },
@@ -270,9 +271,9 @@
     },
     {
       "id": "air",
-      "label": "AIR QUALITY",
+      "label": "AIR",
       "icon": "leaf",
-      "value": { "field": "aqiMax", "format": "{value}" },
+      "value": { "field": "aqiMax", "format": "{value} aqi" },
       "word": {
         "field": "aqiMax",
         "bands": [

@@ -51,15 +51,27 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
     if (r.humidity >= 0) { if (r.humidity < hMin) hMin = r.humidity; if (r.humidity > hMax) hMax = r.humidity; }
     if (r.cloud >= 0) { cloudSum += r.cloud; cloudN++; }
   }
-  // rows are scanned in hour order for the first clear hour
-  for (int h = h0; h <= h1 && !out.hasFirstClearHour; h++) {
+  // Walk the window in hour order: first clear hour, and the longest unbroken
+  // run of them. A missing cloud reading breaks a run rather than extending it.
+  int runStart = -1, bestStart = -1, bestEnd = -1, bestLen = 0;
+  for (int h = h0; h <= h1; h++) {
+    bool clear = false;
     for (int i = 0; i < raw.n; i++) {
       const HourRow& r = raw.hours[i];
-      if (r.day == d && r.hour == h && r.cloud >= 0 && r.cloud <= CLEAR_CLOUD_MAX_PCT) {
-        out.hasFirstClearHour = true; out.firstClearHour = h; break;
-      }
+      if (r.day == d && r.hour == h) { clear = (r.cloud >= 0 && r.cloud <= CLEAR_CLOUD_MAX_PCT); break; }
+    }
+    if (clear) {
+      if (!out.hasFirstClearHour) { out.hasFirstClearHour = true; out.firstClearHour = h; }
+      if (runStart < 0) runStart = h;
+      int len = h - runStart + 1;
+      if (len > bestLen) { bestLen = len; bestStart = runStart; bestEnd = h; }
+    } else {
+      runStart = -1;
     }
   }
+  out.sunRunHours = bestLen;
+  out.sunRunStartHour = bestStart;
+  out.sunRunEndHour = bestEnd;
   if (any) {
     out.tempMinF = std::round(tMin);
     out.tempMaxF = std::round(tMax);

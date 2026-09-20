@@ -20,6 +20,11 @@ struct Inputs {
   double cloudCoverAvgPct = 0;
   bool   hasFirstClearHour = false;
   int    firstClearHour = -1;           // local hour 0..23
+  // Longest unbroken run of clear hours in the daylight window. The SUN stat
+  // shows this as an interval ("1P - 4P") rather than a single hour, because
+  // "sunny from 1 to 4" is the thing you actually plan around.
+  double sunRunHours = 0;               // 0 when nothing is clear
+  int    sunRunStartHour = -1, sunRunEndHour = -1;
   char   conditionSummary[40] = "";
   char   sunsetLocal[12] = "";          // "7:08 PM"
   char   weekdayName[12] = "";

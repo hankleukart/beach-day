@@ -236,8 +236,6 @@ void test_stats() {
   TEST_ASSERT_EQUAL_INT(5, s.statCount);
   TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("sun", s.stats[0].icon);
-  TEST_ASSERT_EQUAL_STRING("All day", s.stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("clear", s.stats[0].word);
   TEST_ASSERT_EQUAL_STRING("84\xC2\xB0" "F", s.stats[1].value);
   TEST_ASSERT_EQUAL_STRING("warm", s.stats[1].word);
   TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);
@@ -247,19 +245,35 @@ void test_stats() {
   TEST_ASSERT_EQUAL_STRING("HIGH TEMP", s.stats[1].label);
   TEST_ASSERT_EQUAL_STRING("WIND", s.stats[3].label);
   // AIR QUALITY shows the AQI itself; the word carries the meaning.
-  TEST_ASSERT_EQUAL_STRING("AIR QUALITY", s.stats[4].label);
-  TEST_ASSERT_EQUAL_STRING("40", s.stats[4].value);
+  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[4].label);
+  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[4].value);
   TEST_ASSERT_EQUAL_STRING("clean", s.stats[4].word);
 }
 
-void test_sunshine_after_hour_and_requires() {
-  auto in = base(); in.cloudCoverAvgPct = 70; in.hasFirstClearHour = true; in.firstClearHour = 11;
+void test_sun_interval() {
+  auto in = base();
+  in.sunRunHours = 4; in.sunRunStartHour = 13; in.sunRunEndHour = 16;
   auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("cloud", s.stats[0].icon);
-  TEST_ASSERT_EQUAL_STRING("After 11 AM", s.stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("clearing", s.stats[0].word);
-  in.hasFirstClearHour = false;             // band requires it -> falls to the next band
+  TEST_ASSERT_EQUAL_STRING("1P-4P", s.stats[0].value);
+  TEST_ASSERT_EQUAL_STRING("a stretch", s.stats[0].word);   // 3-4 hours
+  in.sunRunHours = 6; in.sunRunStartHour = 11; in.sunRunEndHour = 16;
+  TEST_ASSERT_EQUAL_STRING("clear", run(in).stats[0].word); // 5+ hours
+
+  in.sunRunHours = 3; in.sunRunStartHour = 9; in.sunRunEndHour = 11;
+  TEST_ASSERT_EQUAL_STRING("9A-11A", run(in).stats[0].value);
+  in.sunRunHours = 3;
+  in.sunRunHours = 3; in.sunRunStartHour = 11; in.sunRunEndHour = 13;
+  TEST_ASSERT_EQUAL_STRING("11A-1P", run(in).stats[0].value);
+  TEST_ASSERT_EQUAL_STRING("a stretch", run(in).stats[0].word);
+
+  // Under three hours is not worth an interval.
+  in.sunRunHours = 2; in.sunRunStartHour = 13; in.sunRunEndHour = 14;
+  TEST_ASSERT_EQUAL_STRING("Brief", run(in).stats[0].value);
+  in.sunRunHours = 0; in.sunRunStartHour = -1; in.sunRunEndHour = -1;
   TEST_ASSERT_EQUAL_STRING("None", run(in).stats[0].value);
+  TEST_ASSERT_EQUAL_STRING("none", run(in).stats[0].word);
+
+  // The icon still tracks cloud cover.
   in.cloudCoverAvgPct = 90;
   TEST_ASSERT_EQUAL_STRING("rain_cloud", run(in).stats[0].icon);
 }
@@ -301,11 +315,39 @@ void test_derive() {
   TEST_ASSERT_EQUAL_INT(31, (int)in.cloudCoverAvgPct);   // (60+40+25+10+20)/5
   TEST_ASSERT_TRUE(in.hasFirstClearHour);
   TEST_ASSERT_EQUAL_INT(11, in.firstClearHour);
+  // hours 11, 14 and 19 are clear but not contiguous, so the longest run is 1
+  TEST_ASSERT_EQUAL_INT(1, (int)in.sunRunHours);
   TEST_ASSERT_EQUAL_INT(58, (int)in.aqiMin);
   TEST_ASSERT_EQUAL_INT(61, (int)in.aqiMax);
   TEST_ASSERT_EQUAL_STRING("Clear sky", in.conditionSummary);   // mode: 0 twice
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);
   TEST_ASSERT_EQUAL_STRING("Wednesday", in.weekdayName);
+}
+
+void test_derive_longest_sun_run() {
+  day::Raw raw;
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60; raw.day[0].dailyCode = 1;
+  int n = 0;
+  auto add = [&](int h, int cloud) {
+    raw.hours[n++] = day::HourRow{ 0, (int8_t)h, 70, 5, 50, 0, (int16_t)cloud, 1 };
+  };
+  // clear 7-8, cloudy 9-12, clear 13-16, cloudy 17-20  -> longest run 13..16
+  for (int h = 6; h <= 20; h++) add(h, (h >= 7 && h <= 8) || (h >= 13 && h <= 16) ? 10 : 80);
+  raw.n = n;
+  day::Inputs in;
+  day::derive(raw, 0, 3, in);
+  TEST_ASSERT_EQUAL_INT(7, in.firstClearHour);
+  TEST_ASSERT_EQUAL_INT(4, (int)in.sunRunHours);
+  TEST_ASSERT_EQUAL_INT(13, in.sunRunStartHour);
+  TEST_ASSERT_EQUAL_INT(16, in.sunRunEndHour);
+
+  // A gap of one hour breaks the run: 7-8, 13-14 and 16 remain. The two
+  // two-hour runs tie, and the earlier one wins - more of the day is left.
+  for (int i = 0; i < raw.n; i++) if (raw.hours[i].hour == 15) raw.hours[i].cloud = 90;
+  day::derive(raw, 0, 3, in);
+  TEST_ASSERT_EQUAL_INT(2, (int)in.sunRunHours);
+  TEST_ASSERT_EQUAL_INT(7, in.sunRunStartHour);
+  TEST_ASSERT_EQUAL_INT(8, in.sunRunEndHour);
 }
 
 int main(int, char**) {
@@ -324,8 +366,9 @@ int main(int, char**) {
   RUN_TEST(test_tshirt_near_threshold_copy);
   RUN_TEST(test_jacket_footer_has_no_suffix);
   RUN_TEST(test_stats);
-  RUN_TEST(test_sunshine_after_hour_and_requires);
+  RUN_TEST(test_sun_interval);
   RUN_TEST(test_tomorrow_and_eyebrow_override);
   RUN_TEST(test_derive);
+  RUN_TEST(test_derive_longest_sun_run);
   return UNITY_END();
 }

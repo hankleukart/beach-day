@@ -32,7 +32,7 @@ void textInit() {
   struct { const uint8_t* d; uint8_t thr; } src[3] = {
     { FONT_FRAUNCES_BLACK, 96 },     // heavy face: keep thin joins by thresholding low
     { FONT_NUNITO_EXTRABOLD, 104 },
-    { FONT_NUNITO_SEMIBOLD, 118 },   // lighter face: a higher threshold keeps counters open
+    { FONT_NUNITO_SEMIBOLD, 104 },   // lighter face; low enough that 12-15px captions stay solid
   };
   for (int i = 0; i < 3; i++) {
     faces[i].data = src[i].d;

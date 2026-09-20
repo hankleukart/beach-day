@@ -30,9 +30,9 @@ const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_STATLBL  { Face::Body,      11, 2.0f, Role::Caption };
+const TextStyle T_STATLBL  { Face::Body,      12, 2.0f, Role::Caption };
 const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
-const TextStyle T_STATWORD { Face::BodyLight, 12, 0,    Role::Caption };
+const TextStyle T_STATWORD { Face::BodyLight, 15, 0,    Role::Caption };
 const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
 const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
 const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
@@ -113,27 +113,47 @@ void drawRight(const ViewModel& vm) {
     paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
     int cols = s.statCount > 5 ? 5 : s.statCount;
     if (cols > 0) {
-      // Centre the column contents in whatever height the band ended up with.
-      const int iconPx = 24, contentH = iconPx + 10 + 14 + 6 + 26 + 4 + 14;
+      // Space the four rows off measured cap heights rather than guessed
+      // offsets, so changing a size can't silently crowd its neighbour.
+      const int iconPx = 26;
+      const int GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 9;
+      const int capLabel = textCapHeight(T_STATLBL);
+      const int capValue = textCapHeight(T_STATVAL);
+      const int capWord  = textCapHeight(T_STATWORD);
+      const int contentH = iconPx + GAP_ICON + capLabel + GAP_LABEL + capValue + GAP_VALUE + capWord;
+
       int top = bandY + (bandH - contentH) / 2;
       if (top < bandY + 6) top = bandY + 6;
+
       const bool statAccents = paintAccentsLegibleAt(iconPx);
-      float colW = (float)COL_W / cols;
+      const float colW = (float)COL_W / cols;
       for (int i = 0; i < cols; i++) {
         const day::Stat& st = s.stats[i];
-        int cx = COL_X0 + (int)(colW * i + colW / 2);
+        const int cx = COL_X0 + (int)(colW * i + colW / 2);
+        const int avail = (int)colW - 10;
+        int y = top;
+
         IconStyle ist; ist.accents = statAccents;
-        drawIcon(st.icon, cx, top + iconPx / 2, iconPx, ist);
-        // Labels are letter-spaced small caps; a long one like AIR QUALITY
-        // gives up its tracking before it gives up size.
+        drawIcon(st.icon, cx, y + iconPx / 2, iconPx, ist);
+        y += iconPx + GAP_ICON;
+
         TextStyle lbl = T_STATLBL;
-        while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > (int)colW - 8) lbl.tracking -= 0.4f;
-        while (lbl.px > 8 && textWidth(lbl, st.label) > (int)colW - 8) lbl.px -= 1;
-        textDrawCentered(lbl, cx, top + iconPx + 14, st.label);
+        while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > avail) lbl.tracking -= 0.4f;
+        while (lbl.px > 8 && textWidth(lbl, st.label) > avail) lbl.px -= 1;
+        y += capLabel;
+        textDrawCentered(lbl, cx, y, st.label);
+        y += GAP_LABEL;
+
         TextStyle val = T_STATVAL;
-        while (val.px > 15 && textWidth(val, st.value) > (int)colW - 10) val.px -= 1;
-        textDrawCentered(val, cx, top + iconPx + 14 + 30, st.value);
-        textDrawCentered(T_STATWORD, cx, top + iconPx + 14 + 30 + 16, st.word);
+        while (val.px > 14 && textWidth(val, st.value) > avail) val.px -= 1;
+        y += capValue;
+        textDrawCentered(val, cx, y, st.value);
+        y += GAP_VALUE;
+
+        TextStyle wrd = T_STATWORD;
+        while (wrd.px > 10 && textWidth(wrd, st.word) > avail) wrd.px -= 1;
+        y += capWord;
+        textDrawCentered(wrd, cx, y, st.word);
       }
     }
   }

@@ -21,6 +21,7 @@ bool fieldValue(const Inputs& in, const char* f, double& v) {
     { "aqiMax", in.aqiMax, true }, { "aqiMin", in.aqiMin, true },
     { "humidityMinPct", in.humidityMinPct, true }, { "humidityMaxPct", in.humidityMaxPct, true },
     { "cloudCoverAvgPct", in.cloudCoverAvgPct, true },
+    { "sunRunHours", in.sunRunHours, true },
     { "firstClearHour", (double)in.firstClearHour, in.hasFirstClearHour },
   };
   for (auto& t : table) if (strcmp(t.name, f) == 0) { v = t.val; return t.ok; }
@@ -30,6 +31,13 @@ bool fieldValue(const Inputs& in, const char* f, double& v) {
 static void hour12(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;
   snprintf(out, n, "%d %s", d, h >= 12 ? "PM" : "AM");
+}
+
+// Compact form for the interval: 13 -> "1P", 9 -> "9A". Space is tight in a
+// five-column strip, and the pattern reads fine next to a dash.
+static void hourCompact(int h, char* out, size_t n) {
+  int d = h % 12; if (d == 0) d = 12;
+  snprintf(out, n, "%d%c", d, h >= 12 ? 'P' : 'A');
 }
 
 void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n) {
@@ -46,6 +54,14 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
     if (strcmp(tok, "value") == 0)              snprintf(rep, sizeof(rep), "%d", (int)lround(value));
     else if (strcmp(tok, "degreesShort") == 0)  snprintf(rep, sizeof(rep), "%d", degreesShort);
     else if (strcmp(tok, "firstClearHour") == 0) { if (in.hasFirstClearHour) hour12(in.firstClearHour, rep, sizeof(rep)); }
+    else if (strcmp(tok, "sunWindow") == 0) {
+      if (in.sunRunStartHour >= 0) {
+        char a[8], b[8];
+        hourCompact(in.sunRunStartHour, a, sizeof(a));
+        hourCompact(in.sunRunEndHour, b, sizeof(b));
+        snprintf(rep, sizeof(rep), "%s-%s", a, b);
+      }
+    }
     else if (strcmp(tok, "conditionSummary") == 0) cpy(rep, sizeof(rep), in.conditionSummary);
     else if (strcmp(tok, "sunsetLocal") == 0)  cpy(rep, sizeof(rep), in.sunsetLocal);
     else if (strcmp(tok, "weekdayName") == 0)  cpy(rep, sizeof(rep), in.weekdayName);
