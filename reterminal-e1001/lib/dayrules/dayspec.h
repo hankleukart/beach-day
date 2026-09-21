@@ -25,6 +25,10 @@ struct Inputs {
   // "sunny from 1 to 4" is the thing you actually plan around.
   double sunRunHours = 0;               // 0 when nothing is clear
   int    sunRunStartHour = -1, sunRunEndHour = -1;
+  // First and last daylight hour whose rain chance is over the threshold. Not
+  // a run: rain that stops and restarts still means "carry something from 10
+  // to 3", which is the question being asked.
+  int    rainStartHour = -1, rainEndHour = -1;
   char   conditionSummary[40] = "";
   char   sunsetLocal[12] = "";          // "7:08 PM"
   char   weekdayName[12] = "";
@@ -96,7 +100,8 @@ using IconChecker = bool (*)(const char* name);
 void setIconChecker(IconChecker fn);
 
 // {token} interpolation over the inputs plus value/degreesShort/firstClearHour.
-void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n);
+void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n,
+                 const char* footerSuffix = nullptr);
 bool fieldValue(const Inputs& in, const char* field, double& v);
 
 } // namespace day

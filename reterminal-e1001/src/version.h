@@ -6,4 +6,4 @@
 // compares strings only, so shipping new code under an unchanged version means
 // every board reports "up to date" and keeps running the old image.
 #pragma once
-#define FIRMWARE_VERSION "0.4.1"
+#define FIRMWARE_VERSION "0.5.0"

@@ -168,10 +168,14 @@ void drawRight(const ViewModel& vm) {
     }
   }
 
-  paintRoundRect(COL_X0, pillY, COL_W, pillH, 9, Role::Ink);
+  // A filled black bar is an alarm, so it belongs to the parking warning only.
+  // The sunset line is ordinary information and reads as plain text.
   const char* footer = vm.parkingActive ? vm.parkingText : s.footer;
   TextStyle ft = T_FOOTER;
-  while (ft.px > 12 && textWidth(ft, footer) > COL_W - 24) ft.px -= 1;
+  ft.role = vm.parkingActive ? Role::Paper : Role::Ink;
+  const int inset = vm.parkingActive ? 24 : 8;
+  while (ft.px > 12 && textWidth(ft, footer) > COL_W - inset) ft.px -= 1;
+  if (vm.parkingActive) paintRoundRect(COL_X0, pillY, COL_W, pillH, 9, Role::Ink);
   textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
 
   if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, H - 10, vm.statusText);

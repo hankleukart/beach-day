@@ -31,7 +31,8 @@
     "weekdayName": { "type": "string" },
     "firstClearHour": { "type": "number", "nullable": true, "description": "First daylight hour with cloudCover <= 30" },
     "sunRunHours": { "type": "number", "description": "Length of the longest unbroken run of daylight hours with cloudCover <= 30" },
-    "sunWindow": { "type": "token", "description": "That run as a compact interval, e.g. '1P-4P'. Empty when nothing is clear." }
+    "sunWindow": { "type": "token", "description": "That run as a compact interval, e.g. '1P-4P'. Empty when nothing is clear." },
+    "rainWindow": { "type": "token", "description": "First to last daylight hour with a rain chance over 20%, e.g. '10A-3P', or a single hour when that is all there is. Empty when the day stays under the threshold - show the percentage instead." }
   },
 
   "evaluation": {
@@ -83,7 +84,7 @@
       "title": ["BEACH", "DAY!"],
       "tagline": "PACK THE CAR",
       "heroIcon": "sun_and_waves",
-      "heroPanel": "light",
+      "heroPanel": "dark",
       "isBeachDay": true,
       "when": {
         "all": [
@@ -244,7 +245,13 @@
       "id": "rain",
       "label": "RAIN",
       "icon": "raindrop",
-      "value": { "field": "precipChanceMaxPct", "format": "{value}%" },
+      "value": {
+        "field": "precipChanceMaxPct",
+        "bands": [
+          { "max": 20, "text": "{value}%" },
+          { "max": 100, "text": "{rainWindow}" }
+        ]
+      },
       "word": {
         "field": "precipChanceMaxPct",
         "bands": [
@@ -299,10 +306,11 @@
       "wearTiles": "{outcome.wear} — exactly four, icon over label",
       "alsoGrab": "{outcome.alsoGrab}",
       "statStrip": "{stats} — five columns: icon, label, value, word",
-      "footer": "Sun goes down at {sunsetLocal}{outcome.footerSuffix ? ' — ' + footerSuffix : '.'}"
+      "footer": "Sunset: {sunsetLocal}",
+      "footerNote": "Plain text under the stat strip. Tokens: {sunsetLocal}, {footerSuffix}. The outcome's footerSuffix is only used if the template asks for it — e.g. \"Sunset: {sunsetLocal} — {footerSuffix}\". A filled black bar is reserved for the parking warning, so it still means 'act on this'."
     },
     "heroPanel": {
-      "default": "dark",
+      "default": "light",
       "note": "Per-outcome, on the outcome itself. 'dark' is white type on a black panel; 'light' is black type on white. Reserve 'light' for the days worth looking up for — a bright panel reads as good news, and on the 6-colour display it lets the hero icon show its real inks."
     },
     "rules": [

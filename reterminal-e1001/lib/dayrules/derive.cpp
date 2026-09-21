@@ -72,6 +72,19 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   out.sunRunHours = bestLen;
   out.sunRunStartHour = bestStart;
   out.sunRunEndHour = bestEnd;
+
+  // Wet window: first and last hour over the threshold, gaps included.
+  for (int h = h0; h <= h1; h++) {
+    for (int i = 0; i < raw.n; i++) {
+      const HourRow& r = raw.hours[i];
+      if (r.day != d || r.hour != h) continue;
+      if (r.precipProb > RAIN_WINDOW_MIN_PCT) {
+        if (out.rainStartHour < 0) out.rainStartHour = h;
+        out.rainEndHour = h;
+      }
+      break;
+    }
+  }
   if (any) {
     out.tempMinF = std::round(tMin);
     out.tempMaxF = std::round(tMax);

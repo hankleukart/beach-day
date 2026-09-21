@@ -9,6 +9,9 @@ namespace day {
 constexpr int MAX_ROWS = 48;
 constexpr int FALLBACK_START_HOUR = 6, FALLBACK_END_HOUR = 20;
 constexpr int CLEAR_CLOUD_MAX_PCT = 30;    // "first clear hour" = first hour at or under this
+// An hour counts as wet above this. day-outcomes.json decides whether to show
+// the window or the bare percentage, and its band boundary must match.
+constexpr int RAIN_WINDOW_MIN_PCT = 20;
 
 struct HourRow {
   int8_t  day, hour;

@@ -1,10 +1,20 @@
 #include "dayspec.h"
 #include <cmath>
 #include <cstdio>
+#include <cctype>
 #include <cstring>
 #include <cstdarg>
 
 namespace day {
+
+// The eyebrow is set in caps by design, but the label can come from a portal
+// entry or a geocoder, which return "Cambridge". Uppercase it here rather than
+// asking whoever types it to hold shift.
+static void upperCpy(char* dst, size_t n, const char* src) {
+  size_t i = 0;
+  if (src) for (; i + 1 < n && src[i]; i++) dst[i] = (char)toupper((unsigned char)src[i]);
+  dst[i] = '\0';
+}
 
 static void cpy(char* dst, size_t n, const char* src) {
   if (!src) { dst[0] = '\0'; return; }
@@ -40,7 +50,8 @@ static void hourCompact(int h, char* out, size_t n) {
   snprintf(out, n, "%d%c", d, h >= 12 ? 'P' : 'A');
 }
 
-void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n) {
+void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n,
+                 const char* footerSuffix) {
   size_t o = 0;
   for (const char* p = tmpl; *p && o + 1 < n; ) {
     if (*p != '{') { out[o++] = *p++; continue; }
@@ -54,6 +65,14 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
     if (strcmp(tok, "value") == 0)              snprintf(rep, sizeof(rep), "%d", (int)lround(value));
     else if (strcmp(tok, "degreesShort") == 0)  snprintf(rep, sizeof(rep), "%d", degreesShort);
     else if (strcmp(tok, "firstClearHour") == 0) { if (in.hasFirstClearHour) hour12(in.firstClearHour, rep, sizeof(rep)); }
+    else if (strcmp(tok, "rainWindow") == 0) {
+      if (in.rainStartHour >= 0) {
+        char a[8], b[8];
+        hourCompact(in.rainStartHour, a, sizeof(a));
+        if (in.rainEndHour == in.rainStartHour) snprintf(rep, sizeof(rep), "%s", a);
+        else { hourCompact(in.rainEndHour, b, sizeof(b)); snprintf(rep, sizeof(rep), "%s-%s", a, b); }
+      }
+    }
     else if (strcmp(tok, "sunWindow") == 0) {
       if (in.sunRunStartHour >= 0) {
         char a[8], b[8];
@@ -64,6 +83,7 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
     }
     else if (strcmp(tok, "conditionSummary") == 0) cpy(rep, sizeof(rep), in.conditionSummary);
     else if (strcmp(tok, "sunsetLocal") == 0)  cpy(rep, sizeof(rep), in.sunsetLocal);
+    else if (strcmp(tok, "footerSuffix") == 0) cpy(rep, sizeof(rep), footerSuffix ? footerSuffix : "");
     else if (strcmp(tok, "weekdayName") == 0)  cpy(rep, sizeof(rep), in.weekdayName);
     else if (fieldValue(in, tok, v))            snprintf(rep, sizeof(rep), "%d", (int)lround(v));
     for (const char* r = rep; *r && o + 1 < n; ) out[o++] = *r++;
@@ -416,7 +436,7 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
 
   // Header / footer strings from screen.sections
   JsonObjectConst sec = doc_["screen"]["sections"];
-  cpy(out.eyebrow, sizeof(out.eyebrow), (eyebrowOverride && eyebrowOverride[0]) ? eyebrowOverride : locationLabel());
+  upperCpy(out.eyebrow, sizeof(out.eyebrow), (eyebrowOverride && eyebrowOverride[0]) ? eyebrowOverride : locationLabel());
   cpy(out.weekday, sizeof(out.weekday), in.weekdayName);
   cpy(out.wearHeading, sizeof(out.wearHeading), sec["wearHeading"] | "WEAR TODAY");
 
@@ -439,15 +459,11 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     cpy(out.subline, sizeof(out.subline), tmp);
   }
 
-  // footer: the template's literal prefix, then the ternary the spec describes
-  const char* ft = sec["footer"] | "Sun goes down at {sunsetLocal}";
-  const char* brace = strchr(ft, '{');
-  char prefix[48];
-  size_t pl = brace ? (size_t)(brace - ft) : strlen(ft);
-  if (pl >= sizeof(prefix)) pl = sizeof(prefix) - 1;
-  memcpy(prefix, ft, pl); prefix[pl] = '\0';
-  if (oc.hasFooterSuffix && oc.footerSuffix[0]) snprintf(out.footer, sizeof(out.footer), "%s%s \xE2\x80\x94 %s", prefix, in.sunsetLocal, oc.footerSuffix);
-  else snprintf(out.footer, sizeof(out.footer), "%s%s.", prefix, in.sunsetLocal);
+  // The footer is an ordinary template. {footerSuffix} is only substituted if
+  // the template asks for it, so a spec can drop the per-outcome tail simply
+  // by not mentioning it.
+  interpolate(sec["footer"] | "Sunset: {sunsetLocal}", in, 0, 0, out.footer, sizeof(out.footer),
+              oc.hasFooterSuffix ? oc.footerSuffix : "");
   return true;
 }
 

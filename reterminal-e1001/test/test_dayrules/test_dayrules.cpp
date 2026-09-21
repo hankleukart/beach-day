@@ -154,12 +154,11 @@ void test_beach_day() {
   TEST_ASSERT_EQUAL_STRING("DAY!", s.outcome.title[1]);
   TEST_ASSERT_EQUAL_STRING("PACK THE CAR", s.outcome.tagline);
   TEST_ASSERT_EQUAL_STRING("sun_and_waves", s.outcome.heroIcon);
-  TEST_ASSERT_TRUE_MESSAGE(s.outcome.heroLight, "beach day gets the bright panel");
   TEST_ASSERT_EQUAL_INT(4, s.outcome.wearCount);
   TEST_ASSERT_EQUAL_STRING("Swimsuit", s.outcome.wear[0].label);
   TEST_ASSERT_EQUAL_STRING("swim_trunks", s.outcome.wear[0].icon);
   TEST_ASSERT_EQUAL_STRING("Also grab: water bottles and something for shade.", s.outcome.alsoGrab);
-  TEST_ASSERT_EQUAL_STRING("Sun goes down at 7:08 PM \xE2\x80\x94 home before dark!", s.footer);
+  TEST_ASSERT_EQUAL_STRING("Sunset: 7:08 PM", s.footer);
   TEST_ASSERT_EQUAL_STRING("VENICE BEACH", s.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Wednesday", s.weekday);
   TEST_ASSERT_EQUAL_STRING("Humidity 49\xE2\x80\x93" "83%", s.corner1);
@@ -230,9 +229,77 @@ void test_jacket_footer_has_no_suffix() {
   auto in = base(); in.tempMaxF = 60; in.tempMinF = 50; in.tempSwingF = 10;
   auto s = run(in);
   TEST_ASSERT_EQUAL_STRING("jacket_day", s.outcome.id);
-  TEST_ASSERT_FALSE_MESSAGE(s.outcome.heroLight, "everything else stays dark");
   TEST_ASSERT_FALSE(s.outcome.hasFooterSuffix);
-  TEST_ASSERT_EQUAL_STRING("Sun goes down at 7:08 PM.", s.footer);
+  TEST_ASSERT_EQUAL_STRING("Sunset: 7:08 PM", s.footer);
+}
+
+// Which outcome gets the bright panel is a design choice that lives in the
+// JSON and changes freely, so this tests the mechanism on a fixture instead of
+// pinning whatever day-outcomes.json currently says.
+void test_hero_panel_override() {
+  day::Spec sp; char err[128]; day::Screen sc; day::Inputs in;
+  auto load = [&](const std::string& j) {
+    TEST_ASSERT_TRUE_MESSAGE(sp.load(j.c_str(), j.size(), err, sizeof(err)), err);
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  };
+  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "light")"));
+  TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "explicit light");
+  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "dark")"));
+  TEST_ASSERT_FALSE_MESSAGE(sc.outcome.heroLight, "explicit dark");
+  load(specWith("", ""));
+  TEST_ASSERT_FALSE_MESSAGE(sc.outcome.heroLight, "no screen.heroPanel at all defaults to dark");
+  load(specWith(R"("icons": ["tshirt","sun"],)", R"("icons": ["tshirt","sun"], "screen": { "heroPanel": { "default": "light" } },)"));
+  TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.heroPanel.default");
+}
+
+void test_eyebrow_is_uppercased() {
+  day::Screen sc;
+  TEST_ASSERT_TRUE(spec.evaluate(base(), sc, "Cambridge", false));
+  TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", sc.eyebrow);
+  TEST_ASSERT_TRUE(spec.evaluate(base(), sc, "Santa Monica", false));
+  TEST_ASSERT_EQUAL_STRING("SANTA MONICA", sc.eyebrow);
+}
+
+void test_rain_window() {
+  auto in = base();
+  // Over the threshold: say when to carry something, not how likely it is.
+  in.precipChanceMaxPct = 60; in.rainStartHour = 10; in.rainEndHour = 15;
+  auto s = run(in);
+  TEST_ASSERT_EQUAL_STRING("10A-3P", s.stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("wet", s.stats[2].word);
+
+  // One wet hour reads as one hour, not a zero-length range.
+  in.rainStartHour = 11; in.rainEndHour = 11; in.precipChanceMaxPct = 35;
+  TEST_ASSERT_EQUAL_STRING("11A", run(in).stats[2].value);
+
+  // At or under the threshold the percentage is the useful thing.
+  in.precipChanceMaxPct = 20; in.rainStartHour = -1; in.rainEndHour = -1;
+  TEST_ASSERT_EQUAL_STRING("20%", run(in).stats[2].value);
+  in.precipChanceMaxPct = 0;
+  TEST_ASSERT_EQUAL_STRING("0%", run(in).stats[2].value);
+}
+
+void test_derive_rain_window() {
+  day::Raw raw;
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60;
+  int n = 0;
+  auto add = [&](int h, int pp) { raw.hours[n++] = day::HourRow{ 0, (int8_t)h, 70, 5, 50, (int16_t)pp, 50, 3 }; };
+  add(5, 90);                      // before sunrise: ignored
+  for (int h = 6; h <= 9; h++) add(h, 5);
+  add(10, 40); add(11, 10); add(12, 55);   // a dry hour in the middle stays inside the window
+  for (int h = 13; h <= 20; h++) add(h, 8);
+  add(21, 95);                     // after sunset: ignored
+  raw.n = n;
+  day::Inputs in;
+  day::derive(raw, 0, 3, in);
+  TEST_ASSERT_EQUAL_INT(10, in.rainStartHour);
+  TEST_ASSERT_EQUAL_INT(12, in.rainEndHour);
+  TEST_ASSERT_EQUAL_INT(55, (int)in.precipChanceMaxPct);
+
+  // Nothing over the threshold leaves no window at all.
+  for (int i = 0; i < raw.n; i++) raw.hours[i].precipProb = 15;
+  day::derive(raw, 0, 3, in);
+  TEST_ASSERT_EQUAL_INT(-1, in.rainStartHour);
 }
 
 void test_stats() {
@@ -242,7 +309,7 @@ void test_stats() {
   TEST_ASSERT_EQUAL_STRING("sun", s.stats[0].icon);
   TEST_ASSERT_EQUAL_STRING("84\xC2\xB0" "F", s.stats[1].value);
   TEST_ASSERT_EQUAL_STRING("warm", s.stats[1].word);
-  TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);   // dry all day: the number
   TEST_ASSERT_EQUAL_STRING("dry", s.stats[2].word);
   TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[3].value);
   TEST_ASSERT_EQUAL_STRING("calm", s.stats[3].word);
@@ -284,7 +351,7 @@ void test_sun_interval() {
 
 void test_tomorrow_and_eyebrow_override() {
   auto s = run(base(), true, "Santa Monica");
-  TEST_ASSERT_EQUAL_STRING("Santa Monica", s.eyebrow);
+  TEST_ASSERT_EQUAL_STRING("SANTA MONICA", s.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 in the morning, 84\xC2\xB0 in the afternoon", s.subline);
   TEST_ASSERT_TRUE(s.tomorrow);
 }
@@ -369,6 +436,10 @@ int main(int, char**) {
   RUN_TEST(test_layers_day);
   RUN_TEST(test_tshirt_near_threshold_copy);
   RUN_TEST(test_jacket_footer_has_no_suffix);
+  RUN_TEST(test_hero_panel_override);
+  RUN_TEST(test_eyebrow_is_uppercased);
+  RUN_TEST(test_rain_window);
+  RUN_TEST(test_derive_rain_window);
   RUN_TEST(test_stats);
   RUN_TEST(test_sun_interval);
   RUN_TEST(test_tomorrow_and_eyebrow_override);
