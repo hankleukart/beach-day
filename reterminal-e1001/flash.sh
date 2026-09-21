@@ -7,6 +7,9 @@
 #          release  renders once, then deep-sleeps
 #          rules    push only shared/v3/day-outcomes.json to the board
 #          erase    wipe saved settings (Wi-Fi, location, parking) and reflash
+#          gift     a board for someone else: erases it, flashes with no Wi-Fi
+#                   or location compiled in, and exits without the monitor so
+#                   you can unplug and do the next one
 #          test     run the rules tests on this Mac, no board needed
 #
 #   panel: e1001    7.5" monochrome   (default)
@@ -26,8 +29,8 @@ PIO=.venv/bin/pio
 
 WHAT="${1:-dev}"
 case "${2:-e1001}" in
-  e1001) RELEASE_ENV=reterminal_e1001; DEV_ENV=dev ;;
-  e1002) RELEASE_ENV=reterminal_e1002; DEV_ENV=dev_e1002 ;;
+  e1001) RELEASE_ENV=reterminal_e1001; DEV_ENV=dev; GIFT_ENV=gift_e1001 ;;
+  e1002) RELEASE_ENV=reterminal_e1002; DEV_ENV=dev_e1002; GIFT_ENV=gift_e1002 ;;
   *)     echo "unknown panel '${2}' - use e1001 or e1002"; exit 1 ;;
 esac
 
@@ -37,16 +40,31 @@ case "$WHAT" in
   erase)   echo "Erasing all saved settings..."; "$PIO" run -e "$RELEASE_ENV" -t erase; ENV="$RELEASE_ENV" ;;
   release) ENV="$RELEASE_ENV" ;;
   dev)     ENV="$DEV_ENV" ;;
-  *)       echo "usage: $0 [dev|release|rules|erase|test] [e1001|e1002]"; exit 1 ;;
+  gift)    ENV="$GIFT_ENV"; GIFT=1 ;;
+  *)       echo "usage: $0 [dev|release|rules|erase|gift|test] [e1001|e1002]"; exit 1 ;;
 esac
 echo "==> $ENV"
 
-[ -f src/beachday_config.h ] || {
+# A gift build compiles nothing personal in, so it does not need the file.
+[ -n "${GIFT:-}" ] || [ -f src/beachday_config.h ] || {
   echo "src/beachday_config.h is missing. Create it with:"
   echo "  cp src/beachday_config.example.h src/beachday_config.h"
   echo "then set your Wi-Fi and location."; exit 1
 }
 
+if [ -n "${GIFT:-}" ]; then
+  # Wipe anything a previous owner or test run left in NVS.
+  "$PIO" run -e "$ENV" -t erase
+fi
+
 "$PIO" run -e "$ENV" -t upload
 "$PIO" run -e "$ENV" -t uploadfs
+
+if [ -n "${GIFT:-}" ]; then
+  echo
+  echo "==> Done. This board will start as a 'BeachDay-Setup-xxxx' hotspot."
+  echo "    Unplug it and flash the next one."
+  exit 0
+fi
+
 exec "$PIO" device monitor -e "$ENV"

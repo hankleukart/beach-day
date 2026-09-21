@@ -44,9 +44,28 @@ Then [flash.sh](flash.sh) wraps the usual commands:
 ./flash.sh release          # real build: renders once, then deep-sleeps
 ./flash.sh dev e1002        # the 6-colour panel
 ./flash.sh release e1002
+./flash.sh gift e1002       # a board for someone else - see below
 ./flash.sh rules            # push only the rules JSON
 ./flash.sh test             # rules tests on your Mac, no board needed
 ```
+
+### Flashing a batch for other people
+
+`./flash.sh gift <panel>` is the one to use for boards that leave the house.
+A `release` build compiles in whatever is in your `beachday_config.h`, so a
+board flashed that way arrives with **your** Wi-Fi and coordinates and never
+opens the setup portal. The gift build compiles in none of it: no network, no
+location, no label. It also erases NVS first, so a board that was previously
+set up or tested starts genuinely blank, and it skips the serial monitor so
+you can unplug and move to the next one.
+
+```sh
+./flash.sh gift e1002     # plug in, run, unplug, repeat
+./flash.sh gift e1001
+```
+
+Each board then starts as its own `BeachDay-Setup-xxxx` hotspot and the person
+who receives it enters their own Wi-Fi and town.
 
 ## Two panels, one layout
 

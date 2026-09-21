@@ -86,12 +86,23 @@ const Settings& loadSettings() {
   if (loaded) return g;
 
   // 1. compile-time defaults
+#ifdef BEACHDAY_GIFT
+  // A board being handed to someone else must start with nothing of ours on
+  // it: no Wi-Fi (so it opens the setup portal), no home coordinates, no
+  // label. Built by `flash.sh gift`, which also erases NVS first.
+  copyStr(g.ssid, sizeof(g.ssid), "YOUR_WIFI");
+  copyStr(g.password, sizeof(g.password), "");
+  g.latitude = 0; g.longitude = 0;
+  g.haveCoords = false;
+  copyStr(g.locationName, sizeof(g.locationName), "");
+#else
   copyStr(g.ssid, sizeof(g.ssid), CFG_WIFI_SSID);
   copyStr(g.password, sizeof(g.password), CFG_WIFI_PASSWORD);
   g.latitude  = CFG_LATITUDE;
   g.longitude = CFG_LONGITUDE;
   g.haveCoords = true;
   copyStr(g.locationName, sizeof(g.locationName), CFG_LOCATION_NAME);
+#endif
   g.wakeDayMinutes   = CFG_WAKE_DAY_MINUTES;
   g.wakeNightMinutes = CFG_WAKE_NIGHT_MINUTES;
   g.retryMinutes     = CFG_RETRY_MINUTES;
