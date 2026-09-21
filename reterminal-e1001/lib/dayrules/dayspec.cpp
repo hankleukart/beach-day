@@ -215,6 +215,13 @@ bool Spec::validate(JsonObjectConst root, char* err, size_t errLen) const {
       if (strcmp(hp, "light") != 0 && strcmp(hp, "dark") != 0)
         return v.fail("%s: heroPanel must be light or dark", id);
     }
+    if (o["heroColor"].is<const char*>()) {
+      static const char* inks[] = { "none", "yellow", "blue", "red", "green" };
+      const char* hc = o["heroColor"];
+      bool ok = false;
+      for (auto k : inks) if (strcmp(hc, k) == 0) { ok = true; break; }
+      if (!ok) return v.fail("%s: heroColor '%s' is not an available ink", id, hc);
+    }
     idx++;
   }
 
@@ -416,6 +423,7 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     if (!hp) hp = doc_["screen"]["heroPanel"]["default"] | "dark";
     oc.heroLight = (strcmp(hp, "light") == 0);
   }
+  cpy(oc.heroColor, sizeof(oc.heroColor), chosen["heroColor"] | "none");
   oc.wearCount = 0;
   for (JsonObjectConst w : chosen["wear"].as<JsonArrayConst>()) {
     if (oc.wearCount >= 4) break;

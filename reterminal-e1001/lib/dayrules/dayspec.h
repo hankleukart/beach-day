@@ -45,6 +45,7 @@ struct Outcome {
   char heroIcon[20] = "";
   bool isBeachDay = false;
   bool heroLight = false;      // black type on white, instead of white on black
+  char heroColor[8] = "none";  // none | yellow | blue | red | green (colour panels only)
   Wear wear[4];
   int  wearCount = 0;
   char alsoGrab[180] = "";

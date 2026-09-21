@@ -17,6 +17,24 @@ void paintDisc(int cx, int cy, int r, Role role);
 void paintThickLine(int x0, int y0, int x1, int y1, int w, Role role);
 void paintHLine(int x0, int x1, int y, int thickness, Role role);
 
+// A large flat field of one ink is the thing this panel does well, so the hero
+// gets a colour and everything else stays black on white. Mono has no way to
+// show a tint without dithering under type, so it collapses to the light/dark
+// panel it already had - the monochrome layout is unchanged.
+enum class Tint : uint8_t { None, Yellow, Blue, Red, Green };
+
+struct HeroSurface {
+  Role bg;        // fill
+  Role fg;        // type and icon strokes
+  bool accents;   // let the icon use its own inks (only on a neutral field)
+};
+// preferLight: the outcome's light/dark choice, which is what mono obeys.
+HeroSurface paintHeroSurface(Tint tint, bool preferLight);
+
+// A solid bar that means "act on this". Red where red exists.
+void paintAlertBar(int x, int y, int w, int h, int rad);
+Role paintAlertTextRole();
+
 // The stat strip's backing. On a 1-bit panel a dot field behind type destroys
 // it, so this is an outline here; a colour panel fills it with the band tone.
 void paintBandPanel(int x, int y, int w, int h, int rad);

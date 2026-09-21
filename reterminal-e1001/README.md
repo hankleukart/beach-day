@@ -80,15 +80,50 @@ Because both are 800×480 on the same pins, **the layout, fonts and icons are
 shared verbatim**. Only two files differ: `src/panel_e1002.cpp` (the driver)
 and the role table it feeds.
 
-Everything draws in *roles* — ink, paper, caption, band, and the accent fills
-`Sun` / `Water` / `Leaf` / `Warm` that icons carry. `src/paint.cpp` is the only
-place a role becomes a colour:
+### How colour is used
 
-- **E1001** has two inks, so accents become a 25% dot pattern, and only above
+Six pigment inks, no grey, no tints, no blending, and a 30-second refresh. That
+rewards **large flat fields** and punishes small coloured detail, so the colour
+design is deliberately narrow:
+
+**The hero panel takes one flat ink, chosen by the outcome.** It is a third of
+the screen, so the verdict is readable from across the room before a word is.
+Only three outcomes are coloured, which is what keeps each one learnable:
+
+| | | |
+| --- | --- | --- |
+| **yellow** | Beach Day | go to the beach |
+| **blue** | Rain Boots Day | take rain gear |
+| **red** | Big Coat Day | it is genuinely cold |
+
+Everything else stays black or white. Seven coloured outcomes would be
+confetti; three are a vocabulary. Type colour follows automatically — black on
+yellow, white on the darker inks.
+
+**The parking bar is red**, because a solid bar already means "act on this" and
+red says it in one glance.
+
+**Stat icons keep their own inks** — yellow sun, blue raindrop, green leaf, red
+thermometer — because there the colour *is* the data.
+
+Everything else is black on white. Two competing colour zones would fight, and
+the right-hand column is for reading, not for glancing.
+
+Everything draws in *roles* — ink, paper, caption, band, and the accent fills
+`Sun` / `Water` / `Leaf` / `Warm`. `src/paint.cpp` is the only place a role
+becomes a colour:
+
+- **E1001** has two inks. Accents become a 25% dot pattern and only above
   40 px — inside a 22 px icon a dither is noise, so small icons draw as plain
-  line art.
-- **E1002** has six, so accents are real ink at every size: a yellow sun, blue
-  water, a green leaf, a red thermometer.
+  line art. The hero tint is ignored entirely and the panel uses the outcome's
+  `heroPanel: light|dark`, so **the monochrome design is unchanged** by any of
+  the colour work: nothing on mono is ever asked to fake an ink.
+- **E1002** has six, so accents are real ink at every size, and the hero can
+  carry a flat tint.
+
+On a *coloured* hero the icon draws as a clean silhouette in the foreground
+colour rather than its own inks — a yellow sun on a yellow panel would vanish,
+and four inks in one corner would clash.
 
 Neither panel has a light grey, so the stat strip's `#F2F2F2` is an outline on
 both. A dot field there destroyed the type sitting on it, and the colour panel

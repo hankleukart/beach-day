@@ -46,6 +46,7 @@
       "title": ["RAIN", "BOOTS", "DAY!"],
       "tagline": "PUDDLES AHEAD",
       "heroIcon": "rain_boot",
+      "heroColor": "blue",
       "when": {
         "any": [
           { "field": "precipChanceMaxPct", "op": ">=", "value": 50 }
@@ -65,6 +66,7 @@
       "title": ["BIG", "COAT", "DAY"],
       "tagline": "HATS AND MITTENS",
       "heroIcon": "puffy_coat",
+      "heroColor": "red",
       "when": {
         "all": [
           { "field": "tempMaxF", "op": "<", "value": 52 }
@@ -84,6 +86,7 @@
       "title": ["BEACH", "DAY!"],
       "tagline": "PACK THE CAR",
       "heroIcon": "sun_and_waves",
+      "heroColor": "yellow",
       "heroPanel": "dark",
       "isBeachDay": true,
       "when": {
@@ -308,6 +311,10 @@
       "statStrip": "{stats} — five columns: icon, label, value, word",
       "footer": "Sunset: {sunsetLocal}",
       "footerNote": "Plain text under the stat strip. Tokens: {sunsetLocal}, {footerSuffix}. The outcome's footerSuffix is only used if the template asks for it — e.g. \"Sunset: {sunsetLocal} — {footerSuffix}\". A filled black bar is reserved for the parking warning, so it still means 'act on this'."
+    },
+    "heroColor": {
+      "note": "Colour panels only (reTerminal E1002). One flat ink across the hero panel, which is a third of the screen - the verdict is readable from across a room before a word is. Available inks: yellow, blue, red, green; 'none' leaves it black or white. Deliberately used on only the three days that demand a decision, so each colour stays learnable: yellow means go to the beach, blue means take rain gear, red means it is genuinely cold. Everything else is neutral, which is also what keeps the palette from turning into confetti. Type colour is chosen automatically - black on yellow, white on the darker inks. A mono panel ignores this entirely and uses heroPanel, so the black-and-white design is unchanged.",
+      "default": "none"
     },
     "heroPanel": {
       "default": "light",

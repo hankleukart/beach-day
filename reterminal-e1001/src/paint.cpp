@@ -96,6 +96,33 @@ void paintHLine(int x0, int x1, int y, int thickness, Role role) {
   for (int i = 0; i < thickness; i++) paintSpan(y + i, x0, x1, role);
 }
 
+HeroSurface paintHeroSurface(Tint tint, bool preferLight) {
+  HeroSurface h;
+  if (!panelIsColor() || tint == Tint::None) {
+    // Neutral field: the icon may use its own inks, except over black on mono
+    // where a dither would be invisible.
+    h.bg = preferLight ? Role::Paper : Role::Ink;
+    h.fg = preferLight ? Role::Ink : Role::Paper;
+    h.accents = panelIsColor() || preferLight;
+    return h;
+  }
+  switch (tint) {
+    case Tint::Yellow: h.bg = Role::Sun;   h.fg = Role::Ink;   break;  // light ink
+    case Tint::Blue:   h.bg = Role::Water; h.fg = Role::Paper; break;
+    case Tint::Red:    h.bg = Role::Warm;  h.fg = Role::Paper; break;
+    default:           h.bg = Role::Leaf;  h.fg = Role::Paper; break;
+  }
+  // On a coloured field the icon reads as a clean silhouette; its own inks
+  // would either vanish into the background or turn the panel into a clash.
+  h.accents = false;
+  return h;
+}
+
+void paintAlertBar(int x, int y, int w, int h, int rad) {
+  paintRoundRect(x, y, w, h, rad, panelIsColor() ? Role::Warm : Role::Ink);
+}
+Role paintAlertTextRole() { return Role::Paper; }
+
 void paintBandPanel(int x, int y, int w, int h, int rad) {
   // The design calls for a #F2F2F2 fill. Neither panel has a light grey - mono
   // would need a dot field, which destroys the type sitting on it, and the

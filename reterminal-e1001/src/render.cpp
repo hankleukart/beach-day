@@ -32,22 +32,31 @@ const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
 const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
 const TextStyle T_MSG_B    { Face::BodyLight, 16, 0,    Role::Ink };
 
+Tint tintFor(const char* name) {
+  if (!name) return Tint::None;
+  if (!strcmp(name, "yellow")) return Tint::Yellow;
+  if (!strcmp(name, "blue"))   return Tint::Blue;
+  if (!strcmp(name, "red"))    return Tint::Red;
+  if (!strcmp(name, "green"))  return Tint::Green;
+  return Tint::None;
+}
+
 void drawHero(const ViewModel& vm) {
   const day::Outcome& oc = vm.screen.outcome;
   const int cx = LEFT_W / 2;
 
-  // "light" is black on white - reserved for the days worth looking up for.
-  // A bright panel reads as good news, and on the colour display it lets the
-  // hero icon show its real inks instead of sitting knocked out of black.
-  const bool light = oc.heroLight;
-  const Role fg = light ? Role::Ink : Role::Paper;
-  const Role bg = light ? Role::Paper : Role::Ink;
+  // One flat field of colour is the whole colour idea: the panel is 35% of the
+  // screen, so the verdict is legible from across a room before a word is
+  // read. Mono ignores the tint and uses the outcome's light/dark choice, so
+  // the black-and-white layout is exactly what it was.
+  const HeroSurface hero = paintHeroSurface(tintFor(oc.heroColor), oc.heroLight);
 
-  paintRect(0, 0, LEFT_W, H, bg);
-  if (light) paintRect(LEFT_W - 3, 0, 3, H, Role::Ink);   // keep the two zones apart
+  paintRect(0, 0, LEFT_W, H, hero.bg);
+  // A white hero needs a rule to stay a distinct zone; a filled one does not.
+  if (hero.bg == Role::Paper) paintRect(LEFT_W - 3, 0, 3, H, Role::Ink);
 
-  TextStyle eyebrow = T_EYEBROW; eyebrow.role = fg;
-  TextStyle tagline = T_TAGLINE; tagline.role = fg;
+  TextStyle eyebrow = T_EYEBROW; eyebrow.role = hero.fg;
+  TextStyle tagline = T_TAGLINE; tagline.role = hero.fg;
   textDrawCentered(eyebrow, cx, 44, vm.screen.eyebrow);
 
   const int lineH = 46;
@@ -58,15 +67,13 @@ void drawHero(const ViewModel& vm) {
   int iconCy = firstBaseline - 46 - 56;
 
   IconStyle heroStyle;
-  heroStyle.ink = fg;
-  heroStyle.paper = bg;
-  // A dither is ink on paper; over a black field it is invisible. Real inks
-  // work either way.
-  heroStyle.accents = panelIsColor() || (light && paintAccentsLegibleAt(iconPx));
+  heroStyle.ink = hero.fg;
+  heroStyle.paper = hero.bg;
+  heroStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(iconPx));
   drawIcon(oc.heroIcon, cx, iconCy, iconPx, heroStyle);
 
   for (int i = 0; i < lines; i++) {
-    TextStyle st = T_HEADLINE; st.role = fg;
+    TextStyle st = T_HEADLINE; st.role = hero.fg;
     while (st.px > 30 && textWidth(st, oc.title[i]) > LEFT_W - 28) st.px -= 2;
     textDrawCentered(st, cx, firstBaseline + i * lineH, oc.title[i]);
   }
@@ -172,10 +179,10 @@ void drawRight(const ViewModel& vm) {
   // The sunset line is ordinary information and reads as plain text.
   const char* footer = vm.parkingActive ? vm.parkingText : s.footer;
   TextStyle ft = T_FOOTER;
-  ft.role = vm.parkingActive ? Role::Paper : Role::Ink;
+  ft.role = vm.parkingActive ? paintAlertTextRole() : Role::Ink;
   const int inset = vm.parkingActive ? 24 : 8;
   while (ft.px > 12 && textWidth(ft, footer) > COL_W - inset) ft.px -= 1;
-  if (vm.parkingActive) paintRoundRect(COL_X0, pillY, COL_W, pillH, 9, Role::Ink);
+  if (vm.parkingActive) paintAlertBar(COL_X0, pillY, COL_W, pillH, 9);
   textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
 
   if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, H - 10, vm.statusText);

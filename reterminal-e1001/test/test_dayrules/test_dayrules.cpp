@@ -252,6 +252,20 @@ void test_hero_panel_override() {
   TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.heroPanel.default");
 }
 
+void test_hero_colour() {
+  day::Spec sp; char err[128]; day::Screen sc; day::Inputs in;
+  auto load = [&](const std::string& j) {
+    TEST_ASSERT_TRUE_MESSAGE(sp.load(j.c_str(), j.size(), err, sizeof(err)), err);
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  };
+  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroColor": "yellow")"));
+  TEST_ASSERT_EQUAL_STRING("yellow", sc.outcome.heroColor);
+  load(specWith("", ""));
+  TEST_ASSERT_EQUAL_STRING_MESSAGE("none", sc.outcome.heroColor, "absent means no tint");
+  rejects("heroColor that is not an available ink",
+          specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroColor": "orange")"));
+}
+
 void test_eyebrow_is_uppercased() {
   day::Screen sc;
   TEST_ASSERT_TRUE(spec.evaluate(base(), sc, "Cambridge", false));
@@ -437,6 +451,7 @@ int main(int, char**) {
   RUN_TEST(test_tshirt_near_threshold_copy);
   RUN_TEST(test_jacket_footer_has_no_suffix);
   RUN_TEST(test_hero_panel_override);
+  RUN_TEST(test_hero_colour);
   RUN_TEST(test_eyebrow_is_uppercased);
   RUN_TEST(test_rain_window);
   RUN_TEST(test_derive_rain_window);
