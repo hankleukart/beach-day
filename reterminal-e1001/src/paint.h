@@ -3,12 +3,11 @@
 // black, paper is white, colour accents and the band are dot patterns. A colour
 // panel (E1002) gets a second table here and nothing above it changes.
 #pragma once
-#include <Adafruit_GFX.h>
 #include <cstdint>
 
 enum class Role : uint8_t { Ink = 0, Paper = 1, Sun = 2, Water = 3, Leaf = 4, Warm = 5, Band = 6, Caption = 7 };
 
-void paintBegin(Adafruit_GFX* gfx);
+void paintBegin();
 void paintPixel(int x, int y, Role r);
 void paintSpan(int y, int x0, int x1, Role r);                       // inclusive
 void paintRect(int x, int y, int w, int h, Role r);

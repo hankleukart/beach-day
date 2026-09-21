@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "name": "Venice Beach Display — day outcomes",
+  "name": "Beach Day Outcomes",
   "description": "Rules for picking one outcome per day and rendering the e-ink screen. Evaluate outcomes in array order and stop at the first whose `when` passes; `jacket_day` is the catch-all and must stay last.",
 
   "location": {
@@ -61,7 +61,7 @@
     },
     {
       "id": "big_coat_day",
-      "title": ["BIG", "COAT", "DAY!"],
+      "title": ["BIG", "COAT", "DAY"],
       "tagline": "HATS AND MITTENS",
       "heroIcon": "puffy_coat",
       "when": {
@@ -83,6 +83,7 @@
       "title": ["BEACH", "DAY!"],
       "tagline": "PACK THE CAR",
       "heroIcon": "sun_and_waves",
+      "heroPanel": "light",
       "isBeachDay": true,
       "when": {
         "all": [
@@ -132,7 +133,7 @@
     },
     {
       "id": "layers_day",
-      "title": ["LAYERS", "DAY!"],
+      "title": ["LAYERS", "DAY"],
       "tagline": "PEEL THEM OFF LATER",
       "heroIcon": "hoodie",
       "when": {
@@ -152,7 +153,7 @@
     },
     {
       "id": "tshirt_day",
-      "title": ["T-SHIRT", "DAY!"],
+      "title": ["T-SHIRT", "DAY"],
       "tagline": "SHORTS WEATHER",
       "heroIcon": "tshirt",
       "when": {
@@ -175,7 +176,7 @@
     },
     {
       "id": "jacket_day",
-      "title": ["JACKET", "DAY!"],
+      "title": ["JACKET", "DAY"],
       "tagline": "GRAB ONE BY THE DOOR",
       "heroIcon": "jacket",
       "isFallback": true,
@@ -299,6 +300,10 @@
       "alsoGrab": "{outcome.alsoGrab}",
       "statStrip": "{stats} — five columns: icon, label, value, word",
       "footer": "Sun goes down at {sunsetLocal}{outcome.footerSuffix ? ' — ' + footerSuffix : '.'}"
+    },
+    "heroPanel": {
+      "default": "dark",
+      "note": "Per-outcome, on the outcome itself. 'dark' is white type on a black panel; 'light' is black type on white. Reserve 'light' for the days worth looking up for — a bright panel reads as good news, and on the 6-colour display it lets the hero icon show its real inks."
     },
     "rules": [
       "Never phrase a stat as a question and never show a checkmark — the value plus its plain word carries the verdict.",

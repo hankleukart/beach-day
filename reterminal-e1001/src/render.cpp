@@ -1,21 +1,15 @@
 #include "render.h"
 #include <Arduino.h>
-#include <SPI.h>
-#include <GxEPD2_BW.h>
 #include <cstring>
-#include "pins.h"
+#include "panel.h"
 #include "paint.h"
 #include "text.h"
 #include "icons.h"
 
 namespace {
 
-SPIClass hspi(HSPI);
-GxEPD2_BW<GxEPD2_750_GDEY075T7, GxEPD2_750_GDEY075T7::HEIGHT>
-    display(GxEPD2_750_GDEY075T7(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
-
 // ---- geometry: the 1200x825 mock re-laid at 800x480, same proportions ------
-constexpr int W = 800, H = 480;
+constexpr int W = PANEL_W, H = PANEL_H;
 constexpr int LEFT_W = 282;                    // 35% like the mock
 constexpr int COL_X0 = 312, COL_X1 = 778;            // right column content bounds
 constexpr int COL_W = COL_X1 - COL_X0;
@@ -40,27 +34,43 @@ const TextStyle T_MSG_B    { Face::BodyLight, 16, 0,    Role::Ink };
 
 void drawHero(const ViewModel& vm) {
   const day::Outcome& oc = vm.screen.outcome;
-  paintRect(0, 0, LEFT_W, H, Role::Ink);
   const int cx = LEFT_W / 2;
 
-  textDrawCentered(T_EYEBROW, cx, 44, vm.screen.eyebrow);
+  // "light" is black on white - reserved for the days worth looking up for.
+  // A bright panel reads as good news, and on the colour display it lets the
+  // hero icon show its real inks instead of sitting knocked out of black.
+  const bool light = oc.heroLight;
+  const Role fg = light ? Role::Ink : Role::Paper;
+  const Role bg = light ? Role::Paper : Role::Ink;
 
-  // Headline block sits at the visual centre; three-line titles shift up.
+  paintRect(0, 0, LEFT_W, H, bg);
+  if (light) paintRect(LEFT_W - 3, 0, 3, H, Role::Ink);   // keep the two zones apart
+
+  TextStyle eyebrow = T_EYEBROW; eyebrow.role = fg;
+  TextStyle tagline = T_TAGLINE; tagline.role = fg;
+  textDrawCentered(eyebrow, cx, 44, vm.screen.eyebrow);
+
   const int lineH = 46;
   int lines = oc.titleLines;
   int lastBaseline = (lines >= 3) ? 340 : 318;
   int firstBaseline = lastBaseline - (lines - 1) * lineH;
-  int iconCy = firstBaseline - 46 - 56;         // 100px icon above the block
-  IconStyle heroStyle; heroStyle.ink = Role::Paper; heroStyle.paper = Role::Ink; heroStyle.accents = false;
-  drawIcon(oc.heroIcon, cx, iconCy, 100, heroStyle);
+  const int iconPx = 100;
+  int iconCy = firstBaseline - 46 - 56;
+
+  IconStyle heroStyle;
+  heroStyle.ink = fg;
+  heroStyle.paper = bg;
+  // A dither is ink on paper; over a black field it is invisible. Real inks
+  // work either way.
+  heroStyle.accents = panelIsColor() || (light && paintAccentsLegibleAt(iconPx));
+  drawIcon(oc.heroIcon, cx, iconCy, iconPx, heroStyle);
 
   for (int i = 0; i < lines; i++) {
-    // Fit check: shrink a long word rather than clip it.
-    TextStyle st = T_HEADLINE;
+    TextStyle st = T_HEADLINE; st.role = fg;
     while (st.px > 30 && textWidth(st, oc.title[i]) > LEFT_W - 28) st.px -= 2;
     textDrawCentered(st, cx, firstBaseline + i * lineH, oc.title[i]);
   }
-  textDrawCentered(T_TAGLINE, cx, 434, oc.tagline);
+  textDrawCentered(tagline, cx, 434, oc.tagline);
 }
 
 void drawRight(const ViewModel& vm) {
@@ -174,33 +184,24 @@ void frame() {
 } // namespace
 
 void renderBegin() {
-  pinMode(PIN_EPD_RST, OUTPUT);
-  pinMode(PIN_EPD_DC, OUTPUT);
-  pinMode(PIN_EPD_CS, OUTPUT);
-  hspi.begin(PIN_EPD_SCK, -1, PIN_EPD_MOSI, -1);
-  display.epd2.selectSPI(hspi, SPISettings(2000000, MSBFIRST, SPI_MODE0));
-  display.init(0, true, 10, false);
-  display.setRotation(0);
-  display.setTextWrap(false);
-  paintBegin(&display);
+  panelBegin();
+  paintBegin();
   textInit();
 }
 
 void renderScreen(const ViewModel& vm) {
-  display.setFullWindow();
-  display.firstPage();
+  panelFirstPage();
   do {
-    display.fillScreen(GxEPD_WHITE);
+    panelFill(panelPaper());
     drawHero(vm);
     drawRight(vm);
-  } while (display.nextPage());
+  } while (panelNextPage());
 }
 
 void renderMessage(const char* title, const char* line1, const char* line2) {
-  display.setFullWindow();
-  display.firstPage();
+  panelFirstPage();
   do {
-    display.fillScreen(GxEPD_WHITE);
+    panelFill(panelPaper());
     frame();
     textDrawCentered(T_MSG_H, W / 2, H / 2 - 36, title);
     char lines[2][160];
@@ -208,14 +209,13 @@ void renderMessage(const char* title, const char* line1, const char* line2) {
     if (line1) { int n = textWrap(T_MSG_B, line1, W - 120, lines, 2); for (int i = 0; i < n; i++) { textDrawCentered(T_MSG_B, W / 2, y, lines[i]); y += 22; } }
     y += 8;
     if (line2) { int n = textWrap(T_MSG_B, line2, W - 120, lines, 2); for (int i = 0; i < n; i++) { textDrawCentered(T_MSG_B, W / 2, y, lines[i]); y += 22; } }
-  } while (display.nextPage());
+  } while (panelNextPage());
 }
 
 void renderSetup(const char* apName, const char* ip) {
-  display.setFullWindow();
-  display.firstPage();
+  panelFirstPage();
   do {
-    display.fillScreen(GxEPD_WHITE);
+    panelFill(panelPaper());
     frame();
     const int x0 = 60;
     int y = 84;
@@ -248,7 +248,7 @@ void renderSetup(const char* apName, const char* ip) {
 
     textDrawCentered(T_STATUS, W / 2, H - 42, "This screen turns off after 10 minutes. Hold the middle button");
     textDrawCentered(T_STATUS, W / 2, H - 28, "and press the right one to open setup again.");
-  } while (display.nextPage());
+  } while (panelNextPage());
 }
 
-void renderEnd() { display.hibernate(); }
+void renderEnd() { panelHibernate(); }

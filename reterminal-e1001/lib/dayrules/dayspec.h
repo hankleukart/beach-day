@@ -40,6 +40,7 @@ struct Outcome {
   char tagline[32] = "";
   char heroIcon[20] = "";
   bool isBeachDay = false;
+  bool heroLight = false;      // black type on white, instead of white on black
   Wear wear[4];
   int  wearCount = 0;
   char alsoGrab[180] = "";

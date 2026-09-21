@@ -190,6 +190,11 @@ bool Spec::validate(JsonObjectConst root, char* err, size_t errLen) const {
     } else return v.fail("%s: alsoGrab must be text or an object", id);
 
     if (o["footerSuffix"].is<const char*>() && !v.fits("footerSuffix", id, o["footerSuffix"], sizeof(Outcome::footerSuffix))) return false;
+    if (o["heroPanel"].is<const char*>()) {
+      const char* hp = o["heroPanel"];
+      if (strcmp(hp, "light") != 0 && strcmp(hp, "dark") != 0)
+        return v.fail("%s: heroPanel must be light or dark", id);
+    }
     idx++;
   }
 
@@ -386,6 +391,11 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
   cpy(oc.tagline, sizeof(oc.tagline), chosen["tagline"] | "");
   cpy(oc.heroIcon, sizeof(oc.heroIcon), chosen["heroIcon"] | "");
   oc.isBeachDay = chosen["isBeachDay"] | false;
+  {
+    const char* hp = chosen["heroPanel"] | (const char*)nullptr;
+    if (!hp) hp = doc_["screen"]["heroPanel"]["default"] | "dark";
+    oc.heroLight = (strcmp(hp, "light") == 0);
+  }
   oc.wearCount = 0;
   for (JsonObjectConst w : chosen["wear"].as<JsonArrayConst>()) {
     if (oc.wearCount >= 4) break;

@@ -94,6 +94,8 @@ void test_rejects_bad_specs() {
   rejects("only three wear items",        specWith(R"(,{"label":"D","icon":"tshirt"} ])", R"( ])"));
   rejects("title line too long for the buffer",
           specWith(R"("title": ["ONLY"])", R"("title": ["ABSOLUTELY ENORMOUS"])"));
+  rejects("heroPanel that is neither light nor dark",
+          specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "beige")"));
   rejects("too many title lines",
           specWith(R"("title": ["ONLY"])", R"("title": ["A","B","C","D"])"));
   rejects("byFailedTest keyed on a non-field",
@@ -152,6 +154,7 @@ void test_beach_day() {
   TEST_ASSERT_EQUAL_STRING("DAY!", s.outcome.title[1]);
   TEST_ASSERT_EQUAL_STRING("PACK THE CAR", s.outcome.tagline);
   TEST_ASSERT_EQUAL_STRING("sun_and_waves", s.outcome.heroIcon);
+  TEST_ASSERT_TRUE_MESSAGE(s.outcome.heroLight, "beach day gets the bright panel");
   TEST_ASSERT_EQUAL_INT(4, s.outcome.wearCount);
   TEST_ASSERT_EQUAL_STRING("Swimsuit", s.outcome.wear[0].label);
   TEST_ASSERT_EQUAL_STRING("swim_trunks", s.outcome.wear[0].icon);
@@ -227,6 +230,7 @@ void test_jacket_footer_has_no_suffix() {
   auto in = base(); in.tempMaxF = 60; in.tempMinF = 50; in.tempSwingF = 10;
   auto s = run(in);
   TEST_ASSERT_EQUAL_STRING("jacket_day", s.outcome.id);
+  TEST_ASSERT_FALSE_MESSAGE(s.outcome.heroLight, "everything else stays dark");
   TEST_ASSERT_FALSE(s.outcome.hasFooterSuffix);
   TEST_ASSERT_EQUAL_STRING("Sun goes down at 7:08 PM.", s.footer);
 }

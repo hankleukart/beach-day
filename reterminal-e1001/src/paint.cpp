@@ -1,37 +1,52 @@
 #include "paint.h"
-#include <GxEPD2_BW.h>
+#include "panel.h"
 #include <cstdlib>
+#include <cmath>
 
 namespace {
-Adafruit_GFX* g = nullptr;
 
-// Mono backend. Accents are a 25% ordered pattern, the band 12.5%; both only
-// ever ADD black, so painting them under ink later is safe.
+inline bool isAccent(Role r) {
+  return r == Role::Sun || r == Role::Water || r == Role::Leaf || r == Role::Warm;
+}
+
+// Mono only: accents become a 25% ordered pattern and the band 12.5%. Both
+// only ever ADD ink, so drawing them before ink is safe. On a colour panel
+// nothing is patterned - the inks exist.
 inline bool patternOn(int x, int y, Role r) {
+  if (r == Role::Band) return ((x & 3) == 0) && ((y & 1) == 0);
+  return ((x & 1) == 0) && ((y & 1) == 0);
+}
+inline bool isPattern(Role r) {
+  if (panelIsColor()) return false;
+  return r == Role::Band || isAccent(r);
+}
+
+inline uint16_t colorFor(Role r) {
   switch (r) {
-    case Role::Band: return ((x & 3) == 0) && ((y & 1) == 0);
-    case Role::Sun: case Role::Water: case Role::Leaf: case Role::Warm:
-      return ((x & 1) == 0) && ((y & 1) == 0);
-    default: return true;
+    case Role::Paper:   return panelPaper();
+    case Role::Caption: return panelCaption();
+    case Role::Band:    return panelPaper();
+    case Role::Sun:     return panelAccent(2);
+    case Role::Water:   return panelAccent(3);
+    case Role::Leaf:    return panelAccent(4);
+    case Role::Warm:    return panelAccent(5);
+    default:            return panelInk();
   }
 }
-inline bool isPattern(Role r) { return r == Role::Band || r == Role::Sun || r == Role::Water || r == Role::Leaf || r == Role::Warm; }
-}
 
-void paintBegin(Adafruit_GFX* gfx) { g = gfx; }
+} // namespace
+
+void paintBegin() {}
 
 void paintPixel(int x, int y, Role r) {
-  if (!g) return;
-  if (r == Role::Paper) { g->drawPixel(x, y, GxEPD_WHITE); return; }
-  if (isPattern(r)) { if (patternOn(x, y, r)) g->drawPixel(x, y, GxEPD_BLACK); return; }
-  g->drawPixel(x, y, GxEPD_BLACK);
+  if (isPattern(r)) { if (patternOn(x, y, r)) panelPixel(x, y, panelInk()); return; }
+  panelPixel(x, y, colorFor(r));
 }
 
 void paintSpan(int y, int x0, int x1, Role r) {
-  if (!g) return;
   if (x1 < x0) { int t = x0; x0 = x1; x1 = t; }
-  if (!isPattern(r)) { g->drawFastHLine(x0, y, x1 - x0 + 1, r == Role::Paper ? GxEPD_WHITE : GxEPD_BLACK); return; }
-  for (int x = x0; x <= x1; x++) if (patternOn(x, y, r)) g->drawPixel(x, y, GxEPD_BLACK);
+  if (!isPattern(r)) { panelHSpan(x0, x1, y, colorFor(r)); return; }
+  for (int x = x0; x <= x1; x++) if (patternOn(x, y, r)) panelPixel(x, y, panelInk());
 }
 
 void paintRect(int x, int y, int w, int h, Role r) {
@@ -82,13 +97,14 @@ void paintHLine(int x0, int x1, int y, int thickness, Role role) {
 }
 
 void paintBandPanel(int x, int y, int w, int h, int rad) {
-  // Mono: outline only. The design calls for #F2F2F2, and the nearest 1-bit
-  // equivalent - a dot field - sits directly behind the stat values and makes
-  // them unreadable. An outline carries the same grouping with no cost to type.
+  // The design calls for a #F2F2F2 fill. Neither panel has a light grey - mono
+  // would need a dot field, which destroys the type sitting on it, and the
+  // 6-colour panel has no grey ink at all. An outline carries the same
+  // grouping on both and costs the type nothing.
   paintRoundRectStroke(x, y, w, h, rad, 2, Role::Ink);
 }
 
 bool paintAccentsLegibleAt(int featurePx) {
-  // A 25% dot pattern inside a 22px icon is noise, not colour.
-  return featurePx >= 40;
+  // Real ink reads at any size; a 25% dot pattern inside a 22px icon is noise.
+  return panelIsColor() ? true : featurePx >= 40;
 }

@@ -6,9 +6,9 @@ renders to the ePaper panel, and deep-sleeps until the next update.
 
 **No Hubitat hub. No TRMNL account or server. No always-on machine anywhere.**
 
-> Status (v3-redesign branch): firmware 0.3.0 builds; the runtime rules
-> engine passes its host tests; layout, fonts and icons are not yet seen on
-> glass. Expect a tuning pass.
+> Status (v3-redesign branch): firmware 0.4.0. Drives both the E1001 (mono)
+> and the E1002 (6-colour); same layout, same 800x480, same pins. Colour has
+> been built but not yet seen on the E1002 panel.
 
 ## Hardware
 
@@ -40,10 +40,46 @@ cp src/beachday_config.example.h src/beachday_config.h   # then edit: Wi-Fi, lat
 Then [flash.sh](flash.sh) wraps the usual commands:
 
 ```sh
-./flash.sh          # dev build: stays awake, buttons run a self-test
-./flash.sh release  # real build: renders once, then deep-sleeps
-./flash.sh test     # rules tests on your Mac, no board needed
+./flash.sh                  # dev build, E1001: stays awake, buttons cycle outcomes
+./flash.sh release          # real build: renders once, then deep-sleeps
+./flash.sh dev e1002        # the 6-colour panel
+./flash.sh release e1002
+./flash.sh rules            # push only the rules JSON
+./flash.sh test             # rules tests on your Mac, no board needed
 ```
+
+## Two panels, one layout
+
+| | E1001 | E1002 |
+| --- | --- | --- |
+| Panel | 7.5" mono, GDEY075T7 (UC8179) | 7.3" 6-colour ACeP, GDEP073E01 (ED2208) |
+| Inks | black, white | black, white, red, green, blue, yellow — **no orange** |
+| Resolution / pins | 800×480, SCK 7 MOSI 9 CS 10 DC 11 RST 12 BUSY 13 | identical |
+| Build env | `reterminal_e1001`, `dev` | `reterminal_e1002`, `dev_e1002` |
+
+Because both are 800×480 on the same pins, **the layout, fonts and icons are
+shared verbatim**. Only two files differ: `src/panel_e1002.cpp` (the driver)
+and the role table it feeds.
+
+Everything draws in *roles* — ink, paper, caption, band, and the accent fills
+`Sun` / `Water` / `Leaf` / `Warm` that icons carry. `src/paint.cpp` is the only
+place a role becomes a colour:
+
+- **E1001** has two inks, so accents become a 25% dot pattern, and only above
+  40 px — inside a 22 px icon a dither is noise, so small icons draw as plain
+  line art.
+- **E1002** has six, so accents are real ink at every size: a yellow sun, blue
+  water, a green leaf, a red thermometer.
+
+Neither panel has a light grey, so the stat strip's `#F2F2F2` is an outline on
+both. A dot field there destroyed the type sitting on it, and the colour panel
+has no grey ink to fill it with.
+
+The binaries are **not** interchangeable — an E1001 image on an E1002 runs
+perfectly and never touches the screen, because it is talking to a controller
+that isn't there. Each panel gets its own OTA tag (`PANEL=e1002
+tools/release.sh --publish`) and each board's `CFG_OTA_MANIFEST_URL` must point
+at its own.
 
 ## Testing on the bench
 
