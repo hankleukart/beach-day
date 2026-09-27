@@ -34,6 +34,16 @@ case "${2:-e1001}" in
   *)     echo "unknown panel '${2}' - use e1001 or e1002"; exit 1 ;;
 esac
 
+# Fail early and clearly rather than letting PlatformIO reach for a Bluetooth
+# device: the board must actually be plugged in and switched on.
+if [ "$WHAT" != "test" ] && ! ls /dev/cu.usbserial* >/dev/null 2>&1; then
+  echo "No board found (no /dev/cu.usbserial* port)."
+  echo "  - is the USB-C cable a data cable, not charge-only?"
+  echo "  - is the power switch on the side set to ON?"
+  echo "  - press KEY0 (right button) to wake a sleeping board"
+  exit 1
+fi
+
 case "$WHAT" in
   test)    exec "$PIO" test -e native ;;
   rules)   exec "$PIO" run -e "$RELEASE_ENV" -t uploadfs ;;
