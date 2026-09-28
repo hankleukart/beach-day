@@ -6,6 +6,7 @@
 #pragma once
 #include <cstdint>
 #include "dayspec.h"
+#include "derive.h"
 
 // Plain data so main can park it in RTC memory and redraw after a failed fetch.
 struct ViewModel {
@@ -22,4 +23,10 @@ void renderBegin();
 void renderScreen(const ViewModel& vm);
 void renderMessage(const char* title, const char* line1, const char* line2);
 void renderSetup(const char* apName, const char* ip);
+
+// The numbers behind the dashboard: every hourly row inside the daylight
+// window, and the figures derived from them. Press the left button to see
+// what the display is actually reading.
+void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
+                  const char* heading, const char* footer);
 void renderEnd();

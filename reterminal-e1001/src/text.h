@@ -4,13 +4,20 @@
 #pragma once
 #include "paint.h"
 
-enum class Face : uint8_t { Display, Body, BodyLight };   // Fraunces Black, Nunito 800, Nunito 600
+// Archivo Black for headlines - a uniform heavy grotesque, because a 1-bit
+// panel cannot render a hairline - and Atkinson Hyperlegible for everything
+// else, drawn for low vision and so still distinguishable when detail is lost.
+enum class Face : uint8_t { Display, Body, BodyLight };
 
 struct TextStyle {
   Face  face = Face::Body;
   float px = 14;           // CSS-style font size in pixels (em)
   float tracking = 0;      // extra px between glyphs
   Role  role = Role::Ink;
+  // Thickens strokes by a pixel before thresholding. At caption sizes a stem
+  // lands near half a pixel and survives or vanishes by luck; this makes the
+  // choice consistently "survives". Costs a little letter spacing.
+  bool  embolden = false;
 };
 
 void textInit();

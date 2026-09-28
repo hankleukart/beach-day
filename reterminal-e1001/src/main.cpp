@@ -29,6 +29,24 @@ RTC_DATA_ATTR static uint16_t  failCount  = 0;
 RTC_DATA_ATTR static bool      staleShown = false;
 RTC_DATA_ATTR static uint32_t  bootCount  = 0;
 
+// The cycle's raw readings, at file scope so the left-button view and the
+// dev-mode 'h' key can both draw them without threading them through sleepNow.
+static Fetched     g_fetched;
+static day::Inputs g_inputs;
+static int         g_day = 0;
+static bool        g_haveFetch = false;
+
+void devShowHourly() {
+#ifdef BEACHDAY_DEV
+  if (!g_haveFetch) {
+    renderMessage("No readings yet", "Nothing has been fetched this boot.", "Press R to try again.");
+    return;
+  }
+  renderHourly(g_fetched.raw, g_day, g_inputs,
+               g_day ? "Tomorrow's readings" : "Today's readings", "press l for the forecast");
+#endif
+}
+
 // Crash counter: bumped every boot, cleared when a cycle reaches sleep. After
 // SAFE_MODE_THRESHOLD consecutive failures the board only looks for new
 // firmware - the remote way out of a bad release.
@@ -134,10 +152,14 @@ void setup() {
 
   const Settings& s = loadSettings();
 
+  // Each button has a single-press job now: which one woke the board is
+  // readable, and holding one at any other wake still works as it did.
   pinMode(PIN_KEY1, INPUT_PULLUP);
   pinMode(PIN_KEY2, INPUT_PULLUP);
-  bool wantSetup = (digitalRead(PIN_KEY1) == LOW);
-  bool forceOta  = (digitalRead(PIN_KEY2) == LOW);
+  const WakeButton woke = wakeButton();
+  bool wantSetup = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::Middle;
+  bool wantHourly = (woke == WakeButton::Left);
+  bool forceOta  = !wantHourly && (digitalRead(PIN_KEY2) == LOW);
 
   if (wantSetup || !s.configured()) {
     Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
@@ -220,7 +242,7 @@ void setup() {
     }
   }
 
-  static Fetched f;              // ~1.5 KB: keep it off the stack
+  Fetched& f = g_fetched;        // ~1.5 KB, file scope so devShowHourly can reach it
   char err[64] = "no Wi-Fi";
   bool ok = online && fetchWeather(s, f, err, sizeof(err));
   netDisconnect();
@@ -259,8 +281,10 @@ void setup() {
   bool tomorrow = (sunset > 0 && lc.minuteOfDay >= sunset - 60 && f.raw.day[1].valid);
   int d = tomorrow ? 1 : 0;
 
-  static day::Inputs in;
+  day::Inputs& in = g_inputs;
   day::derive(f.raw, d, tomorrow ? lc.tomorrowDow : lc.dow, in);
+  g_day = d;
+  g_haveFetch = true;
 
   // Calendar, for holiday names and for the day-stable pick among a day's
   // several names. When the screen is planning tomorrow, that is tomorrow's
@@ -302,6 +326,18 @@ void setup() {
 
   Serial.printf("[beach] free heap %u, stack headroom %u bytes\n",
                 (unsigned)ESP.getFreeHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
+
+  if (wantHourly) {
+    // Show the readings instead of the verdict, then go straight back to
+    // sleep - the next ordinary wake redraws the dashboard.
+    Serial.println(F("[beach] left button: showing the hourly data"));
+    char foot[48];
+    snprintf(foot, sizeof(foot), "%s \xC2\xB7 press any button", vm.updatedText);
+    renderHourly(f.raw, d, in, tomorrow ? "Tomorrow's readings" : "Today's readings", foot);
+    clearBootFailures();
+    renderEnd();
+    deepSleepFor(secondsToNextWake(lc, f.raw, s));
+  }
 
   lastView = vm;
   renderScreen(lastView);

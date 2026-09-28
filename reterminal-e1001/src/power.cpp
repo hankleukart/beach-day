@@ -35,6 +35,15 @@ int batteryPercent(float v) {
 
 bool wokeByButton() { return esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT1; }
 
+WakeButton wakeButton() {
+  if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return WakeButton::None;
+  uint64_t mask = esp_sleep_get_ext1_wakeup_status();
+  if (mask & (1ULL << PIN_KEY1)) return WakeButton::Middle;
+  if (mask & (1ULL << PIN_KEY2)) return WakeButton::Left;
+  if (mask & (1ULL << PIN_KEY0)) return WakeButton::Right;
+  return WakeButton::None;
+}
+
 bool lastResetWasCrash() {
   switch (esp_reset_reason()) {
     case ESP_RST_PANIC: case ESP_RST_INT_WDT: case ESP_RST_TASK_WDT:
@@ -65,11 +74,17 @@ void deepSleepFor(uint32_t seconds) {
   pinMode(PIN_LED, OUTPUT);
   digitalWrite(PIN_LED, HIGH);   // off
 
-  rtc_gpio_pullup_en((gpio_num_t)PIN_KEY0);
-  rtc_gpio_pulldown_dis((gpio_num_t)PIN_KEY0);
+  // All three buttons wake the board, and which one did is readable on the
+  // next boot - so each gets its own job with a single press, rather than
+  // asking anyone to hold one button while pressing another.
+  for (int pin : { PIN_KEY0, PIN_KEY1, PIN_KEY2 }) {
+    rtc_gpio_pullup_en((gpio_num_t)pin);
+    rtc_gpio_pulldown_dis((gpio_num_t)pin);
+  }
     // ALL_LOW is unsupported on the S3 and was silently wrong here; ANY_LOW is
   // the same thing for a single pin anyway.
-  esp_sleep_enable_ext1_wakeup(1ULL << PIN_KEY0, ESP_EXT1_WAKEUP_ANY_LOW);
+  esp_sleep_enable_ext1_wakeup((1ULL << PIN_KEY0) | (1ULL << PIN_KEY1) | (1ULL << PIN_KEY2),
+                              ESP_EXT1_WAKEUP_ANY_LOW);
   esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
 
   Serial.printf("[power] deep sleep for %u s\n", (unsigned)seconds);

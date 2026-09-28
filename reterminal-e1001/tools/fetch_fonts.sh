@@ -4,8 +4,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/fonts"
 base=https://raw.githubusercontent.com/google/fonts/main/ofl
-curl -sSfL -o Fraunces-Variable.ttf "$base/fraunces/Fraunces%5BSOFT%2CWONK%2Copsz%2Cwght%5D.ttf"
-curl -sSfL -o Nunito-Variable.ttf   "$base/nunito/Nunito%5Bwght%5D.ttf"
-curl -sSfL -o OFL-Fraunces.txt      "$base/fraunces/OFL.txt"
-curl -sSfL -o OFL-Nunito.txt        "$base/nunito/OFL.txt"
+curl -sSfL -o ArchivoBlack-Regular.ttf         "$base/archivoblack/ArchivoBlack-Regular.ttf"
+curl -sSfL -o AtkinsonHyperlegible-Bold.ttf    "$base/atkinsonhyperlegible/AtkinsonHyperlegible-Bold.ttf"
+curl -sSfL -o AtkinsonHyperlegible-Regular.ttf "$base/atkinsonhyperlegible/AtkinsonHyperlegible-Regular.ttf"
+curl -sSfL -o OFL-Archivo.txt                  "$base/archivoblack/OFL.txt"
+curl -sSfL -o OFL-Atkinson.txt                 "$base/atkinsonhyperlegible/OFL.txt"
 ls -la

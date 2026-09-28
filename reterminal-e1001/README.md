@@ -471,11 +471,21 @@ is up.
 The right button (KEY0) is the wake button. Holding another button while
 pressing it changes what the wake does:
 
-| Hold | + press | Result |
-| --- | --- | --- |
-| — | KEY0 (right) | Refresh the forecast now |
-| KEY1 (middle) | KEY0 | Open the setup portal (change Wi-Fi, place, parking) |
-| KEY2 (left) | KEY0 | Check for a firmware update immediately |
+Each button has its own job on a single press - no holding one while pressing
+another:
+
+| Button | Does |
+| --- | --- |
+| **KEY0** (right) | Refresh the forecast now |
+| **KEY1** (middle) | Open the setup portal (Wi-Fi, place, parking) |
+| **KEY2** (left) | Show the hourly readings behind the dashboard |
+
+The readings screen lists every hourly row inside the daylight window - hour,
+temperature, rain chance, cloud, wind, AQI and sky - with the derived figures
+the rules actually ran on along the bottom. It is the answer to "why did it
+decide that?". Any button returns to the forecast on the next wake.
+
+Holding KEY2 while waking with KEY0 still forces an update check.
 
 ### Why geocoding happens after the portal, not in it
 

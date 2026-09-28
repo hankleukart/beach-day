@@ -29,10 +29,12 @@ float scaleFor(const FaceInfo& fi, float px) { return stbtt_ScaleForMappingEmToP
 } // namespace
 
 void textInit() {
+  // Uniform-stroke faces need far less threshold coaxing than a contrasted
+  // one did; 110 keeps counters open without eating stems.
   struct { const uint8_t* d; uint8_t thr; } src[3] = {
-    { FONT_FRAUNCES_BLACK, 96 },     // heavy face: keep thin joins by thresholding low
-    { FONT_NUNITO_EXTRABOLD, 104 },
-    { FONT_NUNITO_SEMIBOLD, 104 },   // lighter face; low enough that 12-15px captions stay solid
+    { FONT_DISPLAY, 110 },
+    { FONT_BODY, 110 },
+    { FONT_BODY_LIGHT, 112 },
   };
   for (int i = 0; i < 3; i++) {
     faces[i].data = src[i].d;
@@ -75,14 +77,25 @@ int textDraw(const TextStyle& st, int x, int baseline, const char* utf8) {
     int x0, y0, x1, y1;
     stbtt_GetCodepointBitmapBoxSubpixel(&fi.info, (int)cp, sc, sc, pen - floorf(pen), 0, &x0, &y0, &x1, &y1);
     int w = x1 - x0, h = y1 - y0;
-    if (w > 0 && h > 0 && w <= 128 && h <= 128) {
-      stbtt_MakeCodepointBitmapSubpixel(&fi.info, glyphBuf, w, h, w, sc, sc, pen - floorf(pen), 0, (int)cp);
+    const int pad = st.embolden ? 1 : 0;
+    const int bw = w + pad;
+    if (w > 0 && h > 0 && bw <= 128 && h <= 128) {
+      memset(glyphBuf, 0, (size_t)bw * h);
+      stbtt_MakeCodepointBitmapSubpixel(&fi.info, glyphBuf, w, h, bw, sc, sc, pen - floorf(pen), 0, (int)cp);
+      if (pad) {
+        // Widen every stroke by one pixel: each cell takes the darker of
+        // itself and its left neighbour, right to left so it spreads once.
+        for (int yy = 0; yy < h; yy++) {
+          uint8_t* row = glyphBuf + yy * bw;
+          for (int xx = bw - 1; xx > 0; xx--) if (row[xx - 1] > row[xx]) row[xx] = row[xx - 1];
+        }
+      }
       int gx = (int)floorf(pen) + x0, gy = baseline + y0;
       for (int yy = 0; yy < h; yy++) {
-        const uint8_t* row = glyphBuf + yy * w;
+        const uint8_t* row = glyphBuf + yy * bw;
         int runStart = -1;
-        for (int xx = 0; xx <= w; xx++) {
-          bool on = xx < w && row[xx] >= fi.threshold;
+        for (int xx = 0; xx <= bw; xx++) {
+          bool on = xx < bw && row[xx] >= fi.threshold;
           if (on && runStart < 0) runStart = xx;
           if (!on && runStart >= 0) { paintSpan(gy + yy, gx + runStart, gx + xx - 1, st.role); runStart = -1; }
         }

@@ -22,11 +22,18 @@ ROOT = HERE.parent
 SRC = HERE / "fonts"
 OUT = ROOT / "src" / "fontdata.h"
 
-# name, source, axis values
+# name, source, axis values (empty for a static font)
+#
+# Chosen for a 1-bit panel, where a stroke narrower than a pixel is a coin
+# flip between spindly and invisible. Fraunces Black - a high-contrast display
+# serif - has a 1px minimum stroke at 46px; Archivo Black has 9px at the same
+# size, which is the whole difference. Atkinson Hyperlegible was drawn by the
+# Braille Institute for low vision, so its letterforms are shaped to stay
+# distinguishable when detail is lost.
 FACES = [
-    ("FRAUNCES_BLACK",   "Fraunces-Variable.ttf", {"wght": 900, "opsz": 144, "SOFT": 0, "WONK": 0}),
-    ("NUNITO_EXTRABOLD", "Nunito-Variable.ttf",   {"wght": 800}),
-    ("NUNITO_SEMIBOLD",  "Nunito-Variable.ttf",   {"wght": 600}),
+    ("DISPLAY",    "ArchivoBlack-Regular.ttf",          {}),
+    ("BODY",       "AtkinsonHyperlegible-Bold.ttf",     {}),
+    ("BODY_LIGHT", "AtkinsonHyperlegible-Regular.ttf",  {}),
 ]
 # ASCII, degree, middle dot, en/em dash, curly apostrophe and quotes
 UNICODES = list(range(0x20, 0x7F)) + [0xB0, 0xB7, 0x2013, 0x2014, 0x2018, 0x2019, 0x201C, 0x201D]
@@ -34,7 +41,7 @@ UNICODES = list(range(0x20, 0x7F)) + [0xB0, 0xB7, 0x2013, 0x2014, 0x2018, 0x2019
 
 def prep(name, source, axes):
     font = TTFont(SRC / source)
-    static = instancer.instantiateVariableFont(font, axes, inplace=False, updateFontNames=False)
+    static = instancer.instantiateVariableFont(font, axes, inplace=False, updateFontNames=False) if axes else font
     opts = subset.Options()
     opts.layout_features = ["kern", "liga"]
     opts.name_IDs = []

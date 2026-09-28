@@ -61,6 +61,7 @@ void banner() {
   Serial.println(F("   p / KEY1 (middle)  toggle parking alert"));
   Serial.println(F("   l / KEY0 (right)   back to the live forecast"));
   Serial.println(F("   d                  dump the current screen as text"));
+  Serial.println(F("   h                  show the hourly readings behind the screen"));
   Serial.println(F("   w                  open the Wi-Fi setup portal now"));
   Serial.println(F("   R                  reboot and re-fetch"));
   Serial.println(F("   ?                  show this again"));
@@ -108,6 +109,7 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
     if (cmd == 'R') { Serial.println(F("[dev] rebooting")); Serial.flush(); ESP.restart(); }
     if (cmd == 'w') { Serial.println(F("[dev] opening the setup portal")); runSetupPortal(loadSettings()); }
     if (cmd == 'd') dump((demoIdx >= 0) ? demo : live, (demoIdx >= 0) ? "demo" : "live");
+    if (cmd == 'h') { Serial.println(F("[dev] hourly readings")); devShowHourly(); }
 
     if (key2.pressed() || cmd == 'n') {
       demoIdx = (demoIdx + 1) % PRESET_COUNT;

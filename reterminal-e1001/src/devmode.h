@@ -10,4 +10,8 @@
 
 // Never returns: replaces deep sleep in the dev build.
 [[noreturn]] void devLoop(const ViewModel& liveView, bool liveValid);
+
+// Provided by main.cpp, which owns the fetched data. Draws the hourly
+// readings behind the current screen, or a note if nothing has been fetched.
+void devShowHourly();
 #endif
