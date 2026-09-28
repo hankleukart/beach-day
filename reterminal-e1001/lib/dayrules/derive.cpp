@@ -30,11 +30,19 @@ static int modeCode(const Raw& raw, int d, int h0, int h1, int fallback) {
   return codes[best];
 }
 
+void daylightHours(const Raw& raw, int d, int& h0, int& h1) {
+  const DayMeta& m = raw.day[d];
+  h0 = FALLBACK_START_HOUR; h1 = FALLBACK_END_HOUR;
+  // Truncating to the hour is deliberate: sunrise at 6:42 makes the 6am row
+  // part of the day, and sunset at 7:08 PM makes the 7pm row the last one.
+  if (m.sunriseMin > 0 && m.sunsetMin > 0) { h0 = m.sunriseMin / 60; h1 = m.sunsetMin / 60; }
+}
+
 void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   out = Inputs{};
   const DayMeta& m = raw.day[d];
-  int h0 = FALLBACK_START_HOUR, h1 = FALLBACK_END_HOUR;
-  if (m.sunriseMin > 0 && m.sunsetMin > 0) { h0 = m.sunriseMin / 60; h1 = m.sunsetMin / 60; }
+  int h0, h1;
+  daylightHours(raw, d, h0, h1);
 
   double tMin = 1e9, tMax = -1e9, wMax = -1e9;
   int pMax = -1, hMin = 1 << 14, hMax = -1;

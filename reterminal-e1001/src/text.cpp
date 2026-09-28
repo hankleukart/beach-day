@@ -29,8 +29,10 @@ float scaleFor(const FaceInfo& fi, float px) { return stbtt_ScaleForMappingEmToP
 } // namespace
 
 void textInit() {
-  // Tuned per face: the display serif is high-contrast, so a low threshold is
-  // what keeps its thin joins from dropping out entirely.
+  // Tuned per face. The display face is set large, where coverage is high
+  // everywhere and the threshold barely bites; the small faces are the ones
+  // that lose strokes, so they sit lower and pick up the partial pixels at
+  // the edge of a stem instead of dropping them.
   struct { const uint8_t* d; uint8_t thr; } src[3] = {
     { FONT_DISPLAY, 96 },
     { FONT_BODY, 104 },
@@ -144,10 +146,15 @@ int textWrap(const TextStyle& st, const char* utf8, int maxWidth, char lines[][1
     memcpy(word, ws, wl); word[wl] = '\0';
     while (*p == ' ') p++;
 
-    char trial[160];
+    // Holds the line plus one more word, so a long word joining a full line
+    // cannot lose characters before the width test has had a look at it.
+    char trial[sizeof(cur) + sizeof(word) + 1];
     if (cur[0]) snprintf(trial, sizeof(trial), "%s %s", cur, word); else snprintf(trial, sizeof(trial), "%s", word);
-    if (textWidth(st, trial) <= maxWidth || !cur[0]) {
-      snprintf(cur, sizeof(cur), "%s", trial);
+    // A trial longer than a line's buffer could never be a usable line, so it
+    // breaks rather than being silently clipped down to something narrower.
+    const size_t tl = strlen(trial);
+    if (tl < sizeof(cur) && (textWidth(st, trial) <= maxWidth || !cur[0])) {
+      memcpy(cur, trial, tl + 1);
     } else {
       snprintf(lines[n++], 160, "%s", cur);
       snprintf(cur, sizeof(cur), "%s", word);

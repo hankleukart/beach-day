@@ -151,7 +151,7 @@ void drawRight(const ViewModel& vm) {
 
   // Wear tiles. No heading: the four pictures say what they are, and the row
   // it used to occupy is worth more to the stat strip.
-  const int tileY = ruleY + 20, tileH = 92, gap = 12;
+  const int tileY = ruleY + 18, tileH = 84, gap = 12;
   const int tileW = (COL_W - 3 * gap) / 4;
   const bool tileAccents = paintAccentsLegibleAt(44);
   for (int i = 0; i < 4; i++) {
@@ -160,15 +160,15 @@ void drawRight(const ViewModel& vm) {
     if (i < s.outcome.wearCount) {
       const day::Wear& w = s.outcome.wear[i];
       IconStyle ist; ist.accents = tileAccents;
-      drawIcon(w.icon, x + tileW / 2, tileY + 36, 44, ist);
+      drawIcon(w.icon, x + tileW / 2, tileY + 33, 42, ist);
       TextStyle st = T_TILE;
       while (st.px > 10 && textWidth(st, w.label) > tileW - 10) st.px -= 1;
-      textDrawCentered(st, x + tileW / 2, tileY + 80, w.label);
+      textDrawCentered(st, x + tileW / 2, tileY + 73, w.label);
     }
   }
 
   // Also grab (up to two lines)
-  int alsoY = tileY + tileH + 26;
+  int alsoY = tileY + tileH + 22;
   n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, 2);
   for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 19; }
   const int alsoBottom = alsoY - 19 + 5;
@@ -178,7 +178,7 @@ void drawRight(const ViewModel& vm) {
 
   // The strip is labelled, because after sunset it quietly switches to
   // tomorrow and nothing else on screen says so.
-  const int headY = alsoBottom + 20;
+  const int headY = alsoBottom + 18;
   textDraw(T_SECTION, COL_X0, headY, s.tomorrow ? "TOMORROW'S FORECAST" : "TODAY'S FORECAST");
 
   // Stat strip fills whatever is left between the heading and the footer.
@@ -190,16 +190,31 @@ void drawRight(const ViewModel& vm) {
     if (cols > 0) {
       // Space the rows off measured cap heights rather than guessed offsets,
       // so changing a size can't silently crowd its neighbour.
-      const int iconPx = 26;
-      const int GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 8, GAP_SUB = 8;
       const int capLabel = textCapHeight(T_STATLBL);
       const int capValue = textCapHeight(T_STATVAL);
       const int capSub   = textCapHeight(T_STATSUB);
       const int capWord  = textCapHeight(T_STATWORD);
       bool anySub = false;
       for (int i = 0; i < cols; i++) if (s.stats[i].sub[0]) anySub = true;
+
+      // How tall the band ends up depends on how far the subline and the
+      // also-grab line wrapped, so the tile contents close up to fit rather
+      // than spilling out of the box. Gaps give first, then the icon.
+      int iconPx = 26, GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 8, GAP_SUB = 8;
+      const int fixedH = capLabel + capValue + capWord + (anySub ? capSub : 0);
+      auto contentOf = [&] {
+        return iconPx + GAP_ICON + GAP_LABEL + GAP_VALUE + (anySub ? GAP_SUB : 0) + fixedH;
+      };
+      const int room = bandH - 12;          // 6px of breathing space top and bottom
+      while (contentOf() > room && (GAP_LABEL > 5 || GAP_ICON > 4 || GAP_VALUE > 3 || GAP_SUB > 3)) {
+        if (GAP_LABEL > 5) GAP_LABEL--;
+        else if (GAP_ICON > 4) GAP_ICON--;
+        else if (GAP_VALUE > 3) GAP_VALUE--;
+        else GAP_SUB--;
+      }
+      while (contentOf() > room && iconPx > 16) iconPx -= 2;
       const int subH = anySub ? capSub + GAP_SUB : 0;
-      const int contentH = iconPx + GAP_ICON + capLabel + GAP_LABEL + capValue + GAP_VALUE + subH + capWord;
+      const int contentH = contentOf();
 
       int top = bandY + (bandH - contentH) / 2;
       if (top < bandY + 6) top = bandY + 6;
@@ -299,7 +314,20 @@ void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
   do {
     panelFill(panelPaper());
     textDraw(HEAD, 24, 46, heading);
-    textDrawRight(DIM, W - 24, 46, in.weekdayName);
+
+    // Naming the window matters more here than anywhere else on the device:
+    // every number below is an aggregate over exactly these hours.
+    char when[64];
+    const day::DayMeta& meta = raw.day[dayIndex];
+    if (meta.sunriseMin > 0 && meta.sunsetMin > 0) {
+      char up[12], down[12];
+      day::formatClock12(meta.sunriseMin, up, sizeof(up));
+      day::formatClock12(meta.sunsetMin, down, sizeof(down));
+      snprintf(when, sizeof(when), "%s  Â·  %s - %s", in.weekdayName, up, down);
+    } else {
+      snprintf(when, sizeof(when), "%s  Â·  no sun times", in.weekdayName);
+    }
+    textDrawRight(DIM, W - 24, 46, when);
     paintHLine(24, W - 24, 60, 3, Role::Ink);
 
     for (int c = 0; c < nCols; c++) textDraw(COL, cols[c].x, 84, cols[c].name);
@@ -307,8 +335,20 @@ void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
 
     // Only the daylight window feeds the dashboard, so only it is listed -
     // otherwise the table would show rows the verdict never considered.
-    int y = 114, shown = 0;
-    for (int h = 0; h < 24 && y < H - 74; h++) {
+    int h0, h1;
+    day::daylightHours(raw, dayIndex, h0, h1);
+
+    // Midsummer runs to about eighteen rows and midwinter to nine, so the
+    // pitch closes up to keep the whole window on one screen rather than
+    // silently cutting the afternoon off the bottom.
+    const int yTop = 112, yBottom = H - 70;
+    const int rows = h1 - h0 + 1;
+    int pitch = rows > 0 ? (yBottom - yTop) / rows : 23;
+    if (pitch > 23) pitch = 23;
+    if (pitch < 15) pitch = 15;
+
+    int y = yTop, shown = 0;
+    for (int h = h0; h <= h1 && y < yBottom; h++) {
       const day::HourRow* row = nullptr;
       for (int i = 0; i < raw.n; i++)
         if (raw.hours[i].day == dayIndex && raw.hours[i].hour == h) { row = &raw.hours[i]; break; }
@@ -332,10 +372,10 @@ void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
       textDraw(CEL, cols[4].x, y, buf);
       if (aqi >= 0) { snprintf(buf, sizeof(buf), "%d", aqi); textDraw(CEL, cols[5].x, y, buf); }
       textDraw(CEL, cols[6].x, y, beach::wmoDescription(row->code));
-      y += 23;
+      y += pitch;
       shown++;
     }
-    if (shown == 0) textDraw(CEL, 24, 124, "No hourly rows for this day.");
+    if (shown == 0) textDraw(CEL, 24, yTop + 12, "No hourly rows for this day.");
 
     // The figures the rules actually ran on, so the summary can be checked
     // against the rows above it.

@@ -392,6 +392,31 @@ void test_derive() {
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);
 }
 
+// The readings screen and the rules share this window, so the boundary
+// rounding is pinned here rather than left to whichever caller runs first.
+void test_daylight_hours() {
+  day::Raw raw;
+  int h0 = -1, h1 = -1;
+
+  // A partial hour at each end still counts as a whole row.
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 42; raw.day[0].sunsetMin = 19 * 60 + 8;
+  day::daylightHours(raw, 0, h0, h1);
+  TEST_ASSERT_EQUAL_INT(6, h0);
+  TEST_ASSERT_EQUAL_INT(19, h1);
+
+  // Exactly on the hour must not pull in the hour before or after.
+  raw.day[0].sunriseMin = 7 * 60; raw.day[0].sunsetMin = 20 * 60;
+  day::daylightHours(raw, 0, h0, h1);
+  TEST_ASSERT_EQUAL_INT(7, h0);
+  TEST_ASSERT_EQUAL_INT(20, h1);
+
+  // No sun times: the fallback, not a zero-length window.
+  raw.day[1].valid = false; raw.day[1].sunriseMin = 0; raw.day[1].sunsetMin = 0;
+  day::daylightHours(raw, 1, h0, h1);
+  TEST_ASSERT_EQUAL_INT(day::FALLBACK_START_HOUR, h0);
+  TEST_ASSERT_EQUAL_INT(day::FALLBACK_END_HOUR, h1);
+}
+
 void test_derive_windows() {
   day::Raw raw;
   raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60;
@@ -438,5 +463,6 @@ int main(int, char**) {
   RUN_TEST(test_eyebrow_and_tomorrow);
   RUN_TEST(test_derive);
   RUN_TEST(test_derive_windows);
+  RUN_TEST(test_daylight_hours);
   return UNITY_END();
 }

@@ -31,6 +31,12 @@ struct Raw {
   DayMeta day[2];
 };
 
+// The hours the rules aggregate over: the whole hour containing sunrise
+// through the whole hour containing sunset, both ends included. Falls back to
+// FALLBACK_START_HOUR..FALLBACK_END_HOUR when the day has no sun times.
+// Shared with the readings screen, whose job is to show these exact rows.
+void daylightHours(const Raw& raw, int d, int& h0, int& h1);
+
 // weekday: 0 = Sunday. Fills every Inputs field.
 void derive(const Raw& raw, int d, int weekday, Inputs& out);
 void formatClock12(int minutes, char* out, size_t n);      // 1148 -> "7:08 PM"

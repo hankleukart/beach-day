@@ -215,7 +215,10 @@ crashed board and a flat battery all look identical. Work down this list:
 5. **Icons.** Compare against `docs-design/icons-preview.png`; the leaf fill
    and umbrella scallops are already on the list.
 6. **The band.** The stat strip is a 12.5% dot field standing in for `#F2F2F2`.
-   If it fights the text, switch it to an outline in `paint.cpp`.
+   If it fights the text, switch it to an outline in `paint.cpp`. Its height is
+   whatever the also-grab line leaves over, so the four tiles close their gaps
+   — and then shrink their icons — to fit rather than spilling out of the box.
+   Check it against copy that wraps the subline and the also-grab to two lines.
 
 When the layout looks right, `./flash.sh release` and let it sleep.
 
@@ -263,11 +266,19 @@ the near-threshold line for T-shirt Day, stat bands and the `swingy` override.
 
 ### Fonts and icons are vectors
 
-The design's typefaces — Fraunces Black and Nunito — ship as real TTFs
-(instanced to the exact weights and subset to the characters the copy can use,
-56 KB total; `tools/prep_fonts.py`) and are rasterised on the device by
-`stb_truetype` at whatever size the layout asks for. Icons are small command
-lists in a 48-unit box (`tools/gen_icons.py` is the source of truth and
+The design sets everything in Literata, which ships as three real TTFs —
+display, body and body-light — instanced to their weights and subset to the
+characters the copy can use, 73 KB total (`tools/prep_fonts.py`). The device
+rasterises them with `stb_truetype` at whatever size the layout asks for.
+
+Literata carries an optical-size axis, so the small faces are instanced low on
+it, where the strokes are sturdier and the counters more open, and the display
+face high, where fine detail survives at 60 px. The light face sits at weight
+600 rather than the 400–500 its role suggests: measured against the panel's
+1-bit threshold, 500 keeps 53% of its ink at 12 px and 600 keeps 71%, so below
+about 600 the stat subline drops strokes instead of just looking lighter.
+
+Icons are small command lists in a 48-unit box (`tools/gen_icons.py` is the source of truth and
 renders an aliased preview to `docs-design/icons-preview.png`), interpreted at
 100 px for the hero, 44 px in tiles, 22 px in the stat strip. One asset per
 face and per icon, for any panel size.
@@ -468,11 +479,9 @@ is up.
 
 ### Button gestures
 
-The right button (KEY0) is the wake button. Holding another button while
-pressing it changes what the wake does:
-
-Each button has its own job on a single press - no holding one while pressing
-another:
+Each button has its own job on a single press — no holding one while pressing
+another. All three are armed as wake sources and the RTC records which line
+pulled low, so the board knows which one it was:
 
 | Button | Does |
 | --- | --- |
@@ -480,10 +489,13 @@ another:
 | **KEY1** (middle) | Open the setup portal (Wi-Fi, place, parking) |
 | **KEY2** (left) | Show the hourly readings behind the dashboard |
 
-The readings screen lists every hourly row inside the daylight window - hour,
-temperature, rain chance, cloud, wind, AQI and sky - with the derived figures
-the rules actually ran on along the bottom. It is the answer to "why did it
-decide that?". Any button returns to the forecast on the next wake.
+The readings screen answers "why did it decide that?". It lists one row per
+hour of the daylight window — the whole hour containing sunrise through the
+whole hour containing sunset, which is exactly the span the rules aggregate
+over — with hour, temperature, rain chance, cloud, wind, AQI and sky, and the
+derived figures along the bottom. The header names the window. Row pitch
+closes up on long summer days so the whole window stays on one screen. Any
+button returns to the forecast on the next wake.
 
 Holding KEY2 while waking with KEY0 still forces an update check.
 

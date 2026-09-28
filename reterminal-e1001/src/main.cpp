@@ -121,8 +121,6 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, con
   return (uint32_t)secs;
 }
 
-static void fmtClock(int minutes, char* out, size_t n) { day::formatClock12(minutes, out, n); }
-
 static void sleepNow(uint32_t seconds) {
   clearBootFailures();
 #ifdef BEACHDAY_DEV
