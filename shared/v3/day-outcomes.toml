@@ -157,14 +157,12 @@ water_bottle = { label = "Water bottle", icon = "water_bottle" }
 [[outcome]]
 id      = "rain_day"
 when    = ["rain >= 50"]
+names   = ["Rain Boots Day", "Puddle Day", "Splashy Day"]
 tagline = "PUDDLES AHEAD"
 icon    = "rain_boot"
 color   = "blue"
 wear    = ["rain_boots", "raincoat", "umbrella", "warm_layer"]
 also    = "Also grab: dry socks for the backpack."
-
-names   = ["Rain Boots Day", "Puddle Day", "Splashy Day"]
-
 
 [[outcome.variant]]
 name    = "Umbrella Day"
@@ -184,14 +182,12 @@ also    = "Also grab: the hood actually goes up today."
 [[outcome]]
 id      = "big_coat_day"
 when    = ["tempMax < 52"]
+names   = ["Big Coat Day", "Frosty Day"]
 tagline = "HATS AND MITTENS"
 icon    = "puffy_coat"
 color   = "red"
 wear    = ["puffy_coat", "warm_hat", "mittens", "scarf"]
 also    = "Also grab: warm socks, and tuck a hat in every pocket."
-
-names   = ["Big Coat Day", "Frosty Day"]
-
 
 [[outcome.variant]]
 name    = "Mittens Day"
@@ -223,15 +219,13 @@ when    = [
   "aqi < 100",
   "cloud <= 35",
 ]
+names   = ["Beach Day", "Sandcastle Day", "Seashell Day"]
 tagline = "PACK THE CAR"
 icon    = "sun_and_waves"
 color   = "yellow"
 wear    = ["swimsuit", "sun_hat", "sunscreen", "towel"]
 also    = "Also grab: water bottles and something for shade."
 is_beach_day = true   # the day other outcomes measure themselves against
-
-names   = ["Beach Day", "Sandcastle Day", "Seashell Day"]
-
 
 [[outcome.variant]]
 name    = "Swimsuit Day"
@@ -250,13 +244,11 @@ also    = "Also grab: something to weigh the corners down."
 [[outcome]]
 id      = "sun_hat_day"
 when    = ["tempMax >= 78"]
+names   = ["Sun Hat Day", "Shady Day"]
 tagline = "STAY IN THE SHADE"
 icon    = "sun_hat"
 wear    = ["sun_hat", "t_shirt", "sunscreen", "water_bottle"]
 also    = "Hot one today — shade and refills."
-
-names   = ["Sun Hat Day", "Shady Day"]
-
 
 [[outcome.variant]]
 name    = "Lemonade Day"
@@ -282,13 +274,11 @@ rain  = "Hot with a shower possible — shade now, umbrella nearby."
 [[outcome]]
 id      = "layers_day"
 when    = ["swing >= 22"]
+names   = ["Layers Day", "Zip Up Day"]
 tagline = "PEEL THEM OFF LATER"
 icon    = "hoodie"
 wear    = ["t_shirt", "hoodie", "long_pants", "sneakers"]
 also    = "It warms up {swing} degrees today — pack somewhere to stash the hoodie."
-
-names   = ["Layers Day", "Zip Up Day"]
-
 
 [[outcome.variant]]
 name    = "Hoodie Day"
@@ -307,15 +297,13 @@ also    = "Also grab: short sleeves underneath, it is coming off."
 [[outcome]]
 id      = "tshirt_day"
 when    = ["tempMax >= 68"]
+names   = ["T-Shirt Day", "Park Day"]
 tagline = "SHORTS WEATHER"
 icon    = "tshirt"
 wear    = ["t_shirt", "shorts", "sneakers", "sun_hat"]
 also    = "Also grab: a light sweater for after dinner."
 also_near_beach        = "{degreesShort} degrees short of a beach day — lovely for the park, chilly in the water."
 also_near_beach_within = 6
-
-names   = ["T-Shirt Day", "Park Day"]
-
 
 [[outcome.variant]]
 name    = "Shorts Day"
@@ -333,12 +321,11 @@ also    = "Also grab: the shoes that are allowed to get scuffed."
 
 [[outcome]]
 id      = "jacket_day"
+names   = ["Jacket Day", "In Between Day", "Regular Day"]
 tagline = "GRAB ONE BY THE DOOR"
 icon    = "jacket"
 wear    = ["jacket", "long_sleeves", "long_pants", "sneakers"]
 also    = "Also grab: a hoodie for the ride home — it cools off fast."
-
-names   = ["Jacket Day", "In Between Day", "Regular Day"]
 
 [[outcome.variant]]
 name    = "Long Sleeves Day"
@@ -355,8 +342,15 @@ wear    = ["sneakers", "jacket", "long_pants", "long_sleeves"]
 also    = "Also grab: somewhere to walk to."
 
 # ─── Stat strip ──────────────────────────────────────────────────────────
-# Five columns: icon, label, value, and a plain word underneath. Bands are
-# read top to bottom; the first whose `max` is >= the value wins.
+# Four tiles, each: icon, label, a big value, a supporting number under it,
+# and a plain word. Bands are read top to bottom; the first whose `max` is
+# at or above the value wins.
+#
+# Four rather than six because tiles only earn a place when they answer a
+# question on their own. Humidity never does - it just says how the heat
+# feels - so it rides along under TEMP. Same for the wind/air pairing.
+#
+# `sub_*` works exactly like `value_*`: either a format or a set of bands.
 
 [[stat]]
 id    = "sunshine"
@@ -373,6 +367,8 @@ value_bands = [
   { max = 2, text = "Brief" },
   { max = 24, text = "{sunWindow}" },
 ]
+sub_field = "cloud"
+sub_format = "{value}% cloud"
 word_field = "sunHours"
 word_bands = [
   { max = 0, text = "none" },
@@ -381,20 +377,22 @@ word_bands = [
   { max = 24, text = "clear" },
 ]
 
+# The day's range rather than just its peak, with humidity underneath saying
+# how that range actually feels.
 [[stat]]
-id    = "warmest"
-label = "HIGH TEMP"
+id    = "temp"
+label = "TEMP"
 icon  = "thermometer"
 value_field = "tempMax"
-value_format = "{value}°F"
-word_field = "tempMax"
+value_format = "{tempMin}°-{tempMax}°"
+sub_field = "humidityMax"
+sub_format = "{humidityMin}-{humidityMax}% hum"
+word_field = "humidityMax"
 word_bands = [
-  { max = 52, text = "cold" },
-  { max = 62, text = "chilly" },
-  { max = 70, text = "cool" },
-  { max = 78, text = "mild" },
-  { max = 88, text = "warm" },
-  { max = 200, text = "hot" },
+  { max = 45, text = "dry" },
+  { max = 65, text = "comfy" },
+  { max = 80, text = "sticky" },
+  { max = 100, text = "muggy" },
 ]
 word_override = { field = "swing", op = ">=", value = 22, text = "swingy" }
 
@@ -407,6 +405,8 @@ value_bands = [
   { max = 20, text = "{value}%" },
   { max = 100, text = "{rainWindow}" },
 ]
+sub_field = "rain"
+sub_format = "{value}% chance"
 word_field = "rain"
 word_bands = [
   { max = 10, text = "dry" },
@@ -415,26 +415,16 @@ word_bands = [
   { max = 100, text = "wet" },
 ]
 
+# Wind and air quality are both "what the air is doing", and the word takes
+# whichever is worse - a hazy day says so even when it is perfectly calm.
 [[stat]]
-id    = "humidity"
-label = "HUMIDITY"
-icon  = "raindrop"
-value_field = "humidityMax"
-value_format = "{humidityMin}-{humidityMax}%"
-word_field = "humidityMax"
-word_bands = [
-  { max = 45, text = "dry" },
-  { max = 65, text = "comfy" },
-  { max = 80, text = "sticky" },
-  { max = 100, text = "muggy" },
-]
-
-[[stat]]
-id    = "breeze"
-label = "WIND"
+id    = "air"
+label = "AIR"
 icon  = "wind"
 value_field = "wind"
 value_format = "{value} mph"
+sub_field = "aqi"
+sub_format = "{value} aqi"
 word_field = "wind"
 word_bands = [
   { max = 8, text = "calm" },
@@ -442,19 +432,6 @@ word_bands = [
   { max = 19, text = "breezy" },
   { max = 200, text = "gusty" },
 ]
-
-[[stat]]
-id    = "air"
-label = "AIR"
-icon  = "leaf"
-value_field = "aqi"
-value_format = "{value} aqi"
-word_field = "aqi"
-word_bands = [
-  { max = 50, text = "clean" },
-  { max = 100, text = "hazy" },
-  { max = 150, text = "stay in" },
-  { max = 500, text = "stay in" },
-]
+word_override = { field = "aqi", op = ">=", value = 100, text = "stay in" }
 
 

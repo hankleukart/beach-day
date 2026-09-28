@@ -31,7 +31,15 @@ struct Inputs {
 };
 
 struct Wear { char label[20] = ""; char icon[20] = ""; };
-struct Stat { char id[16] = ""; char label[16] = ""; char icon[20] = ""; char value[20] = ""; char word[16] = ""; };
+// A tile carries a primary number, a supporting one under it, and a plain
+// word. Combining two related readings per tile is what lets four tiles do
+// the work six were doing badly.
+struct Stat {
+  char id[16] = ""; char label[16] = ""; char icon[20] = "";
+  char value[20] = "";   // the big one
+  char sub[20] = "";     // the supporting one; empty if the stat has none
+  char word[16] = "";
+};
 
 struct Outcome {
   char id[24] = "";

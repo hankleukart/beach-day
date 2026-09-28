@@ -199,27 +199,62 @@ void test_near_threshold_copy() {
 
 void test_stats() {
   auto s = run(base());
-  TEST_ASSERT_EQUAL_INT(6, s.statCount);
+  TEST_ASSERT_EQUAL_INT(4, s.statCount);
   TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("9A-4P", s.stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("84\xC2\xB0" "F", s.stats[1].value);
-  TEST_ASSERT_EQUAL_STRING("warm", s.stats[1].word);
-  TEST_ASSERT_EQUAL_STRING("HUMIDITY", s.stats[3].label);
-  TEST_ASSERT_EQUAL_STRING("49-83%", s.stats[3].value);
-  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[5].label);
-  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[5].value);
+  TEST_ASSERT_EQUAL_STRING("10% cloud", s.stats[0].sub);
+  TEST_ASSERT_EQUAL_STRING("clear", s.stats[0].word);
+
+  // TEMP carries the day's range, with humidity under it saying how it feels.
+  TEST_ASSERT_EQUAL_STRING("TEMP", s.stats[1].label);
+  TEST_ASSERT_EQUAL_STRING("62\xC2\xB0-84\xC2\xB0", s.stats[1].value);
+  TEST_ASSERT_EQUAL_STRING("49-83% hum", s.stats[1].sub);
+  TEST_ASSERT_EQUAL_STRING("muggy", s.stats[1].word);
+
+  TEST_ASSERT_EQUAL_STRING("RAIN", s.stats[2].label);
+  TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("5% chance", s.stats[2].sub);
+
+  // AIR pairs wind with air quality; the word takes whichever is worse.
+  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[3].label);
+  TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[3].value);
+  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[3].sub);
+  TEST_ASSERT_EQUAL_STRING("calm", s.stats[3].word);
 }
 
 void test_rain_and_sun_windows() {
   auto in = base();
   in.precipChanceMaxPct = 60; in.rainStartHour = 10; in.rainEndHour = 15;
-  TEST_ASSERT_EQUAL_STRING("10A-3P", run(in).stats[2].value);
+  auto s = run(in);
+  TEST_ASSERT_EQUAL_STRING("10A-3P", s.stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("60% chance", s.stats[2].sub);   // window and odds together
   in.rainStartHour = 11; in.rainEndHour = 11;
   TEST_ASSERT_EQUAL_STRING("11A", run(in).stats[2].value);
   in = base(); in.sunRunHours = 4; in.sunRunStartHour = 13; in.sunRunEndHour = 16;
   TEST_ASSERT_EQUAL_STRING("1P-4P", run(in).stats[0].value);
   in.sunRunHours = 0; in.sunRunStartHour = -1;
   TEST_ASSERT_EQUAL_STRING("None", run(in).stats[0].value);
+}
+
+void test_air_word_takes_the_worse_reading() {
+  auto in = base();
+  in.windMaxMph = 5; in.aqiMax = 30;
+  TEST_ASSERT_EQUAL_STRING("calm", run(in).stats[3].word);
+  in.aqiMax = 140;                    // calm but hazy still warns
+  auto s = run(in);
+  TEST_ASSERT_EQUAL_STRING("5 mph", s.stats[3].value);
+  TEST_ASSERT_EQUAL_STRING("140 aqi", s.stats[3].sub);
+  TEST_ASSERT_EQUAL_STRING("stay in", s.stats[3].word);
+}
+
+void test_sub_line_is_validated() {
+  rejects("sub_field unknown",
+          specWith("word_field = \"tempMax\"", "sub_field = \"nope\"\nsub_format = \"x\"\nword_field = \"tempMax\""));
+  rejects("sub_format without a sub_field",
+          specWith("word_field = \"tempMax\"", "sub_format = \"x\"\nword_field = \"tempMax\""));
+  rejects("sub_format and sub_bands together",
+          specWith("word_field = \"tempMax\"",
+                   "sub_field = \"tempMax\"\nsub_format = \"x\"\nsub_bands = [ { max = 1, text = \"y\" } ]\nword_field = \"tempMax\""));
 }
 
 // --- variants ---------------------------------------------------------------
@@ -391,6 +426,8 @@ int main(int, char**) {
   RUN_TEST(test_near_threshold_copy);
   RUN_TEST(test_stats);
   RUN_TEST(test_rain_and_sun_windows);
+  RUN_TEST(test_air_word_takes_the_worse_reading);
+  RUN_TEST(test_sub_line_is_validated);
   RUN_TEST(test_variant_is_stable_within_a_day);
   RUN_TEST(test_variant_pool_gets_used_across_days);
   RUN_TEST(test_full_variant_overrides_and_inherits);

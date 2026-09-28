@@ -19,13 +19,26 @@ const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
 const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
-const TextStyle T_CORNER   { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_CORNER   { Face::BodyLight, 14, 0,    Role::Caption };
+
+// Battery pictogram for the corner: outline, nub, and a fill bar.
+constexpr int BATT_W = 22, BATT_H = 12;
+void batteryGlyph(int x, int y, int pct) {
+  paintRoundRectStroke(x, y, BATT_W - 3, BATT_H, 2, 2, Role::Ink);
+  paintRect(x + BATT_W - 3, y + 4, 3, BATT_H - 8, Role::Ink);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  int inner = BATT_W - 3 - 6;
+  int fill = (inner * pct + 50) / 100;
+  if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
+}
 const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_STATLBL  { Face::Body,      12, 2.0f, Role::Caption };
 const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
+const TextStyle T_STATSUB  { Face::BodyLight, 12, 0,    Role::Caption };
 const TextStyle T_STATWORD { Face::BodyLight, 15, 0,    Role::Caption };
 const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
 const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
@@ -106,12 +119,25 @@ void drawRight(const ViewModel& vm) {
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
   // The corner is the board talking about itself - when it last managed to
-  // fetch, and how much battery is left - not anything about the weather.
-  if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 42, vm.updatedText);
-  if (vm.batteryPct >= 0) {
-    char batt[20];
-    snprintf(batt, sizeof(batt), "Battery %d%%", vm.batteryPct);
-    textDrawRight(T_CORNER, COL_X1, 62, batt);
+  // fetch, and how much charge is left - not anything about the weather. One
+  // quiet line, built from the right so the parts stay put as the time and
+  // percentage change width.
+  {
+    const int baseline = 50;
+    int x = COL_X1;
+    if (vm.batteryPct >= 0) {
+      char pct[8];
+      snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
+      x -= textWidth(T_CORNER, pct);
+      textDraw(T_CORNER, x, baseline, pct);
+      x -= 6 + BATT_W;
+      batteryGlyph(x, baseline - BATT_H + 1, vm.batteryPct);
+      x -= 7;
+    }
+    if (vm.updatedText[0]) {
+      x -= textWidth(T_CORNER, vm.updatedText);
+      textDraw(T_CORNER, x, baseline, vm.updatedText);
+    }
   }
 
   // Subline (wraps to two lines if it must)
@@ -155,14 +181,18 @@ void drawRight(const ViewModel& vm) {
     paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
     int cols = s.statCount > 6 ? 6 : s.statCount;
     if (cols > 0) {
-      // Space the four rows off measured cap heights rather than guessed
-      // offsets, so changing a size can't silently crowd its neighbour.
+      // Space the rows off measured cap heights rather than guessed offsets,
+      // so changing a size can't silently crowd its neighbour.
       const int iconPx = 26;
-      const int GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 9;
+      const int GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 8, GAP_SUB = 8;
       const int capLabel = textCapHeight(T_STATLBL);
       const int capValue = textCapHeight(T_STATVAL);
+      const int capSub   = textCapHeight(T_STATSUB);
       const int capWord  = textCapHeight(T_STATWORD);
-      const int contentH = iconPx + GAP_ICON + capLabel + GAP_LABEL + capValue + GAP_VALUE + capWord;
+      bool anySub = false;
+      for (int i = 0; i < cols; i++) if (s.stats[i].sub[0]) anySub = true;
+      const int subH = anySub ? capSub + GAP_SUB : 0;
+      const int contentH = iconPx + GAP_ICON + capLabel + GAP_LABEL + capValue + GAP_VALUE + subH + capWord;
 
       int top = bandY + (bandH - contentH) / 2;
       if (top < bandY + 6) top = bandY + 6;
@@ -191,6 +221,16 @@ void drawRight(const ViewModel& vm) {
         y += capValue;
         textDrawCentered(val, cx, y, st.value);
         y += GAP_VALUE;
+
+        if (subH) {
+          y += capSub;
+          if (st.sub[0]) {
+            TextStyle sb = T_STATSUB;
+            while (sb.px > 8 && textWidth(sb, st.sub) > avail) sb.px -= 1;
+            textDrawCentered(sb, cx, y, st.sub);
+          }
+          y += GAP_SUB;
+        }
 
         TextStyle wrd = T_STATWORD;
         while (wrd.px > 10 && textWidth(wrd, st.word) > avail) wrd.px -= 1;

@@ -269,6 +269,17 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
     if (hasFormat == hasBands) return v.fail("%s: needs value_format or value_bands, not both", id);
     if (hasBands && !v.bands(id, toml_array_in(st, "value_bands"), false)) return false;
 
+    // The supporting line is optional, but if it exists it is held to the same
+    // rules as the primary one.
+    if (vHas(st, "sub_field")) {
+      if (!vStr(st, "sub_field", tmp, sizeof(tmp)) || !vKnownField(tmp)) return v.fail("%s: sub_field unknown", id);
+      bool subFormat = vHas(st, "sub_format"), subBands = vHas(st, "sub_bands");
+      if (subFormat == subBands) return v.fail("%s: needs sub_format or sub_bands, not both", id);
+      if (subBands && !v.bands(id, toml_array_in(st, "sub_bands"), false)) return false;
+    } else if (vHas(st, "sub_format") || vHas(st, "sub_bands")) {
+      return v.fail("%s: sub_format/sub_bands need a sub_field", id);
+    }
+
     if (!vStr(st, "word_field", tmp, sizeof(tmp)) || !vKnownField(tmp)) return v.fail("%s: word_field unknown", id);
     if (!v.bands(id, toml_array_in(st, "word_bands"), false)) return false;
 

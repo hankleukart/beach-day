@@ -327,16 +327,30 @@ void Spec::resolveStat(toml_table_t* st, const Inputs& in, Stat& out) const {
     if (b) tStr(b, "icon", out.icon, sizeof(out.icon));
   }
   {
-    char f[24] = "", fmt[32] = "";
+    char f[24] = "", fmt[80] = "";
     double v = 0;
     tStr(st, "value_field", f, sizeof(f));
     fieldValue(in, f, v);
     if (tStr(st, "value_format", fmt, sizeof(fmt))) interpolate(fmt, in, v, 0, out.value, sizeof(out.value));
     else {
       toml_table_t* b = pickBand(toml_array_in(st, "value_bands"), v, in);
-      char text[32] = "";
+      char text[48] = "";
       if (b) tStr(b, "text", text, sizeof(text));
       interpolate(text, in, v, 0, out.value, sizeof(out.value));
+    }
+  }
+  {
+    char f[24] = "", fmt[80] = "";
+    double v = 0;
+    if (tStr(st, "sub_field", f, sizeof(f))) {
+      fieldValue(in, f, v);
+      if (tStr(st, "sub_format", fmt, sizeof(fmt))) interpolate(fmt, in, v, 0, out.sub, sizeof(out.sub));
+      else {
+        toml_table_t* b = pickBand(toml_array_in(st, "sub_bands"), v, in);
+        char text[48] = "";
+        if (b) tStr(b, "text", text, sizeof(text));
+        interpolate(text, in, v, 0, out.sub, sizeof(out.sub));
+      }
     }
   }
   {
