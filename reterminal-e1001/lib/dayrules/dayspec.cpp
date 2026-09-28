@@ -139,11 +139,6 @@ bool applyOp(const char* op, double v, double t) {
   if (!strcmp(op, "!="))  return v != t;
   return false;
 }
-bool knownOp(const char* op) {
-  static const char* ops[] = { ">=", ">", "<=", "<", "==", "=", "!=" };
-  for (auto o : ops) if (!strcmp(op, o)) return true;
-  return false;
-}
 
 void hour12(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;

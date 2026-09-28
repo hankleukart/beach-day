@@ -67,7 +67,9 @@ void deepSleepFor(uint32_t seconds) {
 
   rtc_gpio_pullup_en((gpio_num_t)PIN_KEY0);
   rtc_gpio_pulldown_dis((gpio_num_t)PIN_KEY0);
-  esp_sleep_enable_ext1_wakeup(1ULL << PIN_KEY0, ESP_EXT1_WAKEUP_ALL_LOW);
+    // ALL_LOW is unsupported on the S3 and was silently wrong here; ANY_LOW is
+  // the same thing for a single pin anyway.
+  esp_sleep_enable_ext1_wakeup(1ULL << PIN_KEY0, ESP_EXT1_WAKEUP_ANY_LOW);
   esp_sleep_enable_timer_wakeup((uint64_t)seconds * 1000000ULL);
 
   Serial.printf("[power] deep sleep for %u s\n", (unsigned)seconds);

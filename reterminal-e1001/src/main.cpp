@@ -122,7 +122,7 @@ static void logScreen(const day::Screen& sc, const day::Inputs& in) {
                 (int)in.tempMinF, (int)in.tempMaxF, (int)in.tempSwingF, (int)in.precipChanceMaxPct,
                 (int)in.windMaxMph, (int)in.aqiMin, (int)in.aqiMax, (int)in.humidityMinPct, (int)in.humidityMaxPct,
                 (int)in.cloudCoverAvgPct, in.hasFirstClearHour ? in.firstClearHour : -1, in.conditionSummary);
-  Serial.printf("[day] %s / %s | %s\n", sc.outcome.title[0], sc.outcome.tagline, sc.outcome.alsoGrab);
+  Serial.printf("[day] %s / %s | %s\n", sc.outcome.title, sc.outcome.tagline, sc.outcome.alsoGrab);
   for (int i = 0; i < sc.statCount; i++)
     Serial.printf("[day]   %-9s %-10s %s\n", sc.stats[i].label, sc.stats[i].value, sc.stats[i].word);
   Serial.printf("[day] %s\n", sc.footer);
@@ -213,7 +213,7 @@ void setup() {
     } else {
       Serial.printf("[beach] geocode failed: %s\n", gerr);
       netDisconnect();
-      char line[96];
+      char line[140];
       snprintf(line, sizeof(line), "Couldn't find \"%s\" - check the spelling or use a postal code.", s.locationQuery);
       renderMessage("Where's the beach?", line, "Hold the middle button and press the right one to open setup.");
       sleepNow(3600);
@@ -239,7 +239,7 @@ void setup() {
         staleShown = true;
       }
     } else {
-      char line[96];
+      char line[140];
       snprintf(line, sizeof(line), "Can't get online via Wi-Fi \"%s\" (%s).", s.ssid, err);
       renderMessage("No connection yet", line, "Retrying. To change Wi-Fi: hold the middle button, press the right one.");
     }

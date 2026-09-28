@@ -64,17 +64,15 @@ bool vParseWhen(const char* expr, char* field, size_t fieldN, char* op, size_t o
   return end && end != p;
 }
 
-// A condition names a field the operator can also be read from; still used
-// where only the operator matters.
-bool vParseCond(const char* expr, char* op, size_t opN, double& value) {
-  char field[24];
-  return vParseWhen(expr, field, sizeof(field), op, opN, value);
-}
 bool vKnownOp(const char* op) {
   static const char* ops[] = { ">=", ">", "<=", "<", "==", "=", "!=" };
   for (auto o : ops) if (!strcmp(op, o)) return true;
   return false;
 }
+
+// A mistyped field name is the worst failure this file exists to catch: the
+// condition using it simply never passes, so the day resolves to the wrong
+// outcome with nothing in the log.
 bool vKnownField(const char* f) {
   Inputs probe;
   probe.hasFirstClearHour = true;   // so the optional input resolves too

@@ -35,7 +35,7 @@ struct Stat { char id[16] = ""; char label[16] = ""; char icon[20] = ""; char va
 
 struct Outcome {
   char id[24] = "";
-  char title[48] = "";          // one string; the renderer wraps and sizes it
+  char title[64] = "";          // holiday prefix + day name; the renderer wraps it
   char holiday[20] = "";        // the prefix that was applied, if any
   char tagline[32] = "";
   char heroIcon[20] = "";

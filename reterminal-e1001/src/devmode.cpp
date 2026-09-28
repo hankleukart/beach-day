@@ -73,7 +73,7 @@ void dump(const ViewModel& vm, const char* which) {
   const day::Screen& s = vm.screen;
   Serial.printf("[dev] --- %s ---\n", which);
   Serial.printf("  outcome   %s%s\n", s.outcome.id, s.tomorrow ? " (tomorrow)" : "");
-  Serial.printf("  hero      %s | %s %s %s | %s\n", s.eyebrow, s.outcome.title[0], s.outcome.title[1], s.outcome.title[2], s.outcome.tagline);
+  Serial.printf("  hero      %s | %s | %s\n", s.eyebrow, s.outcome.title, s.outcome.tagline);
   Serial.printf("  header    %s\n", s.weekday);
   Serial.printf("  subline   %s\n", s.subline);
   Serial.printf("  wear      "); for (int i = 0; i < s.outcome.wearCount; i++) Serial.printf("[%s:%s] ", s.outcome.wear[i].label, s.outcome.wear[i].icon); Serial.println();
