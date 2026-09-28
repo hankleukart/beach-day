@@ -201,7 +201,7 @@ void test_stats() {
   auto s = run(base());
   TEST_ASSERT_EQUAL_INT(4, s.statCount);
   TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
-  TEST_ASSERT_EQUAL_STRING("9A-4P", s.stats[0].value);
+  TEST_ASSERT_EQUAL_STRING("9a-4p", s.stats[0].value);
   TEST_ASSERT_EQUAL_STRING("10% cloud", s.stats[0].sub);
   TEST_ASSERT_EQUAL_STRING("clear", s.stats[0].word);
 
@@ -226,12 +226,12 @@ void test_rain_and_sun_windows() {
   auto in = base();
   in.precipChanceMaxPct = 60; in.rainStartHour = 10; in.rainEndHour = 15;
   auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("10A-3P", s.stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("10a-3p", s.stats[2].value);
   TEST_ASSERT_EQUAL_STRING("60% chance", s.stats[2].sub);   // window and odds together
   in.rainStartHour = 11; in.rainEndHour = 11;
-  TEST_ASSERT_EQUAL_STRING("11A", run(in).stats[2].value);
+  TEST_ASSERT_EQUAL_STRING("11a", run(in).stats[2].value);
   in = base(); in.sunRunHours = 4; in.sunRunStartHour = 13; in.sunRunEndHour = 16;
-  TEST_ASSERT_EQUAL_STRING("1P-4P", run(in).stats[0].value);
+  TEST_ASSERT_EQUAL_STRING("1p-4p", run(in).stats[0].value);
   in.sunRunHours = 0; in.sunRunStartHour = -1;
   TEST_ASSERT_EQUAL_STRING("None", run(in).stats[0].value);
 }

@@ -1,8 +1,9 @@
-// The v3 layout at 800x480, from the "Venice Beach Display" mock: dark hero
-// panel on the left (eyebrow, icon, headline, tagline), and on the right the
-// weekday, subline, four wear tiles, the also-grab line, a five-column stat
-// strip and a footer pill. Everything is drawn in roles (paint.h) with the
-// design's own typefaces (text.h) and vector icons (icons.h).
+// The v3 layout at 800x480, from the "Venice Beach Display" mock: hero panel
+// on the left (eyebrow, icon, headline, tagline), and on the right the
+// weekday, the four-tile stat band, a WHAT TO WEAR heading over four wear
+// tiles, the also-grab line and a footer pill. Everything is drawn in roles
+// (paint.h) with the design's own typefaces (text.h) and vector icons
+// (icons.h).
 #pragma once
 #include <cstdint>
 #include "dayspec.h"

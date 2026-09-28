@@ -34,7 +34,6 @@ void batteryGlyph(int x, int y, int pct) {
   const int fill = (inner * pct + 50) / 100;
   if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
 }
-const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
@@ -115,6 +114,84 @@ void drawHero(const ViewModel& vm) {
   textDrawCentered(tagline, cx, 434, oc.tagline);
 }
 
+// ---- the stat band ---------------------------------------------------------
+// The band sizes itself from its own contents and the column gives it that
+// height. It used to take whatever the copy above it left over, which is how
+// its icons ended up breaking through its own outline.
+constexpr int BAND_ICON = 26, BAND_G_ICON = 11, BAND_G_LABEL = 13,
+              BAND_G_VALUE = 8, BAND_G_SUB = 8, BAND_PAD = 14;
+
+bool bandHasSub(const day::Screen& s) {
+  for (int i = 0; i < s.statCount && i < 6; i++) if (s.stats[i].sub[0]) return true;
+  return false;
+}
+
+int bandHeight(const day::Screen& s) {
+  return BAND_ICON + BAND_G_ICON + textCapHeight(T_STATLBL) + BAND_G_LABEL +
+         textCapHeight(T_STATVAL) + BAND_G_VALUE +
+         (bandHasSub(s) ? textCapHeight(T_STATSUB) + BAND_G_SUB : 0) +
+         textCapHeight(T_STATWORD) + BAND_PAD;
+}
+
+void drawStatBand(const day::Screen& s, int bandY, int bandH) {
+  paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
+  const int cols = s.statCount > 6 ? 6 : s.statCount;
+  if (cols <= 0) return;
+
+  // Rows are spaced off measured cap heights rather than guessed offsets, so
+  // changing a size cannot silently crowd its neighbour.
+  const bool anySub = bandHasSub(s);
+  const int capLabel = textCapHeight(T_STATLBL);
+  const int capValue = textCapHeight(T_STATVAL);
+  const int capSub   = textCapHeight(T_STATSUB);
+  const int capWord  = textCapHeight(T_STATWORD);
+  const int contentH = bandHeight(s) - BAND_PAD;
+
+  int top = bandY + (bandH - contentH) / 2;
+  if (top < bandY + 7) top = bandY + 7;   // icons can overshoot their box
+
+  const bool statAccents = paintAccentsLegibleAt(BAND_ICON);
+  const float colW = (float)COL_W / cols;
+  for (int i = 0; i < cols; i++) {
+    const day::Stat& st = s.stats[i];
+    const int cx = COL_X0 + (int)(colW * i + colW / 2);
+    const int avail = (int)colW - 10;
+    int y = top;
+
+    IconStyle ist; ist.accents = statAccents;
+    drawIcon(st.icon, cx, y + BAND_ICON / 2, BAND_ICON, ist);
+    y += BAND_ICON + BAND_G_ICON;
+
+    TextStyle lbl = T_STATLBL;
+    while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > avail) lbl.tracking -= 0.4f;
+    while (lbl.px > 8 && textWidth(lbl, st.label) > avail) lbl.px -= 1;
+    y += capLabel;
+    textDrawCentered(lbl, cx, y, st.label);
+    y += BAND_G_LABEL;
+
+    TextStyle val = T_STATVAL;
+    while (val.px > 14 && textWidth(val, st.value) > avail) val.px -= 1;
+    y += capValue;
+    textDrawCentered(val, cx, y, st.value);
+    y += BAND_G_VALUE;
+
+    if (anySub) {
+      y += capSub;
+      if (st.sub[0]) {
+        TextStyle sb = T_STATSUB;
+        while (sb.px > 8 && textWidth(sb, st.sub) > avail) sb.px -= 1;
+        textDrawCentered(sb, cx, y, st.sub);
+      }
+      y += BAND_G_SUB;
+    }
+
+    TextStyle wrd = T_STATWORD;
+    while (wrd.px > 10 && textWidth(wrd, st.word) > avail) wrd.px -= 1;
+    y += capWord;
+    textDrawCentered(wrd, cx, y, st.word);
+  }
+}
+
 void drawRight(const ViewModel& vm) {
   const day::Screen& s = vm.screen;
   char lines[2][160];
@@ -137,49 +214,35 @@ void drawRight(const ViewModel& vm) {
     }
   }
 
-  // Subline (wraps to two lines if it must)
-  int n = textWrap(T_SUBLINE, s.subline, COL_W, lines, 2);
-  int y = 88;
-  for (int i = 0; i < n; i++) { textDraw(T_SUBLINE, COL_X0, y, lines[i]); y += 19; }
-  int ruleY = y + 2;
+  // The day, then the numbers, then what to put on, then the tip. The subline
+  // that used to sit under the weekday is gone: the band says the same things
+  // in less room and says them more precisely, and the room it frees is what
+  // lets everything below it sit at a comfortable size again.
+  const int ruleY = 76;
   paintHLine(COL_X0, COL_X1, ruleY, 3, Role::Ink);
 
   // Footer pill, anchored to the bottom.
   const int pillH = 38, pillY = H - 30 - pillH;
 
-  // Everything below the rule has to share one fixed height, and when the
-  // copy runs long something has to give. The stat band is budgeted first,
-  // because a tile squeezed until its icon touches its label is unreadable,
-  // while the space around the wear tiles is only ever whitespace. So the
-  // band states what it needs and the rest of the column gives way to it, in
-  // order of least damage: the gaps first, then the tiles' own height, and
-  // only as a last resort the second line of the also-grab.
-  const int capLabel = textCapHeight(T_STATLBL);
-  const int capValue = textCapHeight(T_STATVAL);
-  const int capSub   = textCapHeight(T_STATSUB);
-  const int capWord  = textCapHeight(T_STATWORD);
-  bool anySub = false;
-  for (int i = 0; i < s.statCount && i < 6; i++) if (s.stats[i].sub[0]) anySub = true;
+  const int bandY = ruleY + 16;
+  const int bandH = bandHeight(s);
+  drawStatBand(s, bandY, bandH);
 
-  const int ICON_PX = 26, G_ICON = 11, G_LABEL = 13, G_VALUE = 8, G_SUB = 8;
-  const int bandCore = ICON_PX + G_ICON + capLabel + G_LABEL + capValue + G_VALUE +
-                       (anySub ? capSub + G_SUB : 0) + capWord;
+  // With the subline gone this heading is the only thing left that says the
+  // screen has flipped to tomorrow, so it says it.
+  const int headY = bandY + bandH + 26;
+  textDraw(T_SECTION, COL_X0, headY, s.tomorrow ? "WHAT TO WEAR TOMORROW" : "WHAT TO WEAR");
 
-  int tileGapY = 18, tileH = 84, alsoGapY = 22, bandPad = 12, alsoLines = 2;
-  auto overBy = [&] {
-    const int maxBottom = (pillY - 14) - (bandCore + bandPad) - 10 - 18;
-    const int bottom = ruleY + tileGapY + tileH + alsoGapY + (alsoLines - 1) * 19 + 5;
-    return bottom - maxBottom;
-  };
-  while (overBy() > 0 && alsoGapY > 16) alsoGapY--;
-  while (overBy() > 0 && tileGapY > 12) tileGapY--;
-  while (overBy() > 0 && tileH > 74) tileH--;
-  while (overBy() > 0 && bandPad > 4) bandPad--;
-  if (overBy() > 0) alsoLines = 1;          // last resort: words are worth more
+  // Two lines of also-grab are reserved underneath; the tiles take what is
+  // left, within reason, so the column stays balanced whatever the copy does.
+  const int tileY = headY + 12;
+  const int alsoGapY = 22, alsoLines = 2;
+  const int alsoBlockH = alsoGapY + (alsoLines - 1) * 19 + 5;
+  int tileH = (pillY - 16) - alsoBlockH - tileY;
+  if (tileH > 100) tileH = 100;
+  if (tileH < 64)  tileH = 64;
 
-  // Wear tiles. No heading: the four pictures say what they are, and the row
-  // it used to occupy is worth more to the stat strip.
-  const int tileY = ruleY + tileGapY, gap = 12;
+  const int gap = 12;
   const int tileW = (COL_W - 3 * gap) / 4;
   const bool tileAccents = paintAccentsLegibleAt(tileH / 2);
   for (int i = 0; i < 4; i++) {
@@ -195,90 +258,10 @@ void drawRight(const ViewModel& vm) {
     }
   }
 
-  // Also grab, in however many lines the budget above left room for.
+  // Also grab, the closing tip.
   int alsoY = tileY + tileH + alsoGapY;
-  n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, alsoLines);
+  const int n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, alsoLines);
   for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 19; }
-  const int alsoBottom = alsoY - 19 + 5;
-
-  // The strip is labelled, because after sunset it quietly switches to
-  // tomorrow and nothing else on screen says so.
-  const int headY = alsoBottom + 18;
-  textDraw(T_SECTION, COL_X0, headY, s.tomorrow ? "TOMORROW'S FORECAST" : "TODAY'S FORECAST");
-
-  // Stat strip fills whatever is left between the heading and the footer.
-  const int bandY = headY + 10;
-  const int bandH = (pillY - 14) - bandY;
-  if (bandH >= 56) {
-    paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
-    int cols = s.statCount > 6 ? 6 : s.statCount;
-    if (cols > 0) {
-      // The budget above normally gets the band the height it asked for. This
-      // is the backstop for the case it could not - a two-line subline and a
-      // two-line also-grab together - where the contents close up rather than
-      // spill out of the box. Gaps give first, then the icon.
-      int iconPx = ICON_PX, GAP_ICON = G_ICON, GAP_LABEL = G_LABEL,
-          GAP_VALUE = G_VALUE, GAP_SUB = G_SUB;
-      const int fixedH = capLabel + capValue + capWord + (anySub ? capSub : 0);
-      auto contentOf = [&] {
-        return iconPx + GAP_ICON + GAP_LABEL + GAP_VALUE + (anySub ? GAP_SUB : 0) + fixedH;
-      };
-      const int room = bandH - 12;          // 6px of breathing space top and bottom
-      while (contentOf() > room && (GAP_LABEL > 5 || GAP_ICON > 4 || GAP_VALUE > 3 || GAP_SUB > 3)) {
-        if (GAP_LABEL > 5) GAP_LABEL--;
-        else if (GAP_ICON > 4) GAP_ICON--;
-        else if (GAP_VALUE > 3) GAP_VALUE--;
-        else GAP_SUB--;
-      }
-      while (contentOf() > room && iconPx > 16) iconPx -= 2;
-      const int subH = anySub ? capSub + GAP_SUB : 0;
-      const int contentH = contentOf();
-
-      int top = bandY + (bandH - contentH) / 2;
-      if (top < bandY + 7) top = bandY + 7;   // icons can overshoot their box
-
-      const bool statAccents = paintAccentsLegibleAt(iconPx);
-      const float colW = (float)COL_W / cols;
-      for (int i = 0; i < cols; i++) {
-        const day::Stat& st = s.stats[i];
-        const int cx = COL_X0 + (int)(colW * i + colW / 2);
-        const int avail = (int)colW - 10;
-        int y = top;
-
-        IconStyle ist; ist.accents = statAccents;
-        drawIcon(st.icon, cx, y + iconPx / 2, iconPx, ist);
-        y += iconPx + GAP_ICON;
-
-        TextStyle lbl = T_STATLBL;
-        while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > avail) lbl.tracking -= 0.4f;
-        while (lbl.px > 8 && textWidth(lbl, st.label) > avail) lbl.px -= 1;
-        y += capLabel;
-        textDrawCentered(lbl, cx, y, st.label);
-        y += GAP_LABEL;
-
-        TextStyle val = T_STATVAL;
-        while (val.px > 14 && textWidth(val, st.value) > avail) val.px -= 1;
-        y += capValue;
-        textDrawCentered(val, cx, y, st.value);
-        y += GAP_VALUE;
-
-        if (subH) {
-          y += capSub;
-          if (st.sub[0]) {
-            TextStyle sb = T_STATSUB;
-            while (sb.px > 8 && textWidth(sb, st.sub) > avail) sb.px -= 1;
-            textDrawCentered(sb, cx, y, st.sub);
-          }
-          y += GAP_SUB;
-        }
-
-        TextStyle wrd = T_STATWORD;
-        while (wrd.px > 10 && textWidth(wrd, st.word) > avail) wrd.px -= 1;
-        y += capWord;
-        textDrawCentered(wrd, cx, y, st.word);
-      }
-    }
-  }
 
   // A filled black bar is an alarm, so it belongs to the parking warning only.
   // The sunset line is ordinary information and reads as plain text.

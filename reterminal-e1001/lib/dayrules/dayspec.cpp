@@ -144,9 +144,12 @@ void hour12(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;
   snprintf(out, n, "%d %s", d, h >= 12 ? "PM" : "AM");
 }
+// "6a", so a window reads "6a-6p". The stat tiles have about 108px to say a
+// whole span in, which rules out "6 AM - 6 PM", and lowercase sits quieter
+// next to the value it belongs to than shouting capitals would.
 void hourCompact(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;
-  snprintf(out, n, "%d%c", d, h >= 12 ? 'P' : 'A');
+  snprintf(out, n, "%d%c", d, h >= 12 ? 'p' : 'a');
 }
 
 } // namespace

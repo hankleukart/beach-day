@@ -309,11 +309,12 @@ void setup() {
   vm.parkingActive = pa.active;
   snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
 
-  // "9:40am" rather than "9:40 AM": the corner is a quiet aside, not a heading.
+  // "9:40a", matching the stat tiles: the corner is a quiet aside, not a
+  // heading. (The OFFLINE stamp slices this at "Updated ", 8 characters.)
   {
     const int h = (lc.minuteOfDay / 60) % 24, m = lc.minuteOfDay % 60;
     int dh = h % 12; if (dh == 0) dh = 12;
-    snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %d:%02d%s", dh, m, h >= 12 ? "pm" : "am");
+    snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %d:%02d%c", dh, m, h >= 12 ? 'p' : 'a');
   }
   vm.batteryPct = (int8_t)batteryPct;
 

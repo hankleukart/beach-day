@@ -215,10 +215,10 @@ crashed board and a flat battery all look identical. Work down this list:
 5. **Icons.** Compare against `docs-design/icons-preview.png`; the leaf fill
    and umbrella scallops are already on the list.
 6. **The band.** The stat strip is a 12.5% dot field standing in for `#F2F2F2`.
-   If it fights the text, switch it to an outline in `paint.cpp`. Its height is
-   whatever the also-grab line leaves over, so the four tiles close their gaps
-   — and then shrink their icons — to fit rather than spilling out of the box.
-   Check it against copy that wraps the subline and the also-grab to two lines.
+   If it fights the text, switch it to an outline in `paint.cpp`. It sits
+   directly under the weekday and sizes itself from its own contents
+   (`bandHeight`), so the column below works around it rather than the other
+   way round. Check `tools/preview.sh stress` after touching the right column.
 
 When the layout looks right, `./flash.sh release` and let it sleep.
 
@@ -299,9 +299,9 @@ render stack touches nothing else from the framework.
 
 Scenarios are in `tools/preview/preview.cpp`. `beach` is a long midsummer day,
 `winter` a short one, `rain` picks a wet outcome and one of its variants,
-`smoke` gives the AIR tile something to say, and `stress` forces the subline
-and the also-grab to two lines each — which is the case that decides whether
-the stat band still fits. Check `stress` after any change to the right column.
+`smoke` gives the AIR tile something to say, and `stress` wraps the also-grab
+to two lines and turns the parking bar on — the case that decides whether the
+right column still fits. Check `stress` after any change to that column.
 
 ### Colour is a role
 

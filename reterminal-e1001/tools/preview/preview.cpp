@@ -124,16 +124,13 @@ int main(int argc, char** argv) {
   }
   vm.valid = true;
   vm.batteryPct = 96;
-  std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated 9:40am");
+  std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated 9:40a");
 
   if (sc->stressCopy) {
     // Long enough to wrap in both places, which is what squeezes the band.
     std::snprintf(vm.screen.outcome.alsoGrab, sizeof(vm.screen.outcome.alsoGrab),
                   "Also grab: dry socks for the backpack, and the wide-brimmed "
                   "hat that lives by the back door.");
-    std::snprintf(vm.screen.subline, sizeof(vm.screen.subline),
-                  "Clear all morning with a light onshore breeze, then high cloud "
-                  "building through the late afternoon.");
     vm.parkingActive = true;
     std::snprintf(vm.parkingText, sizeof(vm.parkingText), "Street cleaning 10am-12pm");
   }
