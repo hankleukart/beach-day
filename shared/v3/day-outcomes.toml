@@ -135,8 +135,11 @@ water_bottle = { label = "Water bottle", icon = "water_bottle" }
 
 
 # ─── Outcomes ────────────────────────────────────────────────────────────
-# Checked top to bottom; the first whose [outcome.when] passes wins, so the
-# last one must have no conditions at all. Every condition must pass.
+# Checked top to bottom; the first whose `when` passes wins, so the last one
+# must have no `when` at all. Every condition in the list must pass.
+#
+# A condition is three words: a field, an operator, a number. Listing the same
+# field twice makes a band - "tempMax >= 65", "tempMax < 75".
 #
 # A matching outcome then picks one VARIANT for the day - the same one all
 # day, a different one tomorrow. Two ways to write them, and you can mix:
@@ -153,6 +156,7 @@ water_bottle = { label = "Water bottle", icon = "water_bottle" }
 
 [[outcome]]
 id      = "rain_day"
+when    = ["rain >= 50"]
 tagline = "PUDDLES AHEAD"
 icon    = "rain_boot"
 color   = "blue"
@@ -161,8 +165,6 @@ also    = "Also grab: dry socks for the backpack."
 
 names   = ["Rain Boots Day", "Puddle Day", "Splashy Day"]
 
-[outcome.when]
-rain = ">= 50"
 
 [[outcome.variant]]
 name    = "Umbrella Day"
@@ -181,6 +183,7 @@ also    = "Also grab: the hood actually goes up today."
 
 [[outcome]]
 id      = "big_coat_day"
+when    = ["tempMax < 52"]
 tagline = "HATS AND MITTENS"
 icon    = "puffy_coat"
 color   = "red"
@@ -189,8 +192,6 @@ also    = "Also grab: warm socks, and tuck a hat in every pocket."
 
 names   = ["Big Coat Day", "Frosty Day"]
 
-[outcome.when]
-tempMax = "< 52"
 
 [[outcome.variant]]
 name    = "Mittens Day"
@@ -215,6 +216,13 @@ also    = "Also grab: patience for the getting-dressed part."
 
 [[outcome]]
 id      = "beach_day"
+when    = [
+  "tempMax >= 78",
+  "rain <= 20",
+  "wind <= 15",
+  "aqi < 100",
+  "cloud <= 35",
+]
 tagline = "PACK THE CAR"
 icon    = "sun_and_waves"
 color   = "yellow"
@@ -224,12 +232,6 @@ is_beach_day = true   # the day other outcomes measure themselves against
 
 names   = ["Beach Day", "Sandcastle Day", "Seashell Day"]
 
-[outcome.when]
-tempMax = ">= 78"
-rain    = "<= 20"
-wind    = "<= 15"
-aqi     = "< 100"
-cloud   = "<= 35"
 
 [[outcome.variant]]
 name    = "Swimsuit Day"
@@ -247,6 +249,7 @@ also    = "Also grab: something to weigh the corners down."
 
 [[outcome]]
 id      = "sun_hat_day"
+when    = ["tempMax >= 78"]
 tagline = "STAY IN THE SHADE"
 icon    = "sun_hat"
 wear    = ["sun_hat", "t_shirt", "sunscreen", "water_bottle"]
@@ -254,8 +257,6 @@ also    = "Hot one today — shade and refills."
 
 names   = ["Sun Hat Day", "Shady Day"]
 
-[outcome.when]
-tempMax = ">= 78"
 
 [[outcome.variant]]
 name    = "Lemonade Day"
@@ -280,6 +281,7 @@ rain  = "Hot with a shower possible — shade now, umbrella nearby."
 
 [[outcome]]
 id      = "layers_day"
+when    = ["swing >= 22"]
 tagline = "PEEL THEM OFF LATER"
 icon    = "hoodie"
 wear    = ["t_shirt", "hoodie", "long_pants", "sneakers"]
@@ -287,8 +289,6 @@ also    = "It warms up {swing} degrees today — pack somewhere to stash the hoo
 
 names   = ["Layers Day", "Zip Up Day"]
 
-[outcome.when]
-swing = ">= 22"
 
 [[outcome.variant]]
 name    = "Hoodie Day"
@@ -306,6 +306,7 @@ also    = "Also grab: short sleeves underneath, it is coming off."
 
 [[outcome]]
 id      = "tshirt_day"
+when    = ["tempMax >= 68"]
 tagline = "SHORTS WEATHER"
 icon    = "tshirt"
 wear    = ["t_shirt", "shorts", "sneakers", "sun_hat"]
@@ -315,8 +316,6 @@ also_near_beach_within = 6
 
 names   = ["T-Shirt Day", "Park Day"]
 
-[outcome.when]
-tempMax = ">= 68"
 
 [[outcome.variant]]
 name    = "Shorts Day"

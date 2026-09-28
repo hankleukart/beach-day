@@ -46,10 +46,15 @@ bool vHas(toml_table_t* t, const char* key) {
 }
 
 // The engine's own parser, duplicated here so validation matches evaluation.
-bool vParseCond(const char* expr, char* op, size_t opN, double& value) {
+bool vParseWhen(const char* expr, char* field, size_t fieldN, char* op, size_t opN, double& value) {
   const char* p = expr;
   while (*p == ' ') p++;
   size_t k = 0;
+  while (*p && *p != ' ' && !strchr("<>=!", *p) && k + 1 < fieldN) field[k++] = *p++;
+  field[k] = '\0';
+  if (!k) return false;
+  while (*p == ' ') p++;
+  k = 0;
   while (*p && strchr("<>=!", *p) && k + 1 < opN) op[k++] = *p++;
   op[k] = '\0';
   if (!k) return false;
@@ -57,6 +62,13 @@ bool vParseCond(const char* expr, char* op, size_t opN, double& value) {
   char* end = nullptr;
   value = strtod(p, &end);
   return end && end != p;
+}
+
+// A condition names a field the operator can also be read from; still used
+// where only the operator matters.
+bool vParseCond(const char* expr, char* op, size_t opN, double& value) {
+  char field[24];
+  return vParseWhen(expr, field, sizeof(field), op, opN, value);
 }
 bool vKnownOp(const char* op) {
   static const char* ops[] = { ">=", ">", "<=", "<", "==", "=", "!=" };
@@ -209,20 +221,17 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
       }
     }
 
-    toml_table_t* when = toml_table_in(o, "when");
-    int conds = 0;
-    if (when) {
-      for (int k = 0; ; k++) {
-        const char* field = toml_key_in(when, k);
-        if (!field) break;
-        conds++;
-        if (!vKnownField(field)) return v.fail("%s: unknown field '%s'", id, field);
-        char expr[40], op[4];
-        double val = 0;
-        if (!vStr(when, field, expr, sizeof(expr))) return v.fail("%s: %s must be text like \"<= 20\"", id, field);
-        if (!vParseCond(expr, op, sizeof(op), val)) return v.fail("%s: cannot read '%s = %s'", id, field, expr);
-        if (!vKnownOp(op)) return v.fail("%s: bad operator '%s' on %s", id, op, field);
-      }
+    toml_array_t* when = toml_array_in(o, "when");
+    const int conds = when ? toml_array_nelem(when) : 0;
+    for (int k = 0; k < conds; k++) {
+      char expr[48], field[24], op[4];
+      double val = 0;
+      if (!vStrAt(when, k, expr, sizeof(expr)))
+        return v.fail("%s: condition %d must be text like \"rain >= 50\"", id, k);
+      if (!vParseWhen(expr, field, sizeof(field), op, sizeof(op), val))
+        return v.fail("%s: cannot read condition \"%s\"", id, expr);
+      if (!vKnownField(field)) return v.fail("%s: unknown field '%s' in \"%s\"", id, field, expr);
+      if (!vKnownOp(op)) return v.fail("%s: bad operator '%s' in \"%s\"", id, op, expr);
     }
     if (i == count - 1 && conds > 0) return v.fail("last outcome '%s' must have no conditions", id);
     if (i != count - 1 && conds == 0) return v.fail("%s: only the last outcome may have no conditions", id);

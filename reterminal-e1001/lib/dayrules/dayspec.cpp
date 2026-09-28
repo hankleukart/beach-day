@@ -107,19 +107,24 @@ bool tBool(toml_table_t* t, const char* key, bool& out) {
   return true;
 }
 
-// "<= 20" -> op "<=", value 20. The whole condition grammar, deliberately:
-// a field name on the left of the '=' and an operator plus a number on the
-// right needs no parser worth the name.
-bool parseCond(const char* expr, char* op, size_t opN, double& value) {
+// "tempMax >= 78" -> field, operator, number. The whole condition grammar,
+// deliberately: three tokens, so no parser worth the name and no build step.
+// An array rather than a table, so two conditions can name the same field -
+// "tempMax >= 65", "tempMax < 75" is a band, which a table cannot express.
+bool parseWhen(const char* expr, char* field, size_t fieldN, char* op, size_t opN, double& value) {
   if (!expr) return false;
   const char* p = expr;
   while (*p == ' ') p++;
   size_t k = 0;
+  while (*p && *p != ' ' && !strchr("<>=!", *p) && k + 1 < fieldN) field[k++] = *p++;
+  field[k] = '\0';
+  if (k == 0) return false;
+  while (*p == ' ') p++;
+  k = 0;
   while (*p && strchr("<>=!", *p) && k + 1 < opN) op[k++] = *p++;
   op[k] = '\0';
   if (k == 0) return false;
   while (*p == ' ') p++;
-  if (!*p) return false;
   char* end = nullptr;
   value = strtod(p, &end);
   return end && end != p;
@@ -364,19 +369,17 @@ namespace {
 // did not, which is how sun_hat_day explains itself.
 bool whenPasses(toml_table_t* outcome, const Inputs& in, char* failed, size_t failedLen) {
   if (failed) failed[0] = '\0';
-  toml_table_t* when = toml_table_in(outcome, "when");
-  if (!when) return true;
+  toml_array_t* when = toml_array_in(outcome, "when");
+  if (!when) return true;              // the catch-all
   bool ok = true;
-  for (int i = 0; ; i++) {
-    const char* key = toml_key_in(when, i);
-    if (!key) break;
-    char expr[32], op[4];
+  for (int i = 0; i < toml_array_nelem(when); i++) {
+    char expr[48], field[24], op[4];
     double target = 0, v = 0;
-    if (!tStr(when, key, expr, sizeof(expr))) { ok = false; continue; }
-    if (!parseCond(expr, op, sizeof(op), target)) { ok = false; continue; }
-    if (!fieldValue(in, key, v) || !applyOp(op, v, target)) {
+    if (!tStrAt(when, i, expr, sizeof(expr))) { ok = false; continue; }
+    if (!parseWhen(expr, field, sizeof(field), op, sizeof(op), target)) { ok = false; continue; }
+    if (!fieldValue(in, field, v) || !applyOp(op, v, target)) {
       ok = false;
-      if (failed && !failed[0]) cpy(failed, failedLen, key);
+      if (failed && !failed[0]) cpy(failed, failedLen, field);
     }
   }
   return ok;
@@ -405,9 +408,15 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     bool isBeach = false;
     if (!tBool(o, "is_beach_day", isBeach) || !isBeach) continue;
     whenPasses(o, in, beachFailed, sizeof(beachFailed));
-    toml_table_t* when = toml_table_in(o, "when");
-    char expr[32], op[4];
-    if (when && tStr(when, "tempMax", expr, sizeof(expr))) parseCond(expr, op, sizeof(op), beachTempThreshold);
+    // The temperature bar the near-miss copy counts down from.
+    toml_array_t* when = toml_array_in(o, "when");
+    for (int k = 0; when && k < toml_array_nelem(when); k++) {
+      char expr[48], field[24], op[4];
+      double val = 0;
+      if (!tStrAt(when, k, expr, sizeof(expr))) continue;
+      if (parseWhen(expr, field, sizeof(field), op, sizeof(op), val) && !strcmp(field, "tempMax"))
+        beachTempThreshold = val;
+    }
     break;
   }
 

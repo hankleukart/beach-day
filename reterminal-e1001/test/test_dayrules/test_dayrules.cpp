@@ -93,10 +93,11 @@ void test_fixture_is_valid() {
 
 void test_rejects_bad_specs() {
   rejects("not TOML at all", "[[[");
-  rejects("unknown field", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMaxx = \">= 1\""));
-  rejects("bad operator", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \"=> 1\""));
-  rejects("no number", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \">=\""));
-  rejects("last outcome must be a catch-all", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \">= 99\""));
+  rejects("unknown field", specWith("also = \"grab\"", "also = \"grab\"\nwhen = [\"tempMaxx >= 1\"]"));
+  rejects("bad operator", specWith("also = \"grab\"", "also = \"grab\"\nwhen = [\"tempMax => 1\"]"));
+  rejects("no number", specWith("also = \"grab\"", "also = \"grab\"\nwhen = [\"tempMax >=\"]"));
+  rejects("no operator", specWith("also = \"grab\"", "also = \"grab\"\nwhen = [\"tempMax 78\"]"));
+  rejects("last outcome must be a catch-all", specWith("also = \"grab\"", "also = \"grab\"\nwhen = [\"tempMax >= 99\"]"));
   rejects("icon not in icons", specWith("icon = \"tshirt\"\nwear", "icon = \"sombrero\"\nwear"));
   rejects("wear id not in catalogue", specWith("wear = [\"a\", \"a\", \"a\", \"a\"]", "wear = [\"a\", \"a\", \"a\", \"kilt\"]"));
   rejects("three wear items", specWith("wear = [\"a\", \"a\", \"a\", \"a\"]", "wear = [\"a\", \"a\", \"a\"]"));
@@ -139,6 +140,33 @@ void test_beach_day() {
   TEST_ASSERT_EQUAL_STRING("VENICE BEACH", s.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 this morning, 84\xC2\xB0 this afternoon", s.subline);
   TEST_ASSERT_EQUAL_STRING("", s.outcome.holiday);
+}
+
+// Two conditions on one field make a band - the reason `when` is a list and
+// not a table, since a table cannot hold the same key twice.
+void test_band_condition() {
+  day::Spec sp; day::Screen sc; char err[200];
+  std::string t = specWith("[[outcome]]", R"([[outcome]]
+id = "band"
+names = ["Band Day"]
+tagline = "T"
+icon = "tshirt"
+wear = ["a", "a", "a", "a"]
+also = "grab"
+when = ["tempMax >= 65", "tempMax < 75"]
+
+[[outcome]])");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  auto in = base();
+  in.tempMaxF = 70;
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_EQUAL_STRING("band", sc.outcome.id);
+  in.tempMaxF = 75;                       // above the band
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
+  in.tempMaxF = 64;                       // below it
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
 }
 
 void test_precedence() {
@@ -357,6 +385,7 @@ int main(int, char**) {
   RUN_TEST(test_rejects_bad_specs);
   RUN_TEST(test_rejects_duplicate_ids);
   RUN_TEST(test_beach_day);
+  RUN_TEST(test_band_condition);
   RUN_TEST(test_precedence);
   RUN_TEST(test_sun_hat_explains_itself);
   RUN_TEST(test_near_threshold_copy);
