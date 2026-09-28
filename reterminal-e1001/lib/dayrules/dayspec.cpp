@@ -1,58 +1,168 @@
 #include "dayspec.h"
+#include <toml.h>
+#include <cctype>
 #include <cmath>
 #include <cstdio>
-#include <cctype>
+#include <cstdlib>
 #include <cstring>
-#include <cstdarg>
 
 namespace day {
 
-// The eyebrow is set in caps by design, but the label can come from a portal
-// entry or a geocoder, which return "Cambridge". Uppercase it here rather than
-// asking whoever types it to hold shift.
-static void upperCpy(char* dst, size_t n, const char* src) {
+namespace { IconChecker g_iconChecker = nullptr; }
+void setIconChecker(IconChecker fn) { g_iconChecker = fn; }
+IconChecker g_iconCheckerAccessor() { return g_iconChecker; }
+
+// ---------------------------------------------------------------------------
+// Field names. Every input has a short name for the TOML and a canonical one;
+// both work, so copy templates and conditions can use either.
+// ---------------------------------------------------------------------------
+namespace {
+
+struct FieldDef { const char* shortName; const char* canonical; };
+const FieldDef FIELDS[] = {
+  { "tempMin",        "tempMinF" },
+  { "tempMax",        "tempMaxF" },
+  { "swing",          "tempSwingF" },
+  { "rain",           "precipChanceMaxPct" },
+  { "wind",           "windMaxMph" },
+  { "aqi",            "aqiMax" },
+  { "aqiMin",         "aqiMin" },
+  { "humidityMin",    "humidityMinPct" },
+  { "humidityMax",    "humidityMaxPct" },
+  { "cloud",          "cloudCoverAvgPct" },
+  { "sunHours",       "sunRunHours" },
+  { "firstClearHour", "firstClearHour" },
+};
+
+double fieldOf(const Inputs& in, const char* canonical, bool& ok) {
+  ok = true;
+  if (!strcmp(canonical, "tempMinF"))           return in.tempMinF;
+  if (!strcmp(canonical, "tempMaxF"))           return in.tempMaxF;
+  if (!strcmp(canonical, "tempSwingF"))         return in.tempSwingF;
+  if (!strcmp(canonical, "precipChanceMaxPct")) return in.precipChanceMaxPct;
+  if (!strcmp(canonical, "windMaxMph"))         return in.windMaxMph;
+  if (!strcmp(canonical, "aqiMax"))             return in.aqiMax;
+  if (!strcmp(canonical, "aqiMin"))             return in.aqiMin;
+  if (!strcmp(canonical, "humidityMinPct"))     return in.humidityMinPct;
+  if (!strcmp(canonical, "humidityMaxPct"))     return in.humidityMaxPct;
+  if (!strcmp(canonical, "cloudCoverAvgPct"))   return in.cloudCoverAvgPct;
+  if (!strcmp(canonical, "sunRunHours"))        return in.sunRunHours;
+  if (!strcmp(canonical, "firstClearHour")) {
+    ok = in.hasFirstClearHour;
+    return in.firstClearHour;
+  }
+  ok = false;
+  return 0;
+}
+
+const char* canonicalOf(const char* name) {
+  if (!name) return nullptr;
+  for (const FieldDef& f : FIELDS) {
+    if (!strcmp(name, f.shortName) || !strcmp(name, f.canonical)) return f.canonical;
+  }
+  return nullptr;
+}
+
+void cpy(char* dst, size_t n, const char* src) {
+  if (!src) { dst[0] = '\0'; return; }
+  snprintf(dst, n, "%s", src);
+}
+
+void upperCpy(char* dst, size_t n, const char* src) {
   size_t i = 0;
   if (src) for (; i + 1 < n && src[i]; i++) dst[i] = (char)toupper((unsigned char)src[i]);
   dst[i] = '\0';
 }
 
-static void cpy(char* dst, size_t n, const char* src) {
-  if (!src) { dst[0] = '\0'; return; }
-  snprintf(dst, n, "%s", src);
+// --- tomlc99 helpers. Every string it hands back is a fresh allocation, so
+// these copy into a caller buffer and free immediately.
+bool tStr(toml_table_t* t, const char* key, char* out, size_t n) {
+  if (!t) return false;
+  toml_datum_t d = toml_string_in(t, key);
+  if (!d.ok) return false;
+  cpy(out, n, d.u.s);
+  free(d.u.s);
+  return true;
+}
+bool tStrAt(toml_array_t* a, int i, char* out, size_t n) {
+  toml_datum_t d = toml_string_at(a, i);
+  if (!d.ok) return false;
+  cpy(out, n, d.u.s);
+  free(d.u.s);
+  return true;
+}
+bool tNum(toml_table_t* t, const char* key, double& out) {
+  if (!t) return false;
+  toml_datum_t d = toml_double_in(t, key);
+  if (d.ok) { out = d.u.d; return true; }
+  d = toml_int_in(t, key);
+  if (d.ok) { out = (double)d.u.i; return true; }
+  return false;
+}
+bool tBool(toml_table_t* t, const char* key, bool& out) {
+  if (!t) return false;
+  toml_datum_t d = toml_bool_in(t, key);
+  if (!d.ok) return false;
+  out = d.u.b;
+  return true;
 }
 
-namespace { IconChecker g_iconChecker = nullptr; }
-void setIconChecker(IconChecker fn) { g_iconChecker = fn; }
+// "<= 20" -> op "<=", value 20. The whole condition grammar, deliberately:
+// a field name on the left of the '=' and an operator plus a number on the
+// right needs no parser worth the name.
+bool parseCond(const char* expr, char* op, size_t opN, double& value) {
+  if (!expr) return false;
+  const char* p = expr;
+  while (*p == ' ') p++;
+  size_t k = 0;
+  while (*p && strchr("<>=!", *p) && k + 1 < opN) op[k++] = *p++;
+  op[k] = '\0';
+  if (k == 0) return false;
+  while (*p == ' ') p++;
+  if (!*p) return false;
+  char* end = nullptr;
+  value = strtod(p, &end);
+  return end && end != p;
+}
 
-bool fieldValue(const Inputs& in, const char* f, double& v) {
-  struct { const char* name; double val; bool ok; } table[] = {
-    { "tempMinF", in.tempMinF, true }, { "tempMaxF", in.tempMaxF, true }, { "tempSwingF", in.tempSwingF, true },
-    { "precipChanceMaxPct", in.precipChanceMaxPct, true }, { "windMaxMph", in.windMaxMph, true },
-    { "aqiMax", in.aqiMax, true }, { "aqiMin", in.aqiMin, true },
-    { "humidityMinPct", in.humidityMinPct, true }, { "humidityMaxPct", in.humidityMaxPct, true },
-    { "cloudCoverAvgPct", in.cloudCoverAvgPct, true },
-    { "sunRunHours", in.sunRunHours, true },
-    { "firstClearHour", (double)in.firstClearHour, in.hasFirstClearHour },
-  };
-  for (auto& t : table) if (strcmp(t.name, f) == 0) { v = t.val; return t.ok; }
+bool applyOp(const char* op, double v, double t) {
+  if (!strcmp(op, ">="))  return v >= t;
+  if (!strcmp(op, ">"))   return v > t;
+  if (!strcmp(op, "<="))  return v <= t;
+  if (!strcmp(op, "<"))   return v < t;
+  if (!strcmp(op, "==") || !strcmp(op, "=")) return v == t;
+  if (!strcmp(op, "!="))  return v != t;
+  return false;
+}
+bool knownOp(const char* op) {
+  static const char* ops[] = { ">=", ">", "<=", "<", "==", "=", "!=" };
+  for (auto o : ops) if (!strcmp(op, o)) return true;
   return false;
 }
 
-static void hour12(int h, char* out, size_t n) {
+void hour12(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;
   snprintf(out, n, "%d %s", d, h >= 12 ? "PM" : "AM");
 }
-
-// Compact form for the interval: 13 -> "1P", 9 -> "9A". Space is tight in a
-// five-column strip, and the pattern reads fine next to a dash.
-static void hourCompact(int h, char* out, size_t n) {
+void hourCompact(int h, char* out, size_t n) {
   int d = h % 12; if (d == 0) d = 12;
   snprintf(out, n, "%d%c", d, h >= 12 ? 'P' : 'A');
 }
 
-void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort, char* out, size_t n,
-                 const char* footerSuffix) {
+} // namespace
+
+bool fieldValue(const Inputs& in, const char* name, double& v) {
+  const char* c = canonicalOf(name);
+  if (!c) return false;
+  bool ok;
+  v = fieldOf(in, c, ok);
+  return ok;
+}
+
+void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort,
+                 char* out, size_t n, const char* footerSuffix) {
   size_t o = 0;
+  if (!tmpl) { out[0] = '\0'; return; }
   for (const char* p = tmpl; *p && o + 1 < n; ) {
     if (*p != '{') { out[o++] = *p++; continue; }
     const char* e = strchr(p, '}');
@@ -60,20 +170,16 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
     char tok[32];
     size_t tl = (size_t)(e - p - 1); if (tl >= sizeof(tok)) tl = sizeof(tok) - 1;
     memcpy(tok, p + 1, tl); tok[tl] = '\0';
-    char rep[48] = "";
+    char rep[64] = "";
     double v;
-    if (strcmp(tok, "value") == 0)              snprintf(rep, sizeof(rep), "%d", (int)lround(value));
-    else if (strcmp(tok, "degreesShort") == 0)  snprintf(rep, sizeof(rep), "%d", degreesShort);
-    else if (strcmp(tok, "firstClearHour") == 0) { if (in.hasFirstClearHour) hour12(in.firstClearHour, rep, sizeof(rep)); }
-    else if (strcmp(tok, "rainWindow") == 0) {
-      if (in.rainStartHour >= 0) {
-        char a[8], b[8];
-        hourCompact(in.rainStartHour, a, sizeof(a));
-        if (in.rainEndHour == in.rainStartHour) snprintf(rep, sizeof(rep), "%s", a);
-        else { hourCompact(in.rainEndHour, b, sizeof(b)); snprintf(rep, sizeof(rep), "%s-%s", a, b); }
-      }
-    }
-    else if (strcmp(tok, "sunWindow") == 0) {
+    if (!strcmp(tok, "value"))                snprintf(rep, sizeof(rep), "%d", (int)lround(value));
+    else if (!strcmp(tok, "degreesShort"))    snprintf(rep, sizeof(rep), "%d", degreesShort);
+    else if (!strcmp(tok, "firstClearHour"))  { if (in.hasFirstClearHour) hour12(in.firstClearHour, rep, sizeof(rep)); }
+    else if (!strcmp(tok, "conditionSummary")) cpy(rep, sizeof(rep), in.conditionSummary);
+    else if (!strcmp(tok, "sunsetLocal"))     cpy(rep, sizeof(rep), in.sunsetLocal);
+    else if (!strcmp(tok, "weekdayName"))     cpy(rep, sizeof(rep), in.weekdayName);
+    else if (!strcmp(tok, "footerSuffix"))    cpy(rep, sizeof(rep), footerSuffix ? footerSuffix : "");
+    else if (!strcmp(tok, "sunWindow")) {
       if (in.sunRunStartHour >= 0) {
         char a[8], b[8];
         hourCompact(in.sunRunStartHour, a, sizeof(a));
@@ -81,11 +187,15 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
         snprintf(rep, sizeof(rep), "%s-%s", a, b);
       }
     }
-    else if (strcmp(tok, "conditionSummary") == 0) cpy(rep, sizeof(rep), in.conditionSummary);
-    else if (strcmp(tok, "sunsetLocal") == 0)  cpy(rep, sizeof(rep), in.sunsetLocal);
-    else if (strcmp(tok, "footerSuffix") == 0) cpy(rep, sizeof(rep), footerSuffix ? footerSuffix : "");
-    else if (strcmp(tok, "weekdayName") == 0)  cpy(rep, sizeof(rep), in.weekdayName);
-    else if (fieldValue(in, tok, v))            snprintf(rep, sizeof(rep), "%d", (int)lround(v));
+    else if (!strcmp(tok, "rainWindow")) {
+      if (in.rainStartHour >= 0) {
+        char a[8], b[8];
+        hourCompact(in.rainStartHour, a, sizeof(a));
+        if (in.rainEndHour == in.rainStartHour) snprintf(rep, sizeof(rep), "%s", a);
+        else { hourCompact(in.rainEndHour, b, sizeof(b)); snprintf(rep, sizeof(rep), "%s-%s", a, b); }
+      }
+    }
+    else if (fieldValue(in, tok, v))          snprintf(rep, sizeof(rep), "%d", (int)lround(v));
     for (const char* r = rep; *r && o + 1 < n; ) out[o++] = *r++;
     p = e + 1;
   }
@@ -94,384 +204,346 @@ void interpolate(const char* tmpl, const Inputs& in, double value, int degreesSh
 
 // ---------------------------------------------------------------------------
 
-// Every input name the rules may reference. A typo here is the nastiest kind
-// of bug: an unknown field makes its condition silently never pass, so a day
-// quietly resolves to the wrong outcome rather than failing loudly.
-static bool isKnownField(const char* f) {
-  Inputs probe;
-  probe.hasFirstClearHour = true;   // so the optional field resolves too
-  double v;
-  return f && f[0] && fieldValue(probe, f, v);
+Spec::~Spec() { if (root_) toml_free(root_); }
+
+const char* Spec::name() const { return nameBuf_; }
+const char* Spec::version() const { return versionBuf_; }
+const char* Spec::locationLabel() const { return locationBuf_; }
+
+int Spec::outcomeCount() const {
+  if (!root_) return 0;
+  toml_array_t* a = toml_array_in(root_, "outcome");
+  return a ? toml_array_nelem(a) : 0;
 }
 
-static bool isKnownOp(const char* op) {
-  static const char* ops[] = { ">=", ">", "<=", "<", "==", "!=" };
-  for (auto o : ops) if (op && strcmp(op, o) == 0) return true;
-  return false;
+const char* Spec::outcomeId(int i) const {
+  idBuf_[0] = '\0';
+  if (!root_) return idBuf_;
+  toml_array_t* a = toml_array_in(root_, "outcome");
+  if (!a || i < 0 || i >= toml_array_nelem(a)) return idBuf_;
+  tStr(toml_table_at(a, i), "id", idBuf_, sizeof(idBuf_));
+  return idBuf_;
 }
 
+bool Spec::load(const char* text, size_t len, char* err, size_t errLen) {
+  if (!text || len == 0) { snprintf(err, errLen, "empty rules file"); return false; }
+  // toml_parse writes into its input; the tree it returns owns copies of every
+  // key and value, so this scratch buffer can go as soon as parsing is done.
+  char* scratch = (char*)malloc(len + 1);
+  if (!scratch) { snprintf(err, errLen, "out of memory"); return false; }
+  memcpy(scratch, text, len);
+  scratch[len] = '\0';
+
+  char perr[128] = "";
+  toml_table_t* root = toml_parse(scratch, perr, sizeof(perr));
+  free(scratch);
+  if (!root) { snprintf(err, errLen, "toml: %s", perr); return false; }
+
+  if (!validate(root, err, errLen)) { toml_free(root); return false; }
+
+  if (root_) toml_free(root_);
+  root_ = root;
+  valid_ = true;
+  tStr(root_, "name", nameBuf_, sizeof(nameBuf_));
+  tStr(root_, "version", versionBuf_, sizeof(versionBuf_));
+  tStr(toml_table_in(root_, "screen"), "location", locationBuf_, sizeof(locationBuf_));
+  err[0] = '\0';
+  return true;
+}
+
+// --- holidays ---------------------------------------------------------------
 namespace {
-
-struct Validator {
-  JsonObjectConst root;
-  char* err; size_t n;
-  bool fail(const char* fmt, ...) {
-    va_list ap; va_start(ap, fmt); vsnprintf(err, n, fmt, ap); va_end(ap);
-    return false;
-  }
-  // Fixed-size destination buffers mean an over-long string would be silently
-  // clipped on screen; catch it at load instead.
-  bool fits(const char* what, const char* who, const char* value, size_t cap) {
-    if (value && strlen(value) >= cap) return fail("%s: %s too long (max %u)", who, what, (unsigned)cap - 1);
-    return true;
-  }
-  bool knownIcon(const char* who, const char* what, const char* name) {
-    if (!name || !name[0]) return fail("%s: %s missing", who, what);
-    bool listed = false;
-    for (JsonVariantConst i : root["icons"].as<JsonArrayConst>())
-      if (strcmp(i | "", name) == 0) { listed = true; break; }
-    if (!listed) return fail("%s: %s '%s' not in icons[]", who, what, name);
-    if (g_iconChecker && !g_iconChecker(name)) return fail("%s: no icon art for '%s'", who, name);
-    return true;
-  }
-  bool condition(const char* who, JsonObjectConst c) {
-    const char* f = c["field"] | "";
-    if (!isKnownField(f)) return fail("%s: unknown field '%s'", who, f);
-    if (!isKnownOp(c["op"] | "")) return fail("%s: bad op '%s'", who, c["op"] | "");
-    if (!c["value"].is<double>() && !c["value"].is<int>()) return fail("%s: %s needs a numeric value", who, f);
-    return true;
-  }
-  bool bands(const char* who, JsonArrayConst b, bool wantIcon) {
-    if (b.size() == 0) return fail("%s: empty bands", who);
-    double prev = -1e18;
-    size_t i = 0;
-    for (JsonObjectConst e : b) {
-      if (!e["max"].is<double>() && !e["max"].is<int>()) return fail("%s: band %u has no max", who, (unsigned)i);
-      double m = e["max"] | 0.0;
-      if (m < prev) return fail("%s: band %u max goes backwards", who, (unsigned)i);
-      prev = m;
-      const char* req = e["requires"] | (const char*)nullptr;
-      if (req && !isKnownField(req)) return fail("%s: band requires unknown '%s'", who, req);
-      if (wantIcon) { if (!knownIcon(who, "band icon", e["icon"] | "")) return false; }
-      else if (!e["text"].is<const char*>()) return fail("%s: band %u has no text", who, (unsigned)i);
-      // A gated last band can leave a value matching nothing at all.
-      if (++i == b.size() && req) return fail("%s: last band must not have 'requires'", who);
-    }
-    return true;
-  }
-};
-
+int daysInMonth(int y, int m) {
+  static const int d[] = { 31,28,31,30,31,30,31,31,30,31,30,31 };
+  if (m < 1 || m > 12) return 30;
+  if (m == 2 && ((y % 4 == 0 && y % 100 != 0) || y % 400 == 0)) return 29;
+  return d[m - 1];
+}
 } // namespace
 
-bool Spec::validate(JsonObjectConst root, char* err, size_t errLen) const {
-  Validator v{ root, err, errLen };
+bool Spec::holidayFor(const Inputs& in, char* out, size_t n) const {
+  out[0] = '\0';
+  if (!root_ || in.month < 1) return false;
+  toml_array_t* arr = toml_array_in(root_, "holiday");
+  if (!arr) return false;
+  for (int i = 0; i < toml_array_nelem(arr); i++) {
+    toml_table_t* h = toml_table_at(arr, i);
+    double month = 0;
+    if (!tNum(h, "month", month) || (int)month != in.month) continue;
 
-  JsonArrayConst outcomes = root["outcomes"];
-  if (outcomes.size() == 0) return v.fail("no outcomes");
-  if (root["icons"].as<JsonArrayConst>().size() == 0) return v.fail("no icons[] to check names against");
-
-  size_t idx = 0;
-  for (JsonObjectConst o : outcomes) {
-    const char* id = o["id"] | "";
-    if (!id[0]) return v.fail("outcome %u has no id", (unsigned)idx);
-    if (!v.fits("id", id, id, sizeof(Outcome::id))) return false;
-    for (JsonObjectConst other : outcomes) {
-      if (other == o) break;
-      if (strcmp(other["id"] | "", id) == 0) return v.fail("duplicate outcome id '%s'", id);
+    double day = 0;
+    if (tNum(h, "day", day)) {
+      if ((int)day == in.dayOfMonth) { tStr(h, "name", out, n); return true; }
+      continue;
     }
-
-    JsonArrayConst title = o["title"];
-    if (title.size() == 0 || title.size() > 3) return v.fail("%s: title needs 1-3 lines", id);
-    for (JsonVariantConst t : title) if (!v.fits("title line", id, t | "", sizeof(Outcome::title[0]))) return false;
-    if (!v.fits("tagline", id, o["tagline"] | "", sizeof(Outcome::tagline))) return false;
-    if (!v.knownIcon(id, "heroIcon", o["heroIcon"] | "")) return false;
-
-    JsonObjectConst when = o["when"];
-    if (when.isNull()) return v.fail("%s: no when", id);
-    for (JsonObjectConst c : when["all"].as<JsonArrayConst>()) if (!v.condition(id, c)) return false;
-    for (JsonObjectConst c : when["any"].as<JsonArrayConst>()) if (!v.condition(id, c)) return false;
-
-    JsonArrayConst wear = o["wear"];
-    if (wear.size() != 4) return v.fail("%s: needs exactly four wear items", id);
-    for (JsonObjectConst w : wear) {
-      if (!v.fits("wear label", id, w["label"] | "", sizeof(Wear::label))) return false;
-      if (!v.knownIcon(id, "wear icon", w["icon"] | "")) return false;
+    // Floating: the nth given weekday of the month, or the last one.
+    double wd = 0, nth = 0;
+    if (!tNum(h, "weekday", wd) || !tNum(h, "nth", nth)) continue;
+    int firstWd = (((in.weekday - (in.dayOfMonth - 1)) % 7) + 7) % 7;
+    int firstOccurrence = 1 + (((int)wd - firstWd + 7) % 7);
+    int target;
+    if ((int)nth < 0) {
+      target = firstOccurrence;
+      while (target + 7 <= daysInMonth(in.year, in.month)) target += 7;
+    } else {
+      target = firstOccurrence + ((int)nth - 1) * 7;
     }
-
-    JsonVariantConst ag = o["alsoGrab"];
-    if (ag.is<const char*>()) { if (!v.fits("alsoGrab", id, ag, sizeof(Outcome::alsoGrab))) return false; }
-    else if (ag.is<JsonObjectConst>()) {
-      for (JsonPairConst kv : ag["byFailedTest"].as<JsonObjectConst>()) {
-        if (!isKnownField(kv.key().c_str())) return v.fail("%s: byFailedTest '%s' is not a field", id, kv.key().c_str());
-        if (!v.fits("byFailedTest line", id, kv.value() | "", sizeof(Outcome::alsoGrab))) return false;
-      }
-      if (!ag["default"].is<const char*>()) return v.fail("%s: alsoGrab needs a default", id);
-      if (!v.fits("alsoGrab default", id, ag["default"], sizeof(Outcome::alsoGrab))) return false;
-    } else return v.fail("%s: alsoGrab must be text or an object", id);
-
-    if (o["footerSuffix"].is<const char*>() && !v.fits("footerSuffix", id, o["footerSuffix"], sizeof(Outcome::footerSuffix))) return false;
-    if (o["heroPanel"].is<const char*>()) {
-      const char* hp = o["heroPanel"];
-      if (strcmp(hp, "light") != 0 && strcmp(hp, "dark") != 0)
-        return v.fail("%s: heroPanel must be light or dark", id);
-    }
-    if (o["heroColor"].is<const char*>()) {
-      static const char* inks[] = { "none", "yellow", "blue", "red", "green" };
-      const char* hc = o["heroColor"];
-      bool ok = false;
-      for (auto k : inks) if (strcmp(hc, k) == 0) { ok = true; break; }
-      if (!ok) return v.fail("%s: heroColor '%s' is not an available ink", id, hc);
-    }
-    idx++;
-  }
-
-  // The last outcome has to catch everything, or some day matches nothing.
-  JsonObjectConst last = outcomes[outcomes.size() - 1];
-  bool catchAll = last["isFallback"] | false;
-  if (!catchAll) {
-    JsonObjectConst w = last["when"];
-    catchAll = w["all"].as<JsonArrayConst>().size() == 0 && !w["any"].is<JsonArrayConst>();
-  }
-  if (!catchAll) return v.fail("last outcome '%s' is not a catch-all", last["id"] | "?");
-
-  JsonArrayConst stats = root["stats"];
-  if (stats.size() == 0) return v.fail("no stats");
-  if (stats.size() > 6) return v.fail("more than six stats");
-  for (JsonObjectConst st : stats) {
-    const char* id = st["id"] | "";
-    if (!id[0]) return v.fail("a stat has no id");
-    if (!v.fits("stat id", id, id, sizeof(Stat::id))) return false;
-    if (!v.fits("stat label", id, st["label"] | "", sizeof(Stat::label))) return false;
-
-    if (st["icon"].is<const char*>()) { if (!v.knownIcon(id, "icon", st["icon"])) return false; }
-    else {
-      if (!isKnownField(st["icon"]["field"] | "")) return v.fail("%s: icon field unknown", id);
-      if (!v.bands(id, st["icon"]["bands"], true)) return false;
-    }
-
-    JsonObjectConst val = st["value"];
-    if (val.isNull()) return v.fail("%s: no value", id);
-    if (!isKnownField(val["field"] | "")) return v.fail("%s: value field unknown", id);
-    bool hasFormat = val["format"].is<const char*>();
-    bool hasBands = val["bands"].is<JsonArrayConst>();
-    if (hasFormat == hasBands) return v.fail("%s: value needs format or bands, not both", id);
-    if (hasBands && !v.bands(id, val["bands"], false)) return false;
-
-    JsonObjectConst word = st["word"];
-    if (word.isNull()) return v.fail("%s: no word", id);
-    if (!isKnownField(word["field"] | "")) return v.fail("%s: word field unknown", id);
-    if (!v.bands(id, word["bands"], false)) return false;
-
-    for (JsonObjectConst ov : st["overrides"].as<JsonArrayConst>()) {
-      if (!v.condition(id, ov["if"])) return false;
-      if (!v.fits("override text", id, ov["text"] | "", sizeof(Stat::word))) return false;
+    if (target == in.dayOfMonth && target <= daysInMonth(in.year, in.month)) {
+      tStr(h, "name", out, n);
+      return true;
     }
   }
-  err[0] = '\0';
-  return true;
-}
-
-bool Spec::load(const char* json, size_t len, char* err, size_t errLen) {
-  JsonDocument fresh;
-  DeserializationError e = deserializeJson(fresh, json, len);
-  if (e) { snprintf(err, errLen, "json: %s", e.c_str()); return false; }
-  if (!validate(fresh.as<JsonObjectConst>(), err, errLen)) return false;
-  doc_ = fresh;
-  valid_ = true;
-  err[0] = '\0';
-  return true;
-}
-
-const char* Spec::name() const { return doc_["name"] | ""; }
-const char* Spec::version() const { return doc_["version"] | ""; }
-const char* Spec::locationLabel() const { return doc_["location"]["label"] | ""; }
-int Spec::outcomeCount() const { return (int)doc_["outcomes"].as<JsonArrayConst>().size(); }
-const char* Spec::outcomeId(int i) const { return doc_["outcomes"][i]["id"] | ""; }
-
-bool Spec::cond(JsonObjectConst c, const Inputs& in) const {
-  double v;
-  if (!fieldValue(in, c["field"] | "", v)) return false;   // unknown or null field never passes
-  double t = c["value"] | 0.0;
-  const char* op = c["op"] | "";
-  if (!strcmp(op, ">=")) return v >= t;
-  if (!strcmp(op, ">"))  return v > t;
-  if (!strcmp(op, "<=")) return v <= t;
-  if (!strcmp(op, "<"))  return v < t;
-  if (!strcmp(op, "==")) return v == t;
-  if (!strcmp(op, "!=")) return v != t;
   return false;
 }
 
-// `all` must every pass (empty = true); `any` needs one (empty = false).
-// Records the first failing `all` field so sun_hat_day can explain itself.
-bool Spec::when(JsonObjectConst w, const Inputs& in, char* failed, size_t failedLen) const {
-  if (failed) failed[0] = '\0';
-  bool ok = true;
-  if (w["all"].is<JsonArrayConst>()) {
-    for (JsonObjectConst c : w["all"].as<JsonArrayConst>()) {
-      if (!cond(c, in)) { ok = false; if (failed && !failed[0]) cpy(failed, failedLen, c["field"] | ""); }
+// --- stats ------------------------------------------------------------------
+namespace {
+// Bands run top to bottom; the first whose max >= value wins. A band naming a
+// `requires` field is skipped when that input is missing.
+toml_table_t* pickBand(toml_array_t* bands, double value, const Inputs& in) {
+  if (!bands) return nullptr;
+  for (int i = 0; i < toml_array_nelem(bands); i++) {
+    toml_table_t* b = toml_table_at(bands, i);
+    double mx = 0;
+    if (!tNum(b, "max", mx) || value > mx) continue;
+    char req[24];
+    if (tStr(b, "requires", req, sizeof(req))) { double t; if (!fieldValue(in, req, t)) continue; }
+    return b;
+  }
+  return nullptr;
+}
+} // namespace
+
+void Spec::resolveStat(toml_table_t* st, const Inputs& in, Stat& out) const {
+  tStr(st, "id", out.id, sizeof(out.id));
+  tStr(st, "label", out.label, sizeof(out.label));
+
+  if (!tStr(st, "icon", out.icon, sizeof(out.icon))) {
+    char f[24] = "";
+    double v = 0;
+    tStr(st, "icon_field", f, sizeof(f));
+    fieldValue(in, f, v);
+    toml_table_t* b = pickBand(toml_array_in(st, "icon_bands"), v, in);
+    if (b) tStr(b, "icon", out.icon, sizeof(out.icon));
+  }
+  {
+    char f[24] = "", fmt[32] = "";
+    double v = 0;
+    tStr(st, "value_field", f, sizeof(f));
+    fieldValue(in, f, v);
+    if (tStr(st, "value_format", fmt, sizeof(fmt))) interpolate(fmt, in, v, 0, out.value, sizeof(out.value));
+    else {
+      toml_table_t* b = pickBand(toml_array_in(st, "value_bands"), v, in);
+      char text[32] = "";
+      if (b) tStr(b, "text", text, sizeof(text));
+      interpolate(text, in, v, 0, out.value, sizeof(out.value));
     }
   }
-  if (w["any"].is<JsonArrayConst>()) {
-    bool anyOk = false;
-    for (JsonObjectConst c : w["any"].as<JsonArrayConst>()) if (cond(c, in)) { anyOk = true; break; }
-    if (!anyOk) ok = false;
+  {
+    char f[24] = "";
+    double v = 0;
+    tStr(st, "word_field", f, sizeof(f));
+    fieldValue(in, f, v);
+    toml_table_t* b = pickBand(toml_array_in(st, "word_bands"), v, in);
+    if (b) tStr(b, "text", out.word, sizeof(out.word));
+    toml_table_t* ov = toml_table_in(st, "word_override");
+    if (ov) {
+      char of[24] = "", op[4] = "";
+      double t = 0, cur = 0;
+      if (tStr(ov, "field", of, sizeof(of)) && tStr(ov, "op", op, sizeof(op)) &&
+          tNum(ov, "value", t) && fieldValue(in, of, cur) && applyOp(op, cur, t)) {
+        tStr(ov, "text", out.word, sizeof(out.word));
+      }
+    }
+  }
+}
+
+// --- evaluate ---------------------------------------------------------------
+namespace {
+// All conditions in [outcome.when] must pass. `failed` records the first that
+// did not, which is how sun_hat_day explains itself.
+bool whenPasses(toml_table_t* outcome, const Inputs& in, char* failed, size_t failedLen) {
+  if (failed) failed[0] = '\0';
+  toml_table_t* when = toml_table_in(outcome, "when");
+  if (!when) return true;
+  bool ok = true;
+  for (int i = 0; ; i++) {
+    const char* key = toml_key_in(when, i);
+    if (!key) break;
+    char expr[32], op[4];
+    double target = 0, v = 0;
+    if (!tStr(when, key, expr, sizeof(expr))) { ok = false; continue; }
+    if (!parseCond(expr, op, sizeof(op), target)) { ok = false; continue; }
+    if (!fieldValue(in, key, v) || !applyOp(op, v, target)) {
+      ok = false;
+      if (failed && !failed[0]) cpy(failed, failedLen, key);
+    }
   }
   return ok;
 }
 
-double Spec::beachTempThreshold() const {
-  for (JsonObjectConst o : doc_["outcomes"].as<JsonArrayConst>()) {
-    if (!(o["isBeachDay"] | false)) continue;
-    for (JsonObjectConst c : o["when"]["all"].as<JsonArrayConst>()) {
-      if (!strcmp(c["field"] | "", "tempMaxF")) return c["value"] | 0.0;
-    }
-  }
-  return 0;
+uint32_t hashOf(const char* s) {
+  uint32_t h = 2166136261u;
+  for (; s && *s; s++) { h ^= (uint8_t)*s; h *= 16777619u; }
+  return h;
 }
-
-void Spec::resolveAlsoGrab(JsonVariantConst v, const Inputs& in, const char* failedTest, char* out, size_t n) const {
-  int degreesShort = (int)lround(beachTempThreshold() - in.tempMaxF);
-  if (v.is<const char*>()) { interpolate(v.as<const char*>(), in, 0, degreesShort, out, n); return; }
-  JsonObjectConst o = v.as<JsonObjectConst>();
-  const char* tmpl = nullptr;
-  if (o["byFailedTest"].is<JsonObjectConst>() && failedTest && failedTest[0]) {
-    tmpl = o["byFailedTest"][failedTest] | (const char*)nullptr;
-  }
-  if (!tmpl && o["whenNearBeachThreshold"].is<const char*>()) {
-    int within = o["nearBeachThresholdWithinF"] | 0;
-    if (degreesShort > 0 && degreesShort <= within) tmpl = o["whenNearBeachThreshold"];
-  }
-  if (!tmpl) tmpl = o["default"] | "";
-  interpolate(tmpl, in, 0, degreesShort, out, n);
-}
-
-// bands: first entry whose max >= value; a band with "requires" is skipped
-// when that input is missing.
-static JsonObjectConst pickBand(JsonArrayConst bands, double value, const Inputs& in) {
-  for (JsonObjectConst b : bands) {
-    if (value > (b["max"] | 1e9)) continue;
-    const char* req = b["requires"] | (const char*)nullptr;
-    if (req) { double tmp; if (!fieldValue(in, req, tmp)) continue; }
-    return b;
-  }
-  return JsonObjectConst();
-}
-
-void Spec::resolveStat(JsonObjectConst st, const Inputs& in, Stat& out) const {
-  cpy(out.id, sizeof(out.id), st["id"] | "");
-  cpy(out.label, sizeof(out.label), st["label"] | "");
-
-  // icon: literal or banded
-  if (st["icon"].is<const char*>()) cpy(out.icon, sizeof(out.icon), st["icon"]);
-  else {
-    double v = 0; fieldValue(in, st["icon"]["field"] | "", v);
-    JsonObjectConst b = pickBand(st["icon"]["bands"], v, in);
-    cpy(out.icon, sizeof(out.icon), b["icon"] | "");
-  }
-  // value: format string or banded text
-  {
-    JsonObjectConst spec = st["value"];
-    double v = 0; fieldValue(in, spec["field"] | "", v);
-    if (spec["format"].is<const char*>()) interpolate(spec["format"], in, v, 0, out.value, sizeof(out.value));
-    else {
-      JsonObjectConst b = pickBand(spec["bands"], v, in);
-      interpolate(b["text"] | "", in, v, 0, out.value, sizeof(out.value));
-    }
-  }
-  // word: banded, then overrides
-  {
-    JsonObjectConst spec = st["word"];
-    double v = 0; fieldValue(in, spec["field"] | "", v);
-    JsonObjectConst b = pickBand(spec["bands"], v, in);
-    cpy(out.word, sizeof(out.word), b["text"] | "");
-    for (JsonObjectConst ov : st["overrides"].as<JsonArrayConst>()) {
-      if (cond(ov["if"], in)) { cpy(out.word, sizeof(out.word), ov["text"] | out.word); break; }
-    }
-  }
-}
+} // namespace
 
 bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow) const {
-  if (!valid_) return false;
+  if (!valid_ || !root_) return false;
   out = Screen{};
   out.tomorrow = tomorrow;
 
-  // Remember which beach_day test failed, for sun_hat_day's copy.
+  toml_array_t* outcomes = toml_array_in(root_, "outcome");
+  if (!outcomes) return false;
+
+  // Which beach-day test failed, for the outcome that explains itself.
   char beachFailed[24] = "";
-  for (JsonObjectConst o : doc_["outcomes"].as<JsonArrayConst>()) {
-    if (o["isBeachDay"] | false) { when(o["when"], in, beachFailed, sizeof(beachFailed)); break; }
+  double beachTempThreshold = 0;
+  for (int i = 0; i < toml_array_nelem(outcomes); i++) {
+    toml_table_t* o = toml_table_at(outcomes, i);
+    bool isBeach = false;
+    if (!tBool(o, "is_beach_day", isBeach) || !isBeach) continue;
+    whenPasses(o, in, beachFailed, sizeof(beachFailed));
+    toml_table_t* when = toml_table_in(o, "when");
+    char expr[32], op[4];
+    if (when && tStr(when, "tempMax", expr, sizeof(expr))) parseCond(expr, op, sizeof(op), beachTempThreshold);
+    break;
   }
 
-  JsonObjectConst chosen;
-  for (JsonObjectConst o : doc_["outcomes"].as<JsonArrayConst>()) {
-    if (when(o["when"], in, nullptr, 0)) { chosen = o; break; }
+  toml_table_t* chosen = nullptr;
+  for (int i = 0; i < toml_array_nelem(outcomes); i++) {
+    toml_table_t* o = toml_table_at(outcomes, i);
+    if (whenPasses(o, in, nullptr, 0)) { chosen = o; break; }
   }
-  if (chosen.isNull()) return false;
+  if (!chosen) return false;
 
   Outcome& oc = out.outcome;
-  cpy(oc.id, sizeof(oc.id), chosen["id"]);
-  oc.titleLines = 0;
-  for (JsonVariantConst t : chosen["title"].as<JsonArrayConst>()) {
-    if (oc.titleLines >= 3) break;
-    cpy(oc.title[oc.titleLines++], sizeof(oc.title[0]), t | "");
-  }
-  cpy(oc.tagline, sizeof(oc.tagline), chosen["tagline"] | "");
-  cpy(oc.heroIcon, sizeof(oc.heroIcon), chosen["heroIcon"] | "");
-  oc.isBeachDay = chosen["isBeachDay"] | false;
-  {
-    const char* hp = chosen["heroPanel"] | (const char*)nullptr;
-    if (!hp) hp = doc_["screen"]["heroPanel"]["default"] | "dark";
-    oc.heroLight = (strcmp(hp, "light") == 0);
-  }
-  cpy(oc.heroColor, sizeof(oc.heroColor), chosen["heroColor"] | "none");
-  oc.wearCount = 0;
-  for (JsonObjectConst w : chosen["wear"].as<JsonArrayConst>()) {
-    if (oc.wearCount >= 4) break;
-    cpy(oc.wear[oc.wearCount].label, sizeof(oc.wear[0].label), w["label"] | "");
-    cpy(oc.wear[oc.wearCount].icon,  sizeof(oc.wear[0].icon),  w["icon"]  | "");
-    oc.wearCount++;
-  }
-  cpy(oc.failedTest, sizeof(oc.failedTest), beachFailed);
-  resolveAlsoGrab(chosen["alsoGrab"], in, beachFailed, oc.alsoGrab, sizeof(oc.alsoGrab));
-  oc.hasFooterSuffix = chosen["footerSuffix"].is<const char*>();
-  cpy(oc.footerSuffix, sizeof(oc.footerSuffix), oc.hasFooterSuffix ? chosen["footerSuffix"].as<const char*>() : "");
+  tStr(chosen, "id", oc.id, sizeof(oc.id));
 
-  out.statCount = 0;
-  for (JsonObjectConst st : doc_["stats"].as<JsonArrayConst>()) {
-    if (out.statCount >= 6) break;
-    resolveStat(st, in, out.stats[out.statCount++]);
-  }
+  // A condition owns a pool of variants, and one is chosen per day. The pool
+  // is `names` (name-only variants, the quick case) followed by any
+  // [[outcome.variant]] tables, which may override anything the outcome sets.
+  // The pick is seeded by the date and the outcome id, so it holds all day,
+  // differs tomorrow, and two outcomes do not rotate in lockstep. The board
+  // redraws hourly; anything random would churn under the reader.
+  toml_array_t* names = toml_array_in(chosen, "names");
+  toml_array_t* variants = toml_array_in(chosen, "variant");
+  const int nNames = names ? toml_array_nelem(names) : 0;
+  const int nVariants = variants ? toml_array_nelem(variants) : 0;
+  const int pool = nNames + nVariants;
 
-  // Header / footer strings from screen.sections
-  JsonObjectConst sec = doc_["screen"]["sections"];
-  upperCpy(out.eyebrow, sizeof(out.eyebrow), (eyebrowOverride && eyebrowOverride[0]) ? eyebrowOverride : locationLabel());
-  cpy(out.weekday, sizeof(out.weekday), in.weekdayName);
-  cpy(out.wearHeading, sizeof(out.wearHeading), sec["wearHeading"] | "WEAR TODAY");
-
-  char corner[96];
-  interpolate(sec["cornerStats"] | "", in, 0, 0, corner, sizeof(corner));
-  char* nl = strchr(corner, '\n');
-  if (nl) { *nl = '\0'; cpy(out.corner1, sizeof(out.corner1), corner); cpy(out.corner2, sizeof(out.corner2), nl + 1); }
-  else cpy(out.corner1, sizeof(out.corner1), corner);
-
-  interpolate(sec["subline"] | "", in, 0, 0, out.subline, sizeof(out.subline));
-  if (tomorrow) {
-    // "74° this morning" reads wrong for tomorrow.
-    char tmp[sizeof(out.subline)];
-    const char* s = out.subline; size_t o = 0;
-    while (*s && o + 1 < sizeof(tmp)) {
-      if (!strncmp(s, " this ", 6)) { const char* r = " in the "; while (*r && o + 1 < sizeof(tmp)) tmp[o++] = *r++; s += 6; }
-      else tmp[o++] = *s++;
+  toml_table_t* v = nullptr;    // chosen variant table, if the pick landed on one
+  char picked[40] = "";
+  if (pool > 0) {
+    int idx = (int)(((uint32_t)in.epochDay + hashOf(oc.id)) % (uint32_t)pool);
+    if (idx < nNames) tStrAt(names, idx, picked, sizeof(picked));
+    else {
+      v = toml_table_at(variants, idx - nNames);
+      tStr(v, "name", picked, sizeof(picked));
     }
-    tmp[o] = '\0';
-    cpy(out.subline, sizeof(out.subline), tmp);
   }
 
-  // The footer is an ordinary template. {footerSuffix} is only substituted if
-  // the template asks for it, so a spec can drop the per-outcome tail simply
-  // by not mentioning it.
-  interpolate(sec["footer"] | "Sunset: {sunsetLocal}", in, 0, 0, out.footer, sizeof(out.footer),
-              oc.hasFooterSuffix ? oc.footerSuffix : "");
+  // Anything a variant does not set falls back to the outcome, so shared
+  // values are written once.
+  auto pick = [&](const char* key, char* out2, size_t n2) -> bool {
+    if (v && tStr(v, key, out2, n2)) return true;
+    return tStr(chosen, key, out2, n2);
+  };
+
+  {
+    char holiday[20] = "";
+    if (holidayFor(in, holiday, sizeof(holiday)) && holiday[0]) {
+      cpy(oc.holiday, sizeof(oc.holiday), holiday);
+      snprintf(oc.title, sizeof(oc.title), "%s %s", holiday, picked);
+    } else {
+      cpy(oc.title, sizeof(oc.title), picked);
+    }
+  }
+
+  pick("tagline", oc.tagline, sizeof(oc.tagline));
+  pick("icon", oc.heroIcon, sizeof(oc.heroIcon));
+  tBool(chosen, "is_beach_day", oc.isBeachDay);
+  if (!pick("color", oc.heroColor, sizeof(oc.heroColor))) cpy(oc.heroColor, sizeof(oc.heroColor), "none");
+  {
+    char panel[8] = "";
+    if (!pick("panel", panel, sizeof(panel)))
+      tStr(toml_table_in(root_, "screen"), "hero_panel_default", panel, sizeof(panel));
+    oc.heroLight = !strcmp(panel, "light");
+  }
+
+  // Wear: ids into the [wear] catalogue, so a label and icon are written once.
+  {
+    toml_table_t* catalog = toml_table_in(root_, "wear");
+    toml_array_t* ids = (v ? toml_array_in(v, "wear") : nullptr);
+    if (!ids) ids = toml_array_in(chosen, "wear");
+    oc.wearCount = 0;
+    for (int i = 0; ids && i < toml_array_nelem(ids) && oc.wearCount < 4; i++) {
+      char id[24] = "";
+      if (!tStrAt(ids, i, id, sizeof(id))) continue;
+      toml_table_t* item = toml_table_in(catalog, id);
+      if (!item) continue;
+      tStr(item, "label", oc.wear[oc.wearCount].label, sizeof(oc.wear[0].label));
+      tStr(item, "icon", oc.wear[oc.wearCount].icon, sizeof(oc.wear[0].icon));
+      oc.wearCount++;
+    }
+  }
+
+  cpy(oc.failedTest, sizeof(oc.failedTest), beachFailed);
+  {
+    int degreesShort = (int)lround(beachTempThreshold - in.tempMaxF);
+    char tmpl[180] = "";
+    bool got = false;
+    toml_table_t* byFailed = toml_table_in(chosen, "also_when_failed");
+    if (byFailed && beachFailed[0]) got = tStr(byFailed, beachFailed, tmpl, sizeof(tmpl));
+    if (!got) {
+      double within = 0;
+      char near[180] = "";
+      if (tNum(chosen, "also_near_beach_within", within) &&
+          tStr(chosen, "also_near_beach", near, sizeof(near)) &&
+          degreesShort > 0 && degreesShort <= (int)within) {
+        cpy(tmpl, sizeof(tmpl), near);
+        got = true;
+      }
+    }
+    if (!got) pick("also", tmpl, sizeof(tmpl));
+    interpolate(tmpl, in, 0, degreesShort, oc.alsoGrab, sizeof(oc.alsoGrab));
+  }
+  oc.hasFooterSuffix = pick("footer_suffix", oc.footerSuffix, sizeof(oc.footerSuffix));
+
+  // Stats
+  toml_array_t* stats = toml_array_in(root_, "stat");
+  out.statCount = 0;
+  for (int i = 0; stats && i < toml_array_nelem(stats) && out.statCount < 6; i++) {
+    resolveStat(toml_table_at(stats, i), in, out.stats[out.statCount++]);
+  }
+
+  // Header / footer
+  toml_table_t* screen = toml_table_in(root_, "screen");
+  upperCpy(out.eyebrow, sizeof(out.eyebrow),
+           (eyebrowOverride && eyebrowOverride[0]) ? eyebrowOverride : locationBuf_);
+  cpy(out.weekday, sizeof(out.weekday), in.weekdayName);
+
+  {
+    char tmpl[128] = "";
+    tStr(screen, "subline", tmpl, sizeof(tmpl));
+    interpolate(tmpl, in, 0, 0, out.subline, sizeof(out.subline));
+    if (tomorrow) {
+      char t[sizeof(out.subline)];
+      const char* s = out.subline; size_t o = 0;
+      while (*s && o + 1 < sizeof(t)) {
+        if (!strncmp(s, " this ", 6)) { const char* r = " in the "; while (*r && o + 1 < sizeof(t)) t[o++] = *r++; s += 6; }
+        else t[o++] = *s++;
+      }
+      t[o] = '\0';
+      cpy(out.subline, sizeof(out.subline), t);
+    }
+  }
+  {
+    char tmpl[128] = "";
+    if (!tStr(screen, "footer", tmpl, sizeof(tmpl))) cpy(tmpl, sizeof(tmpl), "Sunset: {sunsetLocal}");
+    interpolate(tmpl, in, 0, 0, out.footer, sizeof(out.footer), oc.hasFooterSuffix ? oc.footerSuffix : "");
+  }
   return true;
 }
 

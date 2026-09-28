@@ -1,0 +1,461 @@
+# Beach Day — what the display decides and says.
+#
+# This file IS the rules. The board reads it directly: no build step, no
+# generated copy. Edit, push, and every display picks it up within a day
+# (or immediately if someone holds the left button while it wakes).
+#
+# Before pushing:  cd reterminal-e1001 && ./flash.sh test
+# That replays this exact file through the real engine and tells you what is
+# wrong and where, instead of a board quietly keeping its old rules.
+
+# Every icon the firmware can draw. Adding one means adding a vector to
+# tools/gen_icons.py and rebuilding, so this list is the contract.
+# (Top-level keys must come before any [table], so this lives up here.)
+icons = [
+  "sun", "sun_and_waves", "cloud", "rain_cloud", "raindrop",
+  "wind", "leaf", "thermometer", "sun_hat", "sunscreen",
+  "swim_trunks", "towel", "water_bottle", "tshirt", "shorts",
+  "sneaker", "sweater", "hoodie", "jacket", "long_pants",
+  "raincoat", "rain_boot", "umbrella", "puffy_coat", "beanie",
+  "mittens", "scarf",
+]
+
+version = "2.0"
+name = "Beach Day Outcomes"
+
+
+# ─── Screen ──────────────────────────────────────────────────────────────
+
+[screen]
+location = "VENICE BEACH"   # the eyebrow; a setup-portal label wins over this
+# The top-right corner shows the board's own state - last update and battery -
+# so it is not configurable here.
+subline  = "{conditionSummary} · {tempMinF}° this morning, {tempMaxF}° this afternoon"
+footer   = "Sunset: {sunsetLocal}"
+
+# "dark" is white type on a black panel, "light" is black on white.
+# Colour panels (E1002) can also set an ink per outcome - see `color` below.
+hero_panel_default = "light"
+
+
+# ─── Holidays ────────────────────────────────────────────────────────────
+# The name is prefixed to whatever the day already is: "Christmas Rain Boots
+# Day". Keep it to the bare form - "Memorial", not "Memorial Day" - because a
+# day name always follows it.
+#
+# Fixed dates take month + day; floating ones take month + weekday + nth
+# (weekday 0 = Sunday, nth -1 = last of the month).
+
+[[holiday]]
+name = "New Year's"
+month = 1
+day = 1
+
+[[holiday]]
+name = "Valentine's"
+month = 2
+day = 14
+
+[[holiday]]
+name = "Halloween"
+month = 10
+day = 31
+
+[[holiday]]
+name = "Christmas Eve"
+month = 12
+day = 24
+
+[[holiday]]
+name = "Christmas"
+month = 12
+day = 25
+
+[[holiday]]
+name = "New Year's Eve"
+month = 12
+day = 31
+
+[[holiday]]
+name = "Thanksgiving"
+month = 11
+weekday = 4
+nth = 4   # 4th Thursday of November
+
+[[holiday]]
+name = "Mom's"
+month = 5
+weekday = 0
+nth = 2   # 2nd Sunday of May
+
+[[holiday]]
+name = "Dad's"
+month = 6
+weekday = 0
+nth = 3   # 3rd Sunday of June
+
+[[holiday]]
+name = "Memorial"
+month = 5
+weekday = 1
+nth = -1   # last Monday of May
+
+[[holiday]]
+name = "Labor"
+month = 9
+weekday = 1
+nth = 1   # 1st Monday of September
+
+
+# ─── Clothing ────────────────────────────────────────────────────────────
+# The catalogue outcomes pick from. Add a line to add an option; `icon` must
+# be one of the names in [icons] at the bottom.
+
+[wear]
+hoodie       = { label = "Hoodie", icon = "hoodie" }
+jacket       = { label = "Jacket", icon = "jacket" }
+long_pants   = { label = "Long pants", icon = "long_pants" }
+long_sleeves = { label = "Long sleeves", icon = "sweater" }
+mittens      = { label = "Mittens", icon = "mittens" }
+puffy_coat   = { label = "Puffy coat", icon = "puffy_coat" }
+rain_boots   = { label = "Rain boots", icon = "rain_boot" }
+raincoat     = { label = "Raincoat", icon = "raincoat" }
+scarf        = { label = "Scarf", icon = "scarf" }
+shorts       = { label = "Shorts", icon = "shorts" }
+sneakers     = { label = "Sneakers", icon = "sneaker" }
+sun_hat      = { label = "Sun hat", icon = "sun_hat" }
+sunscreen    = { label = "Sunscreen", icon = "sunscreen" }
+swimsuit     = { label = "Swimsuit", icon = "swim_trunks" }
+t_shirt      = { label = "T-shirt", icon = "tshirt" }
+towel        = { label = "Towel", icon = "towel" }
+umbrella     = { label = "Umbrella", icon = "umbrella" }
+warm_hat     = { label = "Warm hat", icon = "beanie" }
+warm_layer   = { label = "Warm layer", icon = "sweater" }
+water_bottle = { label = "Water bottle", icon = "water_bottle" }
+
+
+# ─── Outcomes ────────────────────────────────────────────────────────────
+# Checked top to bottom; the first whose [outcome.when] passes wins, so the
+# last one must have no conditions at all. Every condition must pass.
+#
+# A matching outcome then picks one VARIANT for the day - the same one all
+# day, a different one tomorrow. Two ways to write them, and you can mix:
+#
+#   names = ["Puddle Day", "Splashy Day"]   just a different name
+#
+#   [[outcome.variant]]                     a different day entirely
+#   name = "Umbrella Day"
+#   icon = "umbrella"
+#   wear = [...]
+#
+# A variant inherits anything it does not set from the outcome, so put the
+# shared values once at the top and only write what actually differs.
+
+[[outcome]]
+id      = "rain_day"
+tagline = "PUDDLES AHEAD"
+icon    = "rain_boot"
+color   = "blue"
+wear    = ["rain_boots", "raincoat", "umbrella", "warm_layer"]
+also    = "Also grab: dry socks for the backpack."
+
+names   = ["Rain Boots Day", "Puddle Day", "Splashy Day"]
+
+[outcome.when]
+rain = ">= 50"
+
+[[outcome.variant]]
+name    = "Umbrella Day"
+icon    = "umbrella"
+tagline = "KEEP IT OVERHEAD"
+wear    = ["umbrella", "raincoat", "rain_boots", "long_pants"]
+also    = "Also grab: somewhere by the door to stand it while it drips."
+
+[[outcome.variant]]
+name    = "Raincoat Day"
+icon    = "raincoat"
+color   = "yellow"
+tagline = "HOOD UP"
+wear    = ["raincoat", "rain_boots", "long_pants", "warm_hat"]
+also    = "Also grab: the hood actually goes up today."
+
+[[outcome]]
+id      = "big_coat_day"
+tagline = "HATS AND MITTENS"
+icon    = "puffy_coat"
+color   = "red"
+wear    = ["puffy_coat", "warm_hat", "mittens", "scarf"]
+also    = "Also grab: warm socks, and tuck a hat in every pocket."
+
+names   = ["Big Coat Day", "Frosty Day"]
+
+[outcome.when]
+tempMax = "< 52"
+
+[[outcome.variant]]
+name    = "Mittens Day"
+icon    = "mittens"
+tagline = "FINGERS FIRST"
+wear    = ["mittens", "puffy_coat", "warm_hat", "long_pants"]
+also    = "Also grab: the spare pair, because one always goes missing."
+
+[[outcome.variant]]
+name    = "Scarf Day"
+icon    = "scarf"
+tagline = "WRAP UP WELL"
+wear    = ["scarf", "puffy_coat", "warm_hat", "mittens"]
+also    = "Also grab: something warm to drink on the way."
+
+[[outcome.variant]]
+name    = "Bundle Up Day"
+icon    = "beanie"
+tagline = "EVERY LAYER"
+wear    = ["warm_hat", "puffy_coat", "scarf", "long_pants"]
+also    = "Also grab: patience for the getting-dressed part."
+
+[[outcome]]
+id      = "beach_day"
+tagline = "PACK THE CAR"
+icon    = "sun_and_waves"
+color   = "yellow"
+wear    = ["swimsuit", "sun_hat", "sunscreen", "towel"]
+also    = "Also grab: water bottles and something for shade."
+is_beach_day = true   # the day other outcomes measure themselves against
+
+names   = ["Beach Day", "Sandcastle Day", "Seashell Day"]
+
+[outcome.when]
+tempMax = ">= 78"
+rain    = "<= 20"
+wind    = "<= 15"
+aqi     = "< 100"
+cloud   = "<= 35"
+
+[[outcome.variant]]
+name    = "Swimsuit Day"
+icon    = "swim_trunks"
+tagline = "STRAIGHT IN"
+wear    = ["swimsuit", "towel", "sunscreen", "water_bottle"]
+also    = "Also grab: a dry set of clothes for the ride home."
+
+[[outcome.variant]]
+name    = "Towel Day"
+icon    = "towel"
+tagline = "FIND A SPOT"
+wear    = ["towel", "swimsuit", "sun_hat", "sunscreen"]
+also    = "Also grab: something to weigh the corners down."
+
+[[outcome]]
+id      = "sun_hat_day"
+tagline = "STAY IN THE SHADE"
+icon    = "sun_hat"
+wear    = ["sun_hat", "t_shirt", "sunscreen", "water_bottle"]
+also    = "Hot one today — shade and refills."
+
+names   = ["Sun Hat Day", "Shady Day"]
+
+[outcome.when]
+tempMax = ">= 78"
+
+[[outcome.variant]]
+name    = "Lemonade Day"
+icon    = "water_bottle"
+tagline = "KEEP SIPPING"
+wear    = ["water_bottle", "sun_hat", "t_shirt", "shorts"]
+also    = "Also grab: more water than you think you need."
+
+[[outcome.variant]]
+name    = "Sunscreen Day"
+icon    = "sunscreen"
+tagline = "REAPPLY AT LUNCH"
+wear    = ["sunscreen", "sun_hat", "t_shirt", "sneakers"]
+also    = "Also grab: the stick one for faces, it is less of a fight."
+
+# Shown instead of `also` when that specific beach-day test is what failed.
+[outcome.also_when_failed]
+wind  = "Too windy at the water today — the shady park is the better pick."
+aqi   = "The air is hazy today — keep it short outside and shady."
+cloud = "Grey overhead but still hot — sunscreen anyway, it burns through."
+rain  = "Hot with a shower possible — shade now, umbrella nearby."
+
+[[outcome]]
+id      = "layers_day"
+tagline = "PEEL THEM OFF LATER"
+icon    = "hoodie"
+wear    = ["t_shirt", "hoodie", "long_pants", "sneakers"]
+also    = "It warms up {swing} degrees today — pack somewhere to stash the hoodie."
+
+names   = ["Layers Day", "Zip Up Day"]
+
+[outcome.when]
+swing = ">= 22"
+
+[[outcome.variant]]
+name    = "Hoodie Day"
+icon    = "hoodie"
+tagline = "ON THEN OFF"
+wear    = ["hoodie", "t_shirt", "long_pants", "sneakers"]
+also    = "Also grab: a bag with room for it by lunchtime."
+
+[[outcome.variant]]
+name    = "Sweater Day"
+icon    = "sweater"
+tagline = "WARMS UP LATER"
+wear    = ["long_sleeves", "t_shirt", "long_pants", "sneakers"]
+also    = "Also grab: short sleeves underneath, it is coming off."
+
+[[outcome]]
+id      = "tshirt_day"
+tagline = "SHORTS WEATHER"
+icon    = "tshirt"
+wear    = ["t_shirt", "shorts", "sneakers", "sun_hat"]
+also    = "Also grab: a light sweater for after dinner."
+also_near_beach        = "{degreesShort} degrees short of a beach day — lovely for the park, chilly in the water."
+also_near_beach_within = 6
+
+names   = ["T-Shirt Day", "Park Day"]
+
+[outcome.when]
+tempMax = ">= 68"
+
+[[outcome.variant]]
+name    = "Shorts Day"
+icon    = "shorts"
+tagline = "LEGS OUT"
+wear    = ["shorts", "t_shirt", "sneakers", "sun_hat"]
+also    = "Also grab: sunscreen on the backs of the knees."
+
+[[outcome.variant]]
+name    = "Playground Day"
+icon    = "sneaker"
+tagline = "RUN AROUND"
+wear    = ["sneakers", "t_shirt", "shorts", "water_bottle"]
+also    = "Also grab: the shoes that are allowed to get scuffed."
+
+[[outcome]]
+id      = "jacket_day"
+tagline = "GRAB ONE BY THE DOOR"
+icon    = "jacket"
+wear    = ["jacket", "long_sleeves", "long_pants", "sneakers"]
+also    = "Also grab: a hoodie for the ride home — it cools off fast."
+
+names   = ["Jacket Day", "In Between Day", "Regular Day"]
+
+[[outcome.variant]]
+name    = "Long Sleeves Day"
+icon    = "sweater"
+tagline = "NOTHING DRAMATIC"
+wear    = ["long_sleeves", "long_pants", "sneakers", "jacket"]
+also    = "Also grab: nothing special. It is just a day."
+
+[[outcome.variant]]
+name    = "Sneakers Day"
+icon    = "sneaker"
+tagline = "OUT AND ABOUT"
+wear    = ["sneakers", "jacket", "long_pants", "long_sleeves"]
+also    = "Also grab: somewhere to walk to."
+
+# ─── Stat strip ──────────────────────────────────────────────────────────
+# Five columns: icon, label, value, and a plain word underneath. Bands are
+# read top to bottom; the first whose `max` is >= the value wins.
+
+[[stat]]
+id    = "sunshine"
+label = "SUN"
+icon_field = "cloud"
+icon_bands = [
+  { max = 35, icon = "sun" },
+  { max = 75, icon = "cloud" },
+  { max = 100, icon = "rain_cloud" },
+]
+value_field = "sunHours"
+value_bands = [
+  { max = 0, text = "None" },
+  { max = 2, text = "Brief" },
+  { max = 24, text = "{sunWindow}" },
+]
+word_field = "sunHours"
+word_bands = [
+  { max = 0, text = "none" },
+  { max = 2, text = "barely" },
+  { max = 4, text = "a stretch" },
+  { max = 24, text = "clear" },
+]
+
+[[stat]]
+id    = "warmest"
+label = "HIGH TEMP"
+icon  = "thermometer"
+value_field = "tempMax"
+value_format = "{value}°F"
+word_field = "tempMax"
+word_bands = [
+  { max = 52, text = "cold" },
+  { max = 62, text = "chilly" },
+  { max = 70, text = "cool" },
+  { max = 78, text = "mild" },
+  { max = 88, text = "warm" },
+  { max = 200, text = "hot" },
+]
+word_override = { field = "swing", op = ">=", value = 22, text = "swingy" }
+
+[[stat]]
+id    = "rain"
+label = "RAIN"
+icon  = "rain_cloud"
+value_field = "rain"
+value_bands = [
+  { max = 20, text = "{value}%" },
+  { max = 100, text = "{rainWindow}" },
+]
+word_field = "rain"
+word_bands = [
+  { max = 10, text = "dry" },
+  { max = 30, text = "mostly dry" },
+  { max = 55, text = "showers" },
+  { max = 100, text = "wet" },
+]
+
+[[stat]]
+id    = "humidity"
+label = "HUMIDITY"
+icon  = "raindrop"
+value_field = "humidityMax"
+value_format = "{humidityMin}-{humidityMax}%"
+word_field = "humidityMax"
+word_bands = [
+  { max = 45, text = "dry" },
+  { max = 65, text = "comfy" },
+  { max = 80, text = "sticky" },
+  { max = 100, text = "muggy" },
+]
+
+[[stat]]
+id    = "breeze"
+label = "WIND"
+icon  = "wind"
+value_field = "wind"
+value_format = "{value} mph"
+word_field = "wind"
+word_bands = [
+  { max = 8, text = "calm" },
+  { max = 13, text = "light" },
+  { max = 19, text = "breezy" },
+  { max = 200, text = "gusty" },
+]
+
+[[stat]]
+id    = "air"
+label = "AIR"
+icon  = "leaf"
+value_field = "aqi"
+value_format = "{value} aqi"
+word_field = "aqi"
+word_bands = [
+  { max = 50, text = "clean" },
+  { max = 100, text = "hazy" },
+  { max = 150, text = "stay in" },
+  { max = 500, text = "stay in" },
+]
+
+

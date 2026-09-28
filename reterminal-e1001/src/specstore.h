@@ -1,4 +1,4 @@
-// Where the rules come from, in order: LittleFS (/day-outcomes.json, put there
+// Where the rules come from, in order: LittleFS (/day-outcomes.toml, put there
 // by `pio run -t uploadfs` or by a fetch), then the copy embedded at build
 // time. A fetched file replaces the LittleFS one only after it parses and
 // passes the engine's sanity checks, so a bad publish cannot take the display

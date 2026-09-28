@@ -13,7 +13,8 @@ struct ViewModel {
   day::Screen screen;
   bool        parkingActive = false;
   char        parkingText[40] = "";
-  char        statusText[40] = "";     // "Updated 2:05 PM · 76%" / "OFFLINE since 2:05 PM"
+  char        updatedText[28] = "";    // "Updated 2:05 PM" / "OFFLINE since 2:05 PM"
+  int8_t      batteryPct = -1;
   bool        stale = false;
 };
 

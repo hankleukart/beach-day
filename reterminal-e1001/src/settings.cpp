@@ -24,7 +24,7 @@
 #  define CFG_OTA_MIN_BATTERY_PCT 30
 #endif
 #ifndef CFG_RULES_URL
-#  define CFG_RULES_URL "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.json"
+#  define CFG_RULES_URL "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.toml"
 #endif
 #ifndef CFG_RULES_CHECK_HOURS
 #  define CFG_RULES_CHECK_HOURS 24

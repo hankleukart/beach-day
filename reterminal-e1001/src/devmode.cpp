@@ -74,13 +74,13 @@ void dump(const ViewModel& vm, const char* which) {
   Serial.printf("[dev] --- %s ---\n", which);
   Serial.printf("  outcome   %s%s\n", s.outcome.id, s.tomorrow ? " (tomorrow)" : "");
   Serial.printf("  hero      %s | %s %s %s | %s\n", s.eyebrow, s.outcome.title[0], s.outcome.title[1], s.outcome.title[2], s.outcome.tagline);
-  Serial.printf("  header    %s | %s | %s\n", s.weekday, s.corner1, s.corner2);
+  Serial.printf("  header    %s\n", s.weekday);
   Serial.printf("  subline   %s\n", s.subline);
   Serial.printf("  wear      "); for (int i = 0; i < s.outcome.wearCount; i++) Serial.printf("[%s:%s] ", s.outcome.wear[i].label, s.outcome.wear[i].icon); Serial.println();
   Serial.printf("  also      %s\n", s.outcome.alsoGrab);
   for (int i = 0; i < s.statCount; i++) Serial.printf("  stat      %-9s %-6s %-12s %s\n", s.stats[i].label, s.stats[i].icon, s.stats[i].value, s.stats[i].word);
   Serial.printf("  footer    %s\n", vm.parkingActive ? vm.parkingText : s.footer);
-  Serial.printf("  status    %s\n", vm.statusText);
+  Serial.printf("  status    %s  battery %d%%\n", vm.updatedText, vm.batteryPct);
 }
 
 } // namespace
@@ -115,7 +115,8 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
       demo.valid = spec().evaluate(PRESETS[demoIdx].in, demo.screen, s.locationName, false);
       demo.parkingActive = parking;
       snprintf(demo.parkingText, sizeof(demo.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
-      snprintf(demo.statusText, sizeof(demo.statusText), "Demo %d/%d \xC2\xB7 %s", demoIdx + 1, PRESET_COUNT, PRESETS[demoIdx].name);
+      snprintf(demo.updatedText, sizeof(demo.updatedText), "Demo %d/%d", demoIdx + 1, PRESET_COUNT);
+      demo.batteryPct = 76;
       Serial.printf("[dev] demo %d/%d '%s' -> %s\n", demoIdx + 1, PRESET_COUNT, PRESETS[demoIdx].name, demo.screen.outcome.id);
       renderScreen(demo);
       dump(demo, "demo");

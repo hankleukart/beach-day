@@ -9,7 +9,7 @@
 
 namespace {
 day::Spec g;
-const char* PATH = "/day-outcomes.json";
+const char* PATH = "/day-outcomes.toml";
 bool fsOk = false;
 
 bool mountFs() {

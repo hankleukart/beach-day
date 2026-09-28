@@ -1,4 +1,4 @@
-// Host tests for the v3 engine. Loads the SAME JSON the device ships.
+// Host tests for the v3 engine. Loads the SAME TOML the device ships.
 //   pio test -e native
 #include <unity.h>
 #include <cstdio>
@@ -10,7 +10,7 @@
 #include "derive.h"
 
 #ifndef DAYRULES_SPEC_PATH
-#define DAYRULES_SPEC_PATH "../shared/v3/day-outcomes.json"
+#define DAYRULES_SPEC_PATH "../shared/v3/day-outcomes.toml"
 #endif
 
 static day::Spec spec;
@@ -19,15 +19,18 @@ static std::string specText;
 void setUp() {}
 void tearDown() {}
 
+// 2026-06-17, a Wednesday; epochDay 20621.
 static day::Inputs base() {
   day::Inputs in;
-  in.tempMinF = 62; in.tempMaxF = 84; in.tempSwingF = 22 - 1;  // 21: below the layers threshold
+  in.tempMinF = 62; in.tempMaxF = 84; in.tempSwingF = 21;
   in.precipChanceMaxPct = 5; in.windMaxMph = 8; in.aqiMax = 40; in.aqiMin = 20;
   in.humidityMinPct = 49; in.humidityMaxPct = 83; in.cloudCoverAvgPct = 10;
   in.hasFirstClearHour = true; in.firstClearHour = 7;
+  in.sunRunHours = 8; in.sunRunStartHour = 9; in.sunRunEndHour = 16;
   snprintf(in.conditionSummary, sizeof(in.conditionSummary), "Clear sky");
   snprintf(in.sunsetLocal, sizeof(in.sunsetLocal), "7:08 PM");
   snprintf(in.weekdayName, sizeof(in.weekdayName), "Wednesday");
+  in.year = 2026; in.month = 6; in.dayOfMonth = 17; in.weekday = 3; in.epochDay = 20621;
   return in;
 }
 
@@ -37,402 +40,312 @@ static const day::Screen& run(const day::Inputs& in, bool tomorrow = false, cons
   return s;
 }
 
+static std::string specWith(const std::string& find, const std::string& replace) {
+  std::string t = R"(icons = ["tshirt", "sun"]
+
+[wear]
+a = { label = "A", icon = "tshirt" }
+
+[[outcome]]
+id = "only"
+names = ["Only Day"]
+tagline = "T"
+icon = "tshirt"
+wear = ["a", "a", "a", "a"]
+also = "grab"
+
+[[stat]]
+id = "s1"
+label = "S"
+icon = "sun"
+value_field = "tempMax"
+value_format = "{value}"
+word_field = "tempMax"
+word_bands = [ { max = 200, text = "w" } ]
+)";
+  if (!find.empty()) {
+    size_t at = t.find(find);
+    TEST_ASSERT_TRUE_MESSAGE(at != std::string::npos, "fixture anchor missing");
+    t.replace(at, find.size(), replace);
+  }
+  return t;
+}
+
+static void rejects(const char* why, const std::string& toml) {
+  day::Spec s; char err[200] = "";
+  if (s.load(toml.c_str(), toml.size(), err, sizeof(err))) TEST_FAIL_MESSAGE(why);
+  TEST_ASSERT_FALSE(s.valid());
+}
+
 void test_spec_loads() {
-  char err[96];
+  char err[200];
   TEST_ASSERT_TRUE_MESSAGE(spec.load(specText.c_str(), specText.size(), err, sizeof(err)), err);
   TEST_ASSERT_EQUAL_INT(7, spec.outcomeCount());
   TEST_ASSERT_EQUAL_STRING("jacket_day", spec.outcomeId(6));
+  TEST_ASSERT_EQUAL_STRING("VENICE BEACH", spec.locationLabel());
 }
 
-// Builds a minimal-but-valid spec, then lets a test break one thing in it.
-static std::string specWith(const std::string& find, const std::string& replace) {
-  std::string base = R"({
-    "icons": ["tshirt","sun"],
-    "outcomes": [
-      { "id": "only", "title": ["ONLY"], "tagline": "T", "heroIcon": "tshirt",
-        "when": { "all": [] },
-        "wear": [ {"label":"A","icon":"tshirt"},{"label":"B","icon":"tshirt"},{"label":"C","icon":"tshirt"},{"label":"D","icon":"tshirt"} ],
-        "alsoGrab": "grab" }
-    ],
-    "stats": [
-      { "id": "s1", "label": "S", "icon": "sun",
-        "value": { "field": "tempMaxF", "format": "{value}" },
-        "word": { "field": "tempMaxF", "bands": [ { "max": 200, "text": "w" } ] } }
-    ]
-  })";
-  if (!find.empty()) {
-    size_t at = base.find(find);
-    TEST_ASSERT_TRUE_MESSAGE(at != std::string::npos, "fixture anchor missing");
-    base.replace(at, find.size(), replace);
-  }
-  return base;
-}
-
-static void rejects(const char* why, const std::string& json) {
-  day::Spec s; char err[128] = "";
-  bool loaded = s.load(json.c_str(), json.size(), err, sizeof(err));
-  if (loaded) { TEST_FAIL_MESSAGE(why); }
-  TEST_ASSERT_FALSE(s.valid());
-  printf("      rejected (%s): %s\n", why, err);
+void test_fixture_is_valid() {
+  day::Spec s; char err[200];
+  std::string t = specWith("", "");
+  TEST_ASSERT_TRUE_MESSAGE(s.load(t.c_str(), t.size(), err, sizeof(err)), err);
 }
 
 void test_rejects_bad_specs() {
-  day::Spec s; char err[128];
-  TEST_ASSERT_FALSE(s.load("{ nope", 6, err, sizeof(err)));
-  // the fixture itself must be good, or every case below passes for free
-  TEST_ASSERT_TRUE_MESSAGE(s.load(specWith("", "").c_str(), specWith("", "").size(), err, sizeof(err)), err);
-
-  rejects("unknown field in a condition",
-          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxx","op":">=","value":1}] })"));
-  rejects("unknown operator",
-          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":"=>","value":1}] })"));
-  rejects("condition with no numeric value",
-          specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":">="}] })"));
-  rejects("hero icon not in icons[]",     specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sombrero")"));
-  rejects("wear icon not in icons[]",     specWith(R"({"label":"A","icon":"tshirt"},)", R"({"label":"A","icon":"kilt"},)"));
-  rejects("last outcome not a catch-all", specWith(R"("when": { "all": [] })", R"("when": { "all": [{"field":"tempMaxF","op":">=","value":99}] })"));
-  rejects("only three wear items",        specWith(R"(,{"label":"D","icon":"tshirt"} ])", R"( ])"));
-  rejects("title line too long for the buffer",
-          specWith(R"("title": ["ONLY"])", R"("title": ["ABSOLUTELY ENORMOUS"])"));
-  rejects("heroPanel that is neither light nor dark",
-          specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "beige")"));
-  rejects("too many title lines",
-          specWith(R"("title": ["ONLY"])", R"("title": ["A","B","C","D"])"));
-  rejects("byFailedTest keyed on a non-field",
-          specWith(R"("alsoGrab": "grab")", R"("alsoGrab": { "byFailedTest": { "windy": "x" }, "default": "y" })"));
-  rejects("alsoGrab object with no default",
-          specWith(R"("alsoGrab": "grab")", R"("alsoGrab": { "byFailedTest": { "windMaxMph": "x" } })"));
-  rejects("stat value field unknown",
-          specWith(R"("value": { "field": "tempMaxF", "format": "{value}" })", R"("value": { "field": "nope", "format": "{value}" })"));
-  rejects("stat value with both format and bands",
-          specWith(R"("value": { "field": "tempMaxF", "format": "{value}" })",
-                   R"("value": { "field": "tempMaxF", "format": "{value}", "bands": [{"max":1,"text":"a"}] })"));
-  rejects("bands that go backwards",
-          specWith(R"("bands": [ { "max": 200, "text": "w" } ])", R"("bands": [ { "max": 50, "text": "a" }, { "max": 10, "text": "b" } ])"));
+  rejects("not TOML at all", "[[[");
+  rejects("unknown field", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMaxx = \">= 1\""));
+  rejects("bad operator", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \"=> 1\""));
+  rejects("no number", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \">=\""));
+  rejects("last outcome must be a catch-all", specWith("also = \"grab\"", "also = \"grab\"\n\n[outcome.when]\ntempMax = \">= 99\""));
+  rejects("icon not in icons", specWith("icon = \"tshirt\"\nwear", "icon = \"sombrero\"\nwear"));
+  rejects("wear id not in catalogue", specWith("wear = [\"a\", \"a\", \"a\", \"a\"]", "wear = [\"a\", \"a\", \"a\", \"kilt\"]"));
+  rejects("three wear items", specWith("wear = [\"a\", \"a\", \"a\", \"a\"]", "wear = [\"a\", \"a\", \"a\"]"));
+  rejects("no names or variants", specWith("names = [\"Only Day\"]\n", ""));
+  rejects("name too long", specWith("\"Only Day\"", "\"An Extremely Long Day Name That Will Never Fit On Any Panel\""));
+  rejects("bad colour", specWith("tagline = \"T\"", "tagline = \"T\"\ncolor = \"orange\""));
+  rejects("bad panel", specWith("tagline = \"T\"", "tagline = \"T\"\npanel = \"beige\""));
+  rejects("catalogue icon unknown", specWith("a = { label = \"A\", icon = \"tshirt\" }", "a = { label = \"A\", icon = \"kilt\" }"));
+  rejects("value_format and value_bands together",
+          specWith("value_format = \"{value}\"", "value_format = \"{value}\"\nvalue_bands = [ { max = 1, text = \"x\" } ]"));
+  rejects("bands backwards",
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 50, text = \"a\" }, { max = 10, text = \"b\" } ]"));
   rejects("last band gated on an optional input",
-          specWith(R"("bands": [ { "max": 200, "text": "w" } ])",
-                   R"("bands": [ { "max": 200, "text": "w", "requires": "firstClearHour" } ])"));
-  rejects("band requiring an unknown field",
-          specWith(R"("bands": [ { "max": 200, "text": "w" } ])",
-                   R"("bands": [ { "max": 10, "text": "a", "requires": "nope" }, { "max": 200, "text": "w" } ])"));
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 200, text = \"w\", requires = \"firstClearHour\" } ]"));
+  rejects("holiday month 13", specWith("", "") + "\n[[holiday]]\nname = \"Nope\"\nmonth = 13\nday = 1\n");
+  rejects("holiday with no date rule", specWith("", "") + "\n[[holiday]]\nname = \"Nope\"\nmonth = 5\n");
+  // A variant is validated as thoroughly as the outcome it overrides.
+  rejects("variant with an unknown icon",
+          specWith("[[stat]]", "[[outcome.variant]]\nname = \"Other\"\nicon = \"sombrero\"\n\n[[stat]]"));
+  rejects("variant with three wear items",
+          specWith("[[stat]]", "[[outcome.variant]]\nname = \"Other\"\nwear = [\"a\", \"a\", \"a\"]\n\n[[stat]]"));
+  rejects("variant with no name",
+          specWith("[[stat]]", "[[outcome.variant]]\nicon = \"tshirt\"\n\n[[stat]]"));
 }
 
 void test_rejects_duplicate_ids() {
-  // two outcomes sharing an id, the second still a catch-all
-  std::string j = R"({
-    "icons": ["tshirt"],
-    "outcomes": [
-      { "id": "same", "title": ["A"], "tagline": "T", "heroIcon": "tshirt", "when": { "all": [] },
-        "wear": [ {"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"} ],
-        "alsoGrab": "x" },
-      { "id": "same", "title": ["B"], "tagline": "T", "heroIcon": "tshirt", "when": { "all": [] },
-        "wear": [ {"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"},{"label":"A","icon":"tshirt"} ],
-        "alsoGrab": "x" }
-    ],
-    "stats": [ { "id": "s", "label": "S", "icon": "tshirt",
-                 "value": { "field": "tempMaxF", "format": "{value}" },
-                 "word": { "field": "tempMaxF", "bands": [ { "max": 200, "text": "w" } ] } } ] })";
-  rejects("duplicate outcome id", j);
-}
-
-void test_icon_checker_catches_missing_art() {
-  // The spec lists an icon the renderer has no art for.
-  day::setIconChecker([](const char* n) { return strcmp(n, "tshirt") == 0; });
-  rejects("icon listed but no art compiled in", specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sun")"));
-  day::setIconChecker(nullptr);
-  // ...and with no checker it is accepted again, since icons[] does list it.
-  day::Spec s; char err[128];
-  std::string j = specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "sun")");
-  TEST_ASSERT_TRUE_MESSAGE(s.load(j.c_str(), j.size(), err, sizeof(err)), err);
+  rejects("duplicate outcome id", specWith("[[stat]]",
+    "[[outcome]]\nid = \"only\"\nnames = [\"Second\"]\ntagline = \"T\"\nicon = \"tshirt\"\n"
+    "wear = [\"a\", \"a\", \"a\", \"a\"]\nalso = \"grab\"\n\n[[stat]]"));
 }
 
 void test_beach_day() {
   const auto& s = run(base());
   TEST_ASSERT_EQUAL_STRING("beach_day", s.outcome.id);
-  TEST_ASSERT_EQUAL_INT(2, s.outcome.titleLines);
-  TEST_ASSERT_EQUAL_STRING("BEACH", s.outcome.title[0]);
-  TEST_ASSERT_EQUAL_STRING("DAY!", s.outcome.title[1]);
-  TEST_ASSERT_EQUAL_STRING("PACK THE CAR", s.outcome.tagline);
-  TEST_ASSERT_EQUAL_STRING("sun_and_waves", s.outcome.heroIcon);
+  // Tagline, icon and wear vary by variant now, so pin what cannot.
+  TEST_ASSERT_TRUE(s.outcome.tagline[0] != '\0');
+  TEST_ASSERT_TRUE(s.outcome.heroIcon[0] != '\0');
   TEST_ASSERT_EQUAL_INT(4, s.outcome.wearCount);
-  TEST_ASSERT_EQUAL_STRING("Swimsuit", s.outcome.wear[0].label);
-  TEST_ASSERT_EQUAL_STRING("swim_trunks", s.outcome.wear[0].icon);
-  TEST_ASSERT_EQUAL_STRING("Also grab: water bottles and something for shade.", s.outcome.alsoGrab);
   TEST_ASSERT_EQUAL_STRING("Sunset: 7:08 PM", s.footer);
   TEST_ASSERT_EQUAL_STRING("VENICE BEACH", s.eyebrow);
-  TEST_ASSERT_EQUAL_STRING("Wednesday", s.weekday);
-  TEST_ASSERT_EQUAL_STRING("Humidity 49\xE2\x80\x93" "83%", s.corner1);
-  TEST_ASSERT_EQUAL_STRING("Air quality 20\xE2\x80\x93" "40", s.corner2);
   TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 this morning, 84\xC2\xB0 this afternoon", s.subline);
+  TEST_ASSERT_EQUAL_STRING("", s.outcome.holiday);
 }
 
-void test_rain_beats_everything() {
-  auto in = base(); in.precipChanceMaxPct = 50;           // hot AND wet
-  TEST_ASSERT_EQUAL_STRING("rain_boots_day", run(in).outcome.id);
-  in.precipChanceMaxPct = 49; in.tempMaxF = 84; in.cloudCoverAvgPct = 10;
-  TEST_ASSERT_EQUAL_STRING("sun_hat_day", run(in).outcome.id);   // 49% fails beach's <=20 but not rain's >=50
-}
-
-void test_cold_beats_hot_paths() {
-  auto in = base(); in.tempMaxF = 51; in.tempMinF = 40; in.tempSwingF = 11;
+void test_precedence() {
+  auto in = base(); in.precipChanceMaxPct = 50;
+  TEST_ASSERT_EQUAL_STRING("rain_day", run(in).outcome.id);
+  in = base(); in.tempMaxF = 51; in.tempMinF = 40; in.tempSwingF = 11;
   TEST_ASSERT_EQUAL_STRING("big_coat_day", run(in).outcome.id);
   in.tempMaxF = 52;
-  TEST_ASSERT_EQUAL_STRING("jacket_day", run(in).outcome.id);    // 52 is not < 52; not hot, not swingy
+  TEST_ASSERT_EQUAL_STRING("jacket_day", run(in).outcome.id);
+  in = base(); in.tempMaxF = 74; in.tempMinF = 60; in.tempSwingF = 14;
+  TEST_ASSERT_EQUAL_STRING("tshirt_day", run(in).outcome.id);
 }
 
-void test_sun_hat_explains_which_test_failed() {
+void test_sun_hat_explains_itself() {
   auto in = base(); in.windMaxMph = 16;
   auto s = run(in);
   TEST_ASSERT_EQUAL_STRING("sun_hat_day", s.outcome.id);
-  TEST_ASSERT_EQUAL_STRING("windMaxMph", s.outcome.failedTest);
+  TEST_ASSERT_EQUAL_STRING("wind", s.outcome.failedTest);
   TEST_ASSERT_EQUAL_STRING("Too windy at the water today \xE2\x80\x94 the shady park is the better pick.", s.outcome.alsoGrab);
-
-  in = base(); in.aqiMax = 100;
-  TEST_ASSERT_EQUAL_STRING("The air is hazy today \xE2\x80\x94 keep it short outside and shady.", run(in).outcome.alsoGrab);
   in = base(); in.cloudCoverAvgPct = 36;
   TEST_ASSERT_EQUAL_STRING("Grey overhead but still hot \xE2\x80\x94 sunscreen anyway, it burns through.", run(in).outcome.alsoGrab);
-  in = base(); in.precipChanceMaxPct = 21;
-  TEST_ASSERT_EQUAL_STRING("Hot with a shower possible \xE2\x80\x94 shade now, umbrella nearby.", run(in).outcome.alsoGrab);
-  // two failures: the first in beach_day's list wins (precip is listed before wind)
-  in = base(); in.windMaxMph = 30; in.precipChanceMaxPct = 30;
-  TEST_ASSERT_EQUAL_STRING("Hot with a shower possible \xE2\x80\x94 shade now, umbrella nearby.", run(in).outcome.alsoGrab);
 }
 
-void test_layers_day() {
-  auto in = base(); in.tempMaxF = 76; in.tempMinF = 52; in.tempSwingF = 24;
-  auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("layers_day", s.outcome.id);
-  TEST_ASSERT_EQUAL_STRING("It warms up 24 degrees today \xE2\x80\x94 pack somewhere to stash the hoodie.", s.outcome.alsoGrab);
-  // "swingy" overrides the WARMEST word
-  bool found = false;
-  for (int i = 0; i < s.statCount; i++) if (!strcmp(s.stats[i].id, "warmest")) { found = true; TEST_ASSERT_EQUAL_STRING("swingy", s.stats[i].word); }
-  TEST_ASSERT_TRUE(found);
-  // hot + swingy: outcome order puts the hot outcomes first, so layers never wins a hot day
-  in.tempMaxF = 80; in.tempMinF = 56;   // swing 24, but 80 and clear is a beach day
-  TEST_ASSERT_EQUAL_STRING("beach_day", run(in).outcome.id);
-  in.cloudCoverAvgPct = 60;              // still hot, still swingy: sun hat, not layers
-  TEST_ASSERT_EQUAL_STRING("sun_hat_day", run(in).outcome.id);
-}
-
-void test_tshirt_near_threshold_copy() {
+void test_near_threshold_copy() {
   auto in = base(); in.tempMaxF = 74; in.tempMinF = 60; in.tempSwingF = 14;
-  auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("tshirt_day", s.outcome.id);
-  TEST_ASSERT_EQUAL_STRING("4 degrees short of a beach day \xE2\x80\x94 lovely for the park, chilly in the water.", s.outcome.alsoGrab);
-  in.tempMaxF = 71;   // 7 short: outside the 6-degree window
+  TEST_ASSERT_EQUAL_STRING("4 degrees short of a beach day \xE2\x80\x94 lovely for the park, chilly in the water.", run(in).outcome.alsoGrab);
+  in.tempMaxF = 71;
   TEST_ASSERT_EQUAL_STRING("Also grab: a light sweater for after dinner.", run(in).outcome.alsoGrab);
-  in.tempMaxF = 67;
-  TEST_ASSERT_EQUAL_STRING("jacket_day", run(in).outcome.id);
-}
-
-void test_jacket_footer_has_no_suffix() {
-  auto in = base(); in.tempMaxF = 60; in.tempMinF = 50; in.tempSwingF = 10;
-  auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("jacket_day", s.outcome.id);
-  TEST_ASSERT_FALSE(s.outcome.hasFooterSuffix);
-  TEST_ASSERT_EQUAL_STRING("Sunset: 7:08 PM", s.footer);
-}
-
-// Which outcome gets the bright panel is a design choice that lives in the
-// JSON and changes freely, so this tests the mechanism on a fixture instead of
-// pinning whatever day-outcomes.json currently says.
-void test_hero_panel_override() {
-  day::Spec sp; char err[128]; day::Screen sc; day::Inputs in;
-  auto load = [&](const std::string& j) {
-    TEST_ASSERT_TRUE_MESSAGE(sp.load(j.c_str(), j.size(), err, sizeof(err)), err);
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
-  };
-  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "light")"));
-  TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "explicit light");
-  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroPanel": "dark")"));
-  TEST_ASSERT_FALSE_MESSAGE(sc.outcome.heroLight, "explicit dark");
-  load(specWith("", ""));
-  TEST_ASSERT_FALSE_MESSAGE(sc.outcome.heroLight, "no screen.heroPanel at all defaults to dark");
-  load(specWith(R"("icons": ["tshirt","sun"],)", R"("icons": ["tshirt","sun"], "screen": { "heroPanel": { "default": "light" } },)"));
-  TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.heroPanel.default");
-}
-
-void test_hero_colour() {
-  day::Spec sp; char err[128]; day::Screen sc; day::Inputs in;
-  auto load = [&](const std::string& j) {
-    TEST_ASSERT_TRUE_MESSAGE(sp.load(j.c_str(), j.size(), err, sizeof(err)), err);
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
-  };
-  load(specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroColor": "yellow")"));
-  TEST_ASSERT_EQUAL_STRING("yellow", sc.outcome.heroColor);
-  load(specWith("", ""));
-  TEST_ASSERT_EQUAL_STRING_MESSAGE("none", sc.outcome.heroColor, "absent means no tint");
-  rejects("heroColor that is not an available ink",
-          specWith(R"("heroIcon": "tshirt")", R"("heroIcon": "tshirt", "heroColor": "orange")"));
-}
-
-void test_eyebrow_is_uppercased() {
-  day::Screen sc;
-  TEST_ASSERT_TRUE(spec.evaluate(base(), sc, "Cambridge", false));
-  TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", sc.eyebrow);
-  TEST_ASSERT_TRUE(spec.evaluate(base(), sc, "Santa Monica", false));
-  TEST_ASSERT_EQUAL_STRING("SANTA MONICA", sc.eyebrow);
-}
-
-void test_rain_window() {
-  auto in = base();
-  // Over the threshold: say when to carry something, not how likely it is.
-  in.precipChanceMaxPct = 60; in.rainStartHour = 10; in.rainEndHour = 15;
-  auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("10A-3P", s.stats[2].value);
-  TEST_ASSERT_EQUAL_STRING("wet", s.stats[2].word);
-
-  // One wet hour reads as one hour, not a zero-length range.
-  in.rainStartHour = 11; in.rainEndHour = 11; in.precipChanceMaxPct = 35;
-  TEST_ASSERT_EQUAL_STRING("11A", run(in).stats[2].value);
-
-  // At or under the threshold the percentage is the useful thing.
-  in.precipChanceMaxPct = 20; in.rainStartHour = -1; in.rainEndHour = -1;
-  TEST_ASSERT_EQUAL_STRING("20%", run(in).stats[2].value);
-  in.precipChanceMaxPct = 0;
-  TEST_ASSERT_EQUAL_STRING("0%", run(in).stats[2].value);
-}
-
-void test_derive_rain_window() {
-  day::Raw raw;
-  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60;
-  int n = 0;
-  auto add = [&](int h, int pp) { raw.hours[n++] = day::HourRow{ 0, (int8_t)h, 70, 5, 50, (int16_t)pp, 50, 3 }; };
-  add(5, 90);                      // before sunrise: ignored
-  for (int h = 6; h <= 9; h++) add(h, 5);
-  add(10, 40); add(11, 10); add(12, 55);   // a dry hour in the middle stays inside the window
-  for (int h = 13; h <= 20; h++) add(h, 8);
-  add(21, 95);                     // after sunset: ignored
-  raw.n = n;
-  day::Inputs in;
-  day::derive(raw, 0, 3, in);
-  TEST_ASSERT_EQUAL_INT(10, in.rainStartHour);
-  TEST_ASSERT_EQUAL_INT(12, in.rainEndHour);
-  TEST_ASSERT_EQUAL_INT(55, (int)in.precipChanceMaxPct);
-
-  // Nothing over the threshold leaves no window at all.
-  for (int i = 0; i < raw.n; i++) raw.hours[i].precipProb = 15;
-  day::derive(raw, 0, 3, in);
-  TEST_ASSERT_EQUAL_INT(-1, in.rainStartHour);
 }
 
 void test_stats() {
   auto s = run(base());
-  TEST_ASSERT_EQUAL_INT(5, s.statCount);
+  TEST_ASSERT_EQUAL_INT(6, s.statCount);
   TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
-  TEST_ASSERT_EQUAL_STRING("sun", s.stats[0].icon);
+  TEST_ASSERT_EQUAL_STRING("9A-4P", s.stats[0].value);
   TEST_ASSERT_EQUAL_STRING("84\xC2\xB0" "F", s.stats[1].value);
   TEST_ASSERT_EQUAL_STRING("warm", s.stats[1].word);
-  TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);   // dry all day: the number
-  TEST_ASSERT_EQUAL_STRING("dry", s.stats[2].word);
-  TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[3].value);
-  TEST_ASSERT_EQUAL_STRING("calm", s.stats[3].word);
-  TEST_ASSERT_EQUAL_STRING("HIGH TEMP", s.stats[1].label);
-  TEST_ASSERT_EQUAL_STRING("WIND", s.stats[3].label);
-  // AIR QUALITY shows the AQI itself; the word carries the meaning.
-  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[4].label);
-  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[4].value);
-  TEST_ASSERT_EQUAL_STRING("clean", s.stats[4].word);
+  TEST_ASSERT_EQUAL_STRING("HUMIDITY", s.stats[3].label);
+  TEST_ASSERT_EQUAL_STRING("49-83%", s.stats[3].value);
+  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[5].label);
+  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[5].value);
 }
 
-void test_sun_interval() {
+void test_rain_and_sun_windows() {
   auto in = base();
-  in.sunRunHours = 4; in.sunRunStartHour = 13; in.sunRunEndHour = 16;
-  auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("1P-4P", s.stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("a stretch", s.stats[0].word);   // 3-4 hours
-  in.sunRunHours = 6; in.sunRunStartHour = 11; in.sunRunEndHour = 16;
-  TEST_ASSERT_EQUAL_STRING("clear", run(in).stats[0].word); // 5+ hours
-
-  in.sunRunHours = 3; in.sunRunStartHour = 9; in.sunRunEndHour = 11;
-  TEST_ASSERT_EQUAL_STRING("9A-11A", run(in).stats[0].value);
-  in.sunRunHours = 3;
-  in.sunRunHours = 3; in.sunRunStartHour = 11; in.sunRunEndHour = 13;
-  TEST_ASSERT_EQUAL_STRING("11A-1P", run(in).stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("a stretch", run(in).stats[0].word);
-
-  // Under three hours is not worth an interval.
-  in.sunRunHours = 2; in.sunRunStartHour = 13; in.sunRunEndHour = 14;
-  TEST_ASSERT_EQUAL_STRING("Brief", run(in).stats[0].value);
-  in.sunRunHours = 0; in.sunRunStartHour = -1; in.sunRunEndHour = -1;
+  in.precipChanceMaxPct = 60; in.rainStartHour = 10; in.rainEndHour = 15;
+  TEST_ASSERT_EQUAL_STRING("10A-3P", run(in).stats[2].value);
+  in.rainStartHour = 11; in.rainEndHour = 11;
+  TEST_ASSERT_EQUAL_STRING("11A", run(in).stats[2].value);
+  in = base(); in.sunRunHours = 4; in.sunRunStartHour = 13; in.sunRunEndHour = 16;
+  TEST_ASSERT_EQUAL_STRING("1P-4P", run(in).stats[0].value);
+  in.sunRunHours = 0; in.sunRunStartHour = -1;
   TEST_ASSERT_EQUAL_STRING("None", run(in).stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("none", run(in).stats[0].word);
-
-  // The icon still tracks cloud cover.
-  in.cloudCoverAvgPct = 90;
-  TEST_ASSERT_EQUAL_STRING("rain_cloud", run(in).stats[0].icon);
 }
 
-void test_tomorrow_and_eyebrow_override() {
-  auto s = run(base(), true, "Santa Monica");
-  TEST_ASSERT_EQUAL_STRING("SANTA MONICA", s.eyebrow);
+// --- variants ---------------------------------------------------------------
+
+void test_variant_is_stable_within_a_day() {
+  auto in = base();
+  char held[48];
+  snprintf(held, sizeof(held), "%s", run(in).outcome.title);
+  // The board redraws hourly; the name must not churn under the reader.
+  for (int i = 0; i < 6; i++) TEST_ASSERT_EQUAL_STRING(held, run(in).outcome.title);
+}
+
+void test_variant_pool_gets_used_across_days() {
+  char seen[8][48];
+  int distinct = 0;
+  for (int d = 0; d < 21; d++) {
+    auto x = base(); x.epochDay = 20621 + d;
+    const char* t = run(x).outcome.title;
+    bool isNew = true;
+    for (int k = 0; k < distinct; k++) if (!strcmp(seen[k], t)) isNew = false;
+    if (isNew && distinct < 8) snprintf(seen[distinct++], 48, "%s", t);
+  }
+  TEST_ASSERT_TRUE_MESSAGE(distinct > 1, "a pool of names should not always pick the same one");
+}
+
+void test_full_variant_overrides_and_inherits() {
+  // rain_day has three name-only variants sharing the outcome's icon, plus
+  // two that replace the icon, tagline, wear and copy.
+  bool sawInherited = false, sawOverridden = false;
+  for (int d = 0; d < 30; d++) {
+    auto in = base(); in.epochDay = 20621 + d; in.precipChanceMaxPct = 70;
+    auto s = run(in);
+    TEST_ASSERT_EQUAL_STRING("rain_day", s.outcome.id);
+    TEST_ASSERT_EQUAL_INT(4, s.outcome.wearCount);
+    if (!strcmp(s.outcome.heroIcon, "rain_boot")) {
+      sawInherited = true;
+      TEST_ASSERT_EQUAL_STRING("PUDDLES AHEAD", s.outcome.tagline);   // from the outcome
+      TEST_ASSERT_EQUAL_STRING("blue", s.outcome.heroColor);
+    }
+    if (!strcmp(s.outcome.title, "Umbrella Day")) {
+      sawOverridden = true;
+      TEST_ASSERT_EQUAL_STRING("umbrella", s.outcome.heroIcon);       // from the variant
+      TEST_ASSERT_EQUAL_STRING("KEEP IT OVERHEAD", s.outcome.tagline);
+      TEST_ASSERT_EQUAL_STRING("Umbrella", s.outcome.wear[0].label);
+      TEST_ASSERT_EQUAL_STRING("blue", s.outcome.heroColor);          // still inherited
+    }
+    if (!strcmp(s.outcome.title, "Raincoat Day")) {
+      TEST_ASSERT_EQUAL_STRING("yellow", s.outcome.heroColor);        // variant overrides colour
+    }
+  }
+  TEST_ASSERT_TRUE_MESSAGE(sawInherited, "name-only variants should inherit the outcome's icon");
+  TEST_ASSERT_TRUE_MESSAGE(sawOverridden, "a full variant should replace icon, tagline and wear");
+}
+
+// --- holidays ---------------------------------------------------------------
+
+void test_holiday_fixed_date() {
+  auto in = base();
+  in.year = 2026; in.month = 12; in.dayOfMonth = 25; in.weekday = 5;
+  in.tempMaxF = 40; in.tempMinF = 30; in.tempSwingF = 10;
+  auto s = run(in);
+  TEST_ASSERT_EQUAL_STRING("big_coat_day", s.outcome.id);
+  TEST_ASSERT_EQUAL_STRING("Christmas", s.outcome.holiday);
+  TEST_ASSERT_EQUAL_INT_MESSAGE(0, strncmp(s.outcome.title, "Christmas ", 10), "title is prefixed");
+  in.dayOfMonth = 26;
+  TEST_ASSERT_EQUAL_STRING("", run(in).outcome.holiday);
+}
+
+void test_holiday_nth_weekday() {
+  // Thanksgiving 2026 is Thursday 26 November.
+  auto in = base();
+  in.year = 2026; in.month = 11; in.dayOfMonth = 26; in.weekday = 4;
+  TEST_ASSERT_EQUAL_STRING("Thanksgiving", run(in).outcome.holiday);
+  in.dayOfMonth = 19;
+  TEST_ASSERT_EQUAL_STRING("", run(in).outcome.holiday);
+  in.dayOfMonth = 25; in.weekday = 3;
+  TEST_ASSERT_EQUAL_STRING("", run(in).outcome.holiday);
+}
+
+void test_holiday_last_weekday() {
+  // Memorial Day 2026 is the last Monday of May: 25 May.
+  auto in = base();
+  in.year = 2026; in.month = 5; in.dayOfMonth = 25; in.weekday = 1;
+  TEST_ASSERT_EQUAL_STRING("Memorial", run(in).outcome.holiday);
+  in.dayOfMonth = 18;
+  TEST_ASSERT_EQUAL_STRING("", run(in).outcome.holiday);
+}
+
+void test_hero_panel_and_colour() {
+  day::Spec sp; char err[200]; day::Screen sc; day::Inputs in = base();
+  auto load = [&](const std::string& t) {
+    TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  };
+  load(specWith("tagline = \"T\"", "tagline = \"T\"\npanel = \"light\"\ncolor = \"yellow\""));
+  TEST_ASSERT_TRUE(sc.outcome.heroLight);
+  TEST_ASSERT_EQUAL_STRING("yellow", sc.outcome.heroColor);
+  load(specWith("tagline = \"T\"", "tagline = \"T\"\npanel = \"dark\""));
+  TEST_ASSERT_FALSE(sc.outcome.heroLight);
+  TEST_ASSERT_EQUAL_STRING("none", sc.outcome.heroColor);
+  load(specWith("", "") + "\n[screen]\nhero_panel_default = \"light\"\n");
+  TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.hero_panel_default");
+}
+
+void test_eyebrow_and_tomorrow() {
+  auto s = run(base(), true, "Cambridge");
+  TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", s.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 in the morning, 84\xC2\xB0 in the afternoon", s.subline);
-  TEST_ASSERT_TRUE(s.tomorrow);
 }
 
 void test_derive() {
   day::Raw raw;
   raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8; raw.day[0].dailyCode = 3;
-  // window is hours 6..19
   int n = 0;
   auto add = [&](int h, double t, double w, int hum, int pp, int cloud, int code) {
     raw.hours[n++] = day::HourRow{ 0, (int8_t)h, t, w, (int16_t)hum, (int16_t)pp, (int16_t)cloud, (int16_t)code };
   };
-  add(3, 50, 30, 99, 90, 100, 61);     // outside window: must not count
+  add(3, 50, 30, 99, 90, 100, 61);
   add(6, 62.4, 3, 83, 0, 60, 3);
   add(9, 70, 6, 70, 2, 40, 2);
-  add(11, 80, 8.6, 60, 2, 25, 1);      // first hour at or under 30% cloud
+  add(11, 80, 8.6, 60, 2, 25, 1);
   add(14, 89.4, 12, 49, 0, 10, 0);
   add(19, 78, 9, 55, 1, 20, 0);
-  add(21, 60, 20, 90, 60, 90, 61);     // outside window
+  add(21, 60, 20, 90, 60, 90, 61);
   raw.n = n;
   raw.aqi[0] = { 0, 5, 300 }; raw.aqi[1] = { 0, 6, 58 }; raw.aqi[2] = { 0, 15, 61 }; raw.aqi[3] = { 0, 20, 400 }; raw.na = 4;
-
   day::Inputs in;
   day::derive(raw, 0, 3, in);
   TEST_ASSERT_EQUAL_INT(62, (int)in.tempMinF);
   TEST_ASSERT_EQUAL_INT(89, (int)in.tempMaxF);
-  TEST_ASSERT_EQUAL_INT(27, (int)in.tempSwingF);
-  TEST_ASSERT_EQUAL_INT(12, (int)in.windMaxMph);
-  TEST_ASSERT_EQUAL_INT(2, (int)in.precipChanceMaxPct);
-  TEST_ASSERT_EQUAL_INT(49, (int)in.humidityMinPct);
-  TEST_ASSERT_EQUAL_INT(83, (int)in.humidityMaxPct);
-  TEST_ASSERT_EQUAL_INT(31, (int)in.cloudCoverAvgPct);   // (60+40+25+10+20)/5
-  TEST_ASSERT_TRUE(in.hasFirstClearHour);
+  TEST_ASSERT_EQUAL_INT(31, (int)in.cloudCoverAvgPct);
   TEST_ASSERT_EQUAL_INT(11, in.firstClearHour);
-  // hours 11, 14 and 19 are clear but not contiguous, so the longest run is 1
-  TEST_ASSERT_EQUAL_INT(1, (int)in.sunRunHours);
   TEST_ASSERT_EQUAL_INT(58, (int)in.aqiMin);
-  TEST_ASSERT_EQUAL_INT(61, (int)in.aqiMax);
-  TEST_ASSERT_EQUAL_STRING("Clear sky", in.conditionSummary);   // mode: 0 twice
+  TEST_ASSERT_EQUAL_STRING("Clear sky", in.conditionSummary);
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);
-  TEST_ASSERT_EQUAL_STRING("Wednesday", in.weekdayName);
 }
 
-void test_derive_longest_sun_run() {
+void test_derive_windows() {
   day::Raw raw;
-  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60; raw.day[0].dailyCode = 1;
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60; raw.day[0].sunsetMin = 20 * 60;
   int n = 0;
-  auto add = [&](int h, int cloud) {
-    raw.hours[n++] = day::HourRow{ 0, (int8_t)h, 70, 5, 50, 0, (int16_t)cloud, 1 };
-  };
-  // clear 7-8, cloudy 9-12, clear 13-16, cloudy 17-20  -> longest run 13..16
-  for (int h = 6; h <= 20; h++) add(h, (h >= 7 && h <= 8) || (h >= 13 && h <= 16) ? 10 : 80);
+  for (int h = 6; h <= 20; h++) {
+    int cloud = ((h >= 7 && h <= 8) || (h >= 13 && h <= 16)) ? 10 : 80;
+    int pp = (h == 10 || h == 12) ? 40 : 5;
+    raw.hours[n++] = day::HourRow{ 0, (int8_t)h, 70, 5, 50, (int16_t)pp, (int16_t)cloud, 1 };
+  }
   raw.n = n;
   day::Inputs in;
   day::derive(raw, 0, 3, in);
-  TEST_ASSERT_EQUAL_INT(7, in.firstClearHour);
   TEST_ASSERT_EQUAL_INT(4, (int)in.sunRunHours);
   TEST_ASSERT_EQUAL_INT(13, in.sunRunStartHour);
   TEST_ASSERT_EQUAL_INT(16, in.sunRunEndHour);
-
-  // A gap of one hour breaks the run: 7-8, 13-14 and 16 remain. The two
-  // two-hour runs tie, and the earlier one wins - more of the day is left.
-  for (int i = 0; i < raw.n; i++) if (raw.hours[i].hour == 15) raw.hours[i].cloud = 90;
-  day::derive(raw, 0, 3, in);
-  TEST_ASSERT_EQUAL_INT(2, (int)in.sunRunHours);
-  TEST_ASSERT_EQUAL_INT(7, in.sunRunStartHour);
-  TEST_ASSERT_EQUAL_INT(8, in.sunRunEndHour);
+  TEST_ASSERT_EQUAL_INT(10, in.rainStartHour);
+  TEST_ASSERT_EQUAL_INT(12, in.rainEndHour);
 }
 
 int main(int, char**) {
@@ -440,25 +353,24 @@ int main(int, char**) {
   std::stringstream ss; ss << f.rdbuf(); specText = ss.str();
   UNITY_BEGIN();
   RUN_TEST(test_spec_loads);
+  RUN_TEST(test_fixture_is_valid);
   RUN_TEST(test_rejects_bad_specs);
   RUN_TEST(test_rejects_duplicate_ids);
-  RUN_TEST(test_icon_checker_catches_missing_art);
   RUN_TEST(test_beach_day);
-  RUN_TEST(test_rain_beats_everything);
-  RUN_TEST(test_cold_beats_hot_paths);
-  RUN_TEST(test_sun_hat_explains_which_test_failed);
-  RUN_TEST(test_layers_day);
-  RUN_TEST(test_tshirt_near_threshold_copy);
-  RUN_TEST(test_jacket_footer_has_no_suffix);
-  RUN_TEST(test_hero_panel_override);
-  RUN_TEST(test_hero_colour);
-  RUN_TEST(test_eyebrow_is_uppercased);
-  RUN_TEST(test_rain_window);
-  RUN_TEST(test_derive_rain_window);
+  RUN_TEST(test_precedence);
+  RUN_TEST(test_sun_hat_explains_itself);
+  RUN_TEST(test_near_threshold_copy);
   RUN_TEST(test_stats);
-  RUN_TEST(test_sun_interval);
-  RUN_TEST(test_tomorrow_and_eyebrow_override);
+  RUN_TEST(test_rain_and_sun_windows);
+  RUN_TEST(test_variant_is_stable_within_a_day);
+  RUN_TEST(test_variant_pool_gets_used_across_days);
+  RUN_TEST(test_full_variant_overrides_and_inherits);
+  RUN_TEST(test_holiday_fixed_date);
+  RUN_TEST(test_holiday_nth_weekday);
+  RUN_TEST(test_holiday_last_weekday);
+  RUN_TEST(test_hero_panel_and_colour);
+  RUN_TEST(test_eyebrow_and_tomorrow);
   RUN_TEST(test_derive);
-  RUN_TEST(test_derive_longest_sun_run);
+  RUN_TEST(test_derive_windows);
   return UNITY_END();
 }

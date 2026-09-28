@@ -41,12 +41,34 @@ Tint tintFor(const char* name) {
   return Tint::None;
 }
 
+// Titles are free text now - "Rain Boots Day", or "Thanksgiving Rain Boots
+// Day" on a holiday - so the size comes from the words rather than the words
+// being pre-split to fit a size. Largest size that wraps into the panel wins.
+constexpr int TITLE_TOP = 214, TITLE_BOTTOM = 400, TITLE_MAX_LINES = 4;
+
+int fitTitle(const char* title, char lines[TITLE_MAX_LINES][160], int& lineCount, int& leading) {
+  const int avail = LEFT_W - 26;
+  for (int px = 52; px >= 24; px -= 2) {
+    TextStyle st = T_HEADLINE; st.px = (float)px;
+    int n = textWrap(st, title, avail, lines, TITLE_MAX_LINES);
+    bool fits = (n > 0);
+    for (int i = 0; i < n; i++) if (textWidth(st, lines[i]) > avail) fits = false;
+    int lead = (px * 92) / 100;
+    if (fits && n * lead <= TITLE_BOTTOM - TITLE_TOP) { lineCount = n; leading = lead; return px; }
+  }
+  // Nothing fit: take the smallest and let it clip rather than draw nothing.
+  TextStyle st = T_HEADLINE; st.px = 24;
+  lineCount = textWrap(st, title, avail, lines, TITLE_MAX_LINES);
+  leading = 22;
+  return 24;
+}
+
 void drawHero(const ViewModel& vm) {
   const day::Outcome& oc = vm.screen.outcome;
   const int cx = LEFT_W / 2;
 
-  // One flat field of colour is the whole colour idea: the panel is 35% of the
-  // screen, so the verdict is legible from across a room before a word is
+  // One flat field of colour is the whole colour idea: the panel is a third of
+  // the screen, so the verdict is legible from across a room before a word is
   // read. Mono ignores the tint and uses the outcome's light/dark choice, so
   // the black-and-white layout is exactly what it was.
   const HeroSurface hero = paintHeroSurface(tintFor(oc.heroColor), oc.heroLight);
@@ -59,24 +81,21 @@ void drawHero(const ViewModel& vm) {
   TextStyle tagline = T_TAGLINE; tagline.role = hero.fg;
   textDrawCentered(eyebrow, cx, 44, vm.screen.eyebrow);
 
-  const int lineH = 46;
-  int lines = oc.titleLines;
-  int lastBaseline = (lines >= 3) ? 340 : 318;
-  int firstBaseline = lastBaseline - (lines - 1) * lineH;
   const int iconPx = 100;
-  int iconCy = firstBaseline - 46 - 56;
-
   IconStyle heroStyle;
   heroStyle.ink = hero.fg;
   heroStyle.paper = hero.bg;
   heroStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(iconPx));
-  drawIcon(oc.heroIcon, cx, iconCy, iconPx, heroStyle);
+  drawIcon(oc.heroIcon, cx, 150, iconPx, heroStyle);
 
-  for (int i = 0; i < lines; i++) {
-    TextStyle st = T_HEADLINE; st.role = hero.fg;
-    while (st.px > 30 && textWidth(st, oc.title[i]) > LEFT_W - 28) st.px -= 2;
-    textDrawCentered(st, cx, firstBaseline + i * lineH, oc.title[i]);
-  }
+  char lines[TITLE_MAX_LINES][160];
+  int n = 0, leading = 0;
+  int px = fitTitle(oc.title, lines, n, leading);
+  TextStyle st = T_HEADLINE; st.px = (float)px; st.role = hero.fg;
+  int block = n * leading;
+  int y = TITLE_TOP + (TITLE_BOTTOM - TITLE_TOP - block) / 2 + textCapHeight(st);
+  for (int i = 0; i < n; i++) { textDrawCentered(st, cx, y, lines[i]); y += leading; }
+
   textDrawCentered(tagline, cx, 434, oc.tagline);
 }
 
@@ -86,8 +105,14 @@ void drawRight(const ViewModel& vm) {
 
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
-  textDrawRight(T_CORNER, COL_X1, 42, s.corner1);
-  textDrawRight(T_CORNER, COL_X1, 62, s.corner2);
+  // The corner is the board talking about itself - when it last managed to
+  // fetch, and how much battery is left - not anything about the weather.
+  if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 42, vm.updatedText);
+  if (vm.batteryPct >= 0) {
+    char batt[20];
+    snprintf(batt, sizeof(batt), "Battery %d%%", vm.batteryPct);
+    textDrawRight(T_CORNER, COL_X1, 62, batt);
+  }
 
   // Subline (wraps to two lines if it must)
   int n = textWrap(T_SUBLINE, s.subline, COL_W, lines, 2);
@@ -128,7 +153,7 @@ void drawRight(const ViewModel& vm) {
   const int bandH = (pillY - 14) - bandY;
   if (bandH >= 56) {
     paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
-    int cols = s.statCount > 5 ? 5 : s.statCount;
+    int cols = s.statCount > 6 ? 6 : s.statCount;
     if (cols > 0) {
       // Space the four rows off measured cap heights rather than guessed
       // offsets, so changing a size can't silently crowd its neighbour.
@@ -185,7 +210,6 @@ void drawRight(const ViewModel& vm) {
   if (vm.parkingActive) paintAlertBar(COL_X0, pillY, COL_W, pillH, 9);
   textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
 
-  if (vm.statusText[0]) textDrawRight(T_STATUS, COL_X1, H - 10, vm.statusText);
 }
 
 void frame() {

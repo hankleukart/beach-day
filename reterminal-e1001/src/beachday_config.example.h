@@ -73,11 +73,11 @@
 #define CFG_OTA_MIN_BATTERY_PCT 30
 
 // ---- Runtime rules ----------------------------------------------------------
-// The outcomes, criteria and copy live in shared/v3/day-outcomes.json, loaded
+// The outcomes, criteria and copy live in shared/v3/day-outcomes.toml, loaded
 // at boot from the board's LittleFS (pio run -t uploadfs) with a built-in
 // fallback. Once a day the board re-fetches it from here, so copy and
 // thresholds change on every unit without a firmware update. "" disables.
-#define CFG_RULES_URL          "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.json"
+#define CFG_RULES_URL          "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.toml"
 #define CFG_RULES_CHECK_HOURS  24
 
 // ---- Network ----------------------------------------------------------------

@@ -1,7 +1,7 @@
 // Beach Day v3 for the Seeed reTerminal E1001.
 //
 // Every wake: Wi-Fi -> NTP -> Open-Meteo -> derive the day's numbers -> run
-// the runtime rules (shared/v3/day-outcomes.json) -> draw -> sleep. The
+// the runtime rules (shared/v3/day-outcomes.toml) -> draw -> sleep. The
 // panel keeps its image while the board sleeps, so a failed fetch just leaves
 // the last good screen up, stamped OFFLINE.
 #include <Arduino.h>
@@ -231,9 +231,9 @@ void setup() {
     uint32_t retry = (uint32_t)s.retryMinutes * 60 * (failCount >= 6 ? 6 : 1);
     if (lastView.valid) {
       if (!staleShown) {
-        char stamp[40]; snprintf(stamp, sizeof(stamp), "%s", lastView.statusText);
+        char stamp[28]; snprintf(stamp, sizeof(stamp), "%s", lastView.updatedText);
         const char* at = strstr(stamp, "Updated ");
-        snprintf(lastView.statusText, sizeof(lastView.statusText), "OFFLINE since %s", at ? stamp + 8 : stamp);
+        snprintf(lastView.updatedText, sizeof(lastView.updatedText), "OFFLINE since %s", at ? stamp + 8 : stamp);
         lastView.stale = true;
         renderScreen(lastView);
         staleShown = true;
@@ -262,10 +262,22 @@ void setup() {
   static day::Inputs in;
   day::derive(f.raw, d, tomorrow ? lc.tomorrowDow : lc.dow, in);
 
+  // Calendar, for holiday names and for the day-stable pick among a day's
+  // several names. When the screen is planning tomorrow, that is tomorrow's
+  // date - a Christmas Eve evening should already say Christmas.
+  {
+    long days = lc.days + (tomorrow ? 1 : 0);
+    int y, m, dom;
+    civilFromDays(days, y, m, dom);
+    in.year = y; in.month = m; in.dayOfMonth = dom;
+    in.weekday = tomorrow ? lc.tomorrowDow : lc.dow;
+    in.epochDay = days;
+  }
+
   static ViewModel vm;           // ~1.4 KB
   vm.valid = spec().evaluate(in, vm.screen, s.locationName, tomorrow);
   if (!vm.valid) {
-    renderMessage("Rules problem", "The rules file loaded but produced no outcome.", "Check shared/v3/day-outcomes.json.");
+    renderMessage("Rules problem", "The rules file loaded but produced no outcome.", "Check shared/v3/day-outcomes.toml.");
     sleepNow(3600);
   }
 
@@ -276,7 +288,8 @@ void setup() {
   snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
 
   char t[16]; fmtClock(lc.minuteOfDay, t, sizeof(t));
-  snprintf(vm.statusText, sizeof(vm.statusText), "Updated %s \xC2\xB7 %d%%", t, batteryPct);
+  snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %s", t);
+  vm.batteryPct = (int8_t)batteryPct;
 
   Serial.printf("[beach] local %02d:%02d %s dom %d (offset %ld, %s)%s\n", lc.minuteOfDay / 60, lc.minuteOfDay % 60,
                 day::weekdayName(lc.dow), lc.dom, (long)f.utcOffsetSec, clockOk ? "ntp" : "model time",
