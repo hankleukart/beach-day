@@ -17,33 +17,21 @@ constexpr int COL_X0 = 312, COL_X1 = 778;            // right column content bou
 constexpr int COL_W = COL_X1 - COL_X0;
 
 // ---- type ramp --------------------------------------------------------------
-const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper,   true };
+const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
-const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper,   true };
+const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
-const TextStyle T_CORNER   { Face::BodyLight, 14, 0,    Role::Caption, true };
-
-// Battery pictogram for the corner: outline, nub, and a fill bar.
-constexpr int BATT_W = 22, BATT_H = 12;
-void batteryGlyph(int x, int y, int pct) {
-  paintRoundRectStroke(x, y, BATT_W - 3, BATT_H, 2, 2, Role::Ink);
-  paintRect(x + BATT_W - 3, y + 4, 3, BATT_H - 8, Role::Ink);
-  if (pct < 0) pct = 0;
-  if (pct > 100) pct = 100;
-  int inner = BATT_W - 3 - 6;
-  int fill = (inner * pct + 50) / 100;
-  if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
-}
+const TextStyle T_CORNER   { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_STATLBL  { Face::Body,      12, 2.0f, Role::Caption, true };
+const TextStyle T_STATLBL  { Face::Body,      12, 2.0f, Role::Caption };
 const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
-const TextStyle T_STATSUB  { Face::Body,      13, 0,    Role::Caption, true };
-const TextStyle T_STATWORD { Face::BodyLight, 15, 0,    Role::Caption, true };
+const TextStyle T_STATSUB  { Face::BodyLight, 12, 0,    Role::Caption };
+const TextStyle T_STATWORD { Face::BodyLight, 15, 0,    Role::Caption };
 const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
-const TextStyle T_STATUS   { Face::BodyLight, 11, 0,    Role::Caption, true };
+const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
 const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
 const TextStyle T_MSG_B    { Face::BodyLight, 16, 0,    Role::Ink };
 
@@ -121,25 +109,12 @@ void drawRight(const ViewModel& vm) {
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
   // The corner is the board talking about itself - when it last managed to
-  // fetch, and how much charge is left - not anything about the weather. One
-  // quiet line, built from the right so the parts stay put as the time and
-  // percentage change width.
-  {
-    const int baseline = 50;
-    int x = COL_X1;
-    if (vm.batteryPct >= 0) {
-      char pct[8];
-      snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
-      x -= textWidth(T_CORNER, pct);
-      textDraw(T_CORNER, x, baseline, pct);
-      x -= 6 + BATT_W;
-      batteryGlyph(x, baseline - BATT_H + 1, vm.batteryPct);
-      x -= 7;
-    }
-    if (vm.updatedText[0]) {
-      x -= textWidth(T_CORNER, vm.updatedText);
-      textDraw(T_CORNER, x, baseline, vm.updatedText);
-    }
+  // fetch, and how much battery is left - not anything about the weather.
+  if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 42, vm.updatedText);
+  if (vm.batteryPct >= 0) {
+    char batt[20];
+    snprintf(batt, sizeof(batt), "Battery %d%%", vm.batteryPct);
+    textDrawRight(T_CORNER, COL_X1, 62, batt);
   }
 
   // Subline (wraps to two lines if it must)
@@ -275,6 +250,77 @@ void renderScreen(const ViewModel& vm) {
   } while (panelNextPage());
 }
 
+void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
+                  const char* heading, const char* footer) {
+  const TextStyle HEAD { Face::Display,   26, 0,    Role::Ink };
+  const TextStyle COL { Face::Body,      11, 1.5f, Role::Caption };
+  const TextStyle CEL { Face::Body,      14, 0,    Role::Ink };
+  const TextStyle DIM { Face::BodyLight, 13, 0,    Role::Caption };
+
+  // One column table shared by the header and every row, so a heading can
+  // never drift away from the numbers underneath it.
+  struct Col { const char* name; int x; };
+  static const Col cols[] = { { "HOUR", 24 }, { "TEMP", 112 }, { "RAIN", 198 },
+                              { "CLOUD", 286 }, { "WIND", 378 }, { "AQI", 462 },
+                              { "SKY", 546 } };
+  const int nCols = (int)(sizeof(cols) / sizeof(cols[0]));
+
+  panelFirstPage();
+  do {
+    panelFill(panelPaper());
+    textDraw(HEAD, 24, 46, heading);
+    textDrawRight(DIM, W - 24, 46, in.weekdayName);
+    paintHLine(24, W - 24, 60, 3, Role::Ink);
+
+    for (int c = 0; c < nCols; c++) textDraw(COL, cols[c].x, 84, cols[c].name);
+    paintHLine(24, W - 24, 92, 1, Role::Caption);
+
+    // Only the daylight window feeds the dashboard, so only it is listed -
+    // otherwise the table would show rows the verdict never considered.
+    int y = 114, shown = 0;
+    for (int h = 0; h < 24 && y < H - 74; h++) {
+      const day::HourRow* row = nullptr;
+      for (int i = 0; i < raw.n; i++)
+        if (raw.hours[i].day == dayIndex && raw.hours[i].hour == h) { row = &raw.hours[i]; break; }
+      if (!row) continue;
+
+      int aqi = -1;
+      for (int i = 0; i < raw.na; i++)
+        if (raw.aqi[i].day == dayIndex && raw.aqi[i].hour == h) { aqi = raw.aqi[i].aqi; break; }
+
+      char buf[28];
+      int dh = h % 12; if (dh == 0) dh = 12;
+      snprintf(buf, sizeof(buf), "%d%s", dh, h >= 12 ? "pm" : "am");
+      textDraw(CEL, cols[0].x, y, buf);
+      snprintf(buf, sizeof(buf), "%d\xC2\xB0", (int)lroundf((float)row->tempF));
+      textDraw(CEL, cols[1].x, y, buf);
+      snprintf(buf, sizeof(buf), "%d%%", row->precipProb < 0 ? 0 : row->precipProb);
+      textDraw(CEL, cols[2].x, y, buf);
+      snprintf(buf, sizeof(buf), "%d%%", row->cloud < 0 ? 0 : row->cloud);
+      textDraw(CEL, cols[3].x, y, buf);
+      snprintf(buf, sizeof(buf), "%d", (int)lroundf((float)row->windMph));
+      textDraw(CEL, cols[4].x, y, buf);
+      if (aqi >= 0) { snprintf(buf, sizeof(buf), "%d", aqi); textDraw(CEL, cols[5].x, y, buf); }
+      textDraw(CEL, cols[6].x, y, beach::wmoDescription(row->code));
+      y += 23;
+      shown++;
+    }
+    if (shown == 0) textDraw(CEL, 24, 124, "No hourly rows for this day.");
+
+    // The figures the rules actually ran on, so the summary can be checked
+    // against the rows above it.
+    paintHLine(24, W - 24, H - 60, 1, Role::Caption);
+    char line[168];
+    snprintf(line, sizeof(line),
+             "%d\xC2\xB0-%d\xC2\xB0   rain %d%%   wind %d   cloud %d%%   hum %d-%d%%   aqi %d-%d",
+             (int)in.tempMinF, (int)in.tempMaxF, (int)in.precipChanceMaxPct,
+             (int)in.windMaxMph, (int)in.cloudCoverAvgPct,
+             (int)in.humidityMinPct, (int)in.humidityMaxPct, (int)in.aqiMin, (int)in.aqiMax);
+    textDraw(DIM, 24, H - 36, line);
+    if (footer) textDrawRight(DIM, W - 24, H - 36, footer);
+  } while (panelNextPage());
+}
+
 void renderMessage(const char* title, const char* line1, const char* line2) {
   panelFirstPage();
   do {
@@ -325,72 +371,6 @@ void renderSetup(const char* apName, const char* ip) {
 
     textDrawCentered(T_STATUS, W / 2, H - 42, "This screen turns off after 10 minutes. Hold the middle button");
     textDrawCentered(T_STATUS, W / 2, H - 28, "and press the right one to open setup again.");
-  } while (panelNextPage());
-}
-
-void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
-                  const char* heading, const char* footer) {
-  const TextStyle H   { Face::Display,   26, 0, Role::Ink };
-  const TextStyle COL { Face::Body,      11, 1.5f, Role::Caption, true };
-  const TextStyle CEL { Face::Body,      14, 0, Role::Ink, true };
-  const TextStyle DIM { Face::BodyLight, 13, 0, Role::Caption, true };
-
-  // Columns are laid out once and shared by the header and every row, so a
-  // heading can never drift away from the numbers under it.
-  struct Col { const char* name; int x; };
-  const Col cols[] = { {"HOUR",24}, {"TEMP",110}, {"RAIN",196}, {"CLOUD",282},
-                       {"WIND",372}, {"AQI",458}, {"SKY",540} };
-  const int nCols = sizeof(cols) / sizeof(cols[0]);
-
-  panelFirstPage();
-  do {
-    panelFill(panelPaper());
-    textDraw(H, 24, 46, heading);
-    textDrawRight(DIM, PANEL_W - 24, 46, in.weekdayName);
-
-    paintHLine(24, PANEL_W - 24, 60, 3, Role::Ink);
-    for (int c = 0; c < nCols; c++) textDraw(COL, cols[c].x, 82, cols[c].name);
-    paintHLine(24, PANEL_W - 24, 90, 1, Role::Caption);
-
-    // Only the daylight window feeds the dashboard, so only it is shown.
-    int y = 112;
-    int shown = 0;
-    for (int h = 0; h < 24 && y < PANEL_H - 70; h++) {
-      const day::HourRow* row = nullptr;
-      for (int i = 0; i < raw.n; i++)
-        if (raw.hours[i].day == dayIndex && raw.hours[i].hour == h) { row = &raw.hours[i]; break; }
-      if (!row) continue;
-      int wStart = in.sunRunStartHour, wEnd = in.sunRunEndHour;
-      (void)wStart; (void)wEnd;
-
-      int aqi = -1;
-      for (int i = 0; i < raw.na; i++)
-        if (raw.aqi[i].day == dayIndex && raw.aqi[i].hour == h) { aqi = raw.aqi[i].aqi; break; }
-
-      char buf[24];
-      int dh = h % 12; if (dh == 0) dh = 12;
-      snprintf(buf, sizeof(buf), "%d%s", dh, h >= 12 ? "pm" : "am");
-      textDraw(CEL, cols[0].x, y, buf);
-      snprintf(buf, sizeof(buf), "%d\xC2\xB0", (int)lroundf(row->tempF));      textDraw(CEL, cols[1].x, y, buf);
-      snprintf(buf, sizeof(buf), "%d%%", row->precipProb < 0 ? 0 : row->precipProb); textDraw(CEL, cols[2].x, y, buf);
-      snprintf(buf, sizeof(buf), "%d%%", row->cloud < 0 ? 0 : row->cloud);      textDraw(CEL, cols[3].x, y, buf);
-      snprintf(buf, sizeof(buf), "%d", (int)lroundf(row->windMph));             textDraw(CEL, cols[4].x, y, buf);
-      if (aqi >= 0) { snprintf(buf, sizeof(buf), "%d", aqi); textDraw(CEL, cols[5].x, y, buf); }
-      textDraw(CEL, cols[6].x, y, beach::wmoDescription(row->code));
-      y += 23;
-      shown++;
-    }
-    if (shown == 0) textDraw(CEL, 24, 120, "No hourly rows for this day.");
-
-    // The figures the rules actually ran on, so the two can be compared.
-    paintHLine(24, PANEL_W - 24, PANEL_H - 58, 1, Role::Caption);
-    char line[160];
-    snprintf(line, sizeof(line), "%d\xC2\xB0-%d\xC2\xB0  rain %d%%  wind %d  cloud %d%%  hum %d-%d%%  aqi %d-%d",
-             (int)in.tempMinF, (int)in.tempMaxF, (int)in.precipChanceMaxPct, (int)in.windMaxMph,
-             (int)in.cloudCoverAvgPct, (int)in.humidityMinPct, (int)in.humidityMaxPct,
-             (int)in.aqiMin, (int)in.aqiMax);
-    textDraw(DIM, 24, PANEL_H - 36, line);
-    textDrawRight(DIM, PANEL_W - 24, PANEL_H - 36, footer);
   } while (panelNextPage());
 }
 

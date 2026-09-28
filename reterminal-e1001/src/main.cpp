@@ -29,8 +29,13 @@ RTC_DATA_ATTR static uint16_t  failCount  = 0;
 RTC_DATA_ATTR static bool      staleShown = false;
 RTC_DATA_ATTR static uint32_t  bootCount  = 0;
 
-// The cycle's raw readings, at file scope so the left-button view and the
-// dev-mode 'h' key can both draw them without threading them through sleepNow.
+// Crash counter: bumped every boot, cleared when a cycle reaches sleep. After
+// SAFE_MODE_THRESHOLD consecutive failures the board only looks for new
+// firmware - the remote way out of a bad release.
+static constexpr int SAFE_MODE_THRESHOLD = 3;
+
+// The cycle's raw readings, at file scope so the dev-mode 'h' key can reach
+// them without threading them through sleepNow.
 static Fetched     g_fetched;
 static day::Inputs g_inputs;
 static int         g_day = 0;
@@ -46,11 +51,6 @@ void devShowHourly() {
                g_day ? "Tomorrow's readings" : "Today's readings", "press l for the forecast");
 #endif
 }
-
-// Crash counter: bumped every boot, cleared when a cycle reaches sleep. After
-// SAFE_MODE_THRESHOLD consecutive failures the board only looks for new
-// firmware - the remote way out of a bad release.
-static constexpr int SAFE_MODE_THRESHOLD = 3;
 
 static int bumpBootFailures() {
   Preferences p;
@@ -152,14 +152,14 @@ void setup() {
 
   const Settings& s = loadSettings();
 
-  // Each button has a single-press job now: which one woke the board is
-  // readable, and holding one at any other wake still works as it did.
+  // Each button has a single-press job: the RTC records which one woke the
+  // board. Holding a button through any other kind of wake still works.
   pinMode(PIN_KEY1, INPUT_PULLUP);
   pinMode(PIN_KEY2, INPUT_PULLUP);
   const WakeButton woke = wakeButton();
-  bool wantSetup = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::Middle;
+  bool wantSetup  = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::Middle;
   bool wantHourly = (woke == WakeButton::Left);
-  bool forceOta  = !wantHourly && (digitalRead(PIN_KEY2) == LOW);
+  bool forceOta   = !wantHourly && (digitalRead(PIN_KEY2) == LOW);
 
   if (wantSetup || !s.configured()) {
     Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
@@ -242,7 +242,7 @@ void setup() {
     }
   }
 
-  Fetched& f = g_fetched;        // ~1.5 KB, file scope so devShowHourly can reach it
+  Fetched& f = g_fetched;        // ~1.5 KB, file scope so the dev hook can reach it
   char err[64] = "no Wi-Fi";
   bool ok = online && fetchWeather(s, f, err, sizeof(err));
   netDisconnect();
@@ -311,12 +311,8 @@ void setup() {
   vm.parkingActive = pa.active;
   snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
 
-  // "9:40am" rather than "9:40 AM": the corner is a quiet aside, not a heading.
-  {
-    int h = (lc.minuteOfDay / 60) % 24, m = lc.minuteOfDay % 60;
-    int dh = h % 12; if (dh == 0) dh = 12;
-    snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %d:%02d%s", dh, m, h >= 12 ? "pm" : "am");
-  }
+  char t[16]; fmtClock(lc.minuteOfDay, t, sizeof(t));
+  snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %s", t);
   vm.batteryPct = (int8_t)batteryPct;
 
   Serial.printf("[beach] local %02d:%02d %s dom %d (offset %ld, %s)%s\n", lc.minuteOfDay / 60, lc.minuteOfDay % 60,
@@ -328,12 +324,13 @@ void setup() {
                 (unsigned)ESP.getFreeHeap(), (unsigned)uxTaskGetStackHighWaterMark(nullptr));
 
   if (wantHourly) {
-    // Show the readings instead of the verdict, then go straight back to
-    // sleep - the next ordinary wake redraws the dashboard.
-    Serial.println(F("[beach] left button: showing the hourly data"));
-    char foot[48];
-    snprintf(foot, sizeof(foot), "%s \xC2\xB7 press any button", vm.updatedText);
+    // Show the readings instead of the verdict, then sleep as usual - the
+    // next ordinary wake puts the dashboard back.
+    Serial.println(F("[beach] left button: showing the hourly readings"));
+    char foot[56];
+    snprintf(foot, sizeof(foot), "%s \xC2\xB7 any button returns", vm.updatedText);
     renderHourly(f.raw, d, in, tomorrow ? "Tomorrow's readings" : "Today's readings", foot);
+    failCount = 0;
     clearBootFailures();
     renderEnd();
     deepSleepFor(secondsToNextWake(lc, f.raw, s));
