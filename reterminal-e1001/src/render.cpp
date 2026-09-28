@@ -21,7 +21,19 @@ const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
 const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper };
 const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
-const TextStyle T_CORNER   { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_CORNER   { Face::BodyLight, 14, 0,    Role::Caption };
+
+// Battery pictogram for the corner: outline, nub, and a proportional fill.
+constexpr int BATT_W = 22, BATT_H = 12;
+void batteryGlyph(int x, int y, int pct) {
+  paintRoundRectStroke(x, y, BATT_W - 3, BATT_H, 2, 2, Role::Ink);
+  paintRect(x + BATT_W - 3, y + 4, 3, BATT_H - 8, Role::Ink);
+  if (pct < 0) pct = 0;
+  if (pct > 100) pct = 100;
+  const int inner = BATT_W - 3 - 6;
+  const int fill = (inner * pct + 50) / 100;
+  if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
+}
 const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
@@ -109,12 +121,25 @@ void drawRight(const ViewModel& vm) {
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
   // The corner is the board talking about itself - when it last managed to
-  // fetch, and how much battery is left - not anything about the weather.
-  if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 42, vm.updatedText);
-  if (vm.batteryPct >= 0) {
-    char batt[20];
-    snprintf(batt, sizeof(batt), "Battery %d%%", vm.batteryPct);
-    textDrawRight(T_CORNER, COL_X1, 62, batt);
+  // fetch, and how much charge is left - not anything about the weather. One
+  // quiet line, laid out from the right so the pieces stay put as the time
+  // and the percentage change width.
+  {
+    const int baseline = 50;
+    int x = COL_X1;
+    if (vm.batteryPct >= 0) {
+      char pct[8];
+      snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
+      x -= textWidth(T_CORNER, pct);
+      textDraw(T_CORNER, x, baseline, pct);
+      x -= 6 + BATT_W;
+      batteryGlyph(x, baseline - BATT_H + 1, vm.batteryPct);
+      x -= 7;
+    }
+    if (vm.updatedText[0]) {
+      x -= textWidth(T_CORNER, vm.updatedText);
+      textDraw(T_CORNER, x, baseline, vm.updatedText);
+    }
   }
 
   // Subline (wraps to two lines if it must)
@@ -151,8 +176,13 @@ void drawRight(const ViewModel& vm) {
   // Footer pill, anchored to the bottom
   const int pillH = 38, pillY = H - 30 - pillH;
 
-  // Stat strip fills whatever is left between them
-  const int bandY = alsoBottom + 14;
+  // The strip is labelled, because after sunset it quietly switches to
+  // tomorrow and nothing else on screen says so.
+  const int headY = alsoBottom + 20;
+  textDraw(T_SECTION, COL_X0, headY, s.tomorrow ? "TOMORROW'S FORECAST" : "TODAY'S FORECAST");
+
+  // Stat strip fills whatever is left between the heading and the footer.
+  const int bandY = headY + 10;
   const int bandH = (pillY - 14) - bandY;
   if (bandH >= 56) {
     paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);

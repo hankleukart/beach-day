@@ -29,12 +29,12 @@ float scaleFor(const FaceInfo& fi, float px) { return stbtt_ScaleForMappingEmToP
 } // namespace
 
 void textInit() {
-  // Uniform-stroke faces need far less threshold coaxing than a contrasted
-  // one did; 110 keeps counters open without eating stems.
+  // Tuned per face: the display serif is high-contrast, so a low threshold is
+  // what keeps its thin joins from dropping out entirely.
   struct { const uint8_t* d; uint8_t thr; } src[3] = {
-    { FONT_DISPLAY, 110 },
-    { FONT_BODY, 110 },
-    { FONT_BODY_LIGHT, 112 },
+    { FONT_DISPLAY, 96 },
+    { FONT_BODY, 104 },
+    { FONT_BODY_LIGHT, 104 },
   };
   for (int i = 0; i < 3; i++) {
     faces[i].data = src[i].d;
