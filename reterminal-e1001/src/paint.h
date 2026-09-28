@@ -37,6 +37,5 @@ Role paintAlertTextRole();
 
 // The stat strip's backing. On a 1-bit panel a dot field behind type destroys
 // it, so this is an outline here; a colour panel fills it with the band tone.
-void paintBandPanel(int x, int y, int w, int h, int rad);
 // False when an accent fill would read as noise rather than colour at this size.
 bool paintAccentsLegibleAt(int featurePx);

@@ -125,9 +125,11 @@ On a *coloured* hero the icon draws as a clean silhouette in the foreground
 colour rather than its own inks — a yellow sun on a yellow panel would vanish,
 and four inks in one corner would clash.
 
-Neither panel has a light grey, so the stat strip's `#F2F2F2` is an outline on
-both. A dot field there destroyed the type sitting on it, and the colour panel
-has no grey ink to fill it with.
+The mock's `#F2F2F2` stat panel is gone on both. Neither panel has a light
+grey: a dot field destroyed the type sitting on it, and the colour panel has
+no grey ink at all. An outline stood in for a while, but once the band moved
+up under the weekday the rule above it was already doing the separating, and
+four evenly spaced columns group themselves. So the stats sit on bare paper.
 
 The binaries are **not** interchangeable — an E1001 image on an E1002 runs
 perfectly and never touches the screen, because it is talking to a controller
@@ -214,11 +216,10 @@ crashed board and a flat battery all look identical. Work down this list:
    type ramp at the top of `render.cpp`.
 5. **Icons.** Compare against `docs-design/icons-preview.png`; the leaf fill
    and umbrella scallops are already on the list.
-6. **The band.** The stat strip is a 12.5% dot field standing in for `#F2F2F2`.
-   If it fights the text, switch it to an outline in `paint.cpp`. It sits
-   directly under the weekday and sizes itself from its own contents
-   (`bandHeight`), so the column below works around it rather than the other
-   way round. Check `tools/preview.sh stress` after touching the right column.
+6. **The band.** The stats sit unframed on bare paper, directly under the
+   weekday, and size themselves from their own contents (`bandHeight`), so the
+   column below works around them rather than the other way round. Check
+   `tools/preview.sh stress` after touching the right column.
 
 When the layout looks right, `./flash.sh release` and let it sleep.
 

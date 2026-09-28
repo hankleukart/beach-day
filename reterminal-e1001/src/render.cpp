@@ -116,8 +116,9 @@ void drawHero(const ViewModel& vm) {
 
 // ---- the stat band ---------------------------------------------------------
 // The band sizes itself from its own contents and the column gives it that
-// height. It used to take whatever the copy above it left over, which is how
-// its icons ended up breaking through its own outline.
+// height, rather than making do with what the copy above it leaves over. It
+// carries no frame: the four columns group themselves, and the rule under the
+// weekday already separates them from the day.
 constexpr int BAND_ICON = 26, BAND_G_ICON = 11, BAND_G_LABEL = 13,
               BAND_G_VALUE = 8, BAND_G_SUB = 8, BAND_PAD = 14;
 
@@ -134,7 +135,6 @@ int bandHeight(const day::Screen& s) {
 }
 
 void drawStatBand(const day::Screen& s, int bandY, int bandH) {
-  paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
   const int cols = s.statCount > 6 ? 6 : s.statCount;
   if (cols <= 0) return;
 

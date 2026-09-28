@@ -123,14 +123,6 @@ void paintAlertBar(int x, int y, int w, int h, int rad) {
 }
 Role paintAlertTextRole() { return Role::Paper; }
 
-void paintBandPanel(int x, int y, int w, int h, int rad) {
-  // The design calls for a #F2F2F2 fill. Neither panel has a light grey - mono
-  // would need a dot field, which destroys the type sitting on it, and the
-  // 6-colour panel has no grey ink at all. An outline carries the same
-  // grouping on both and costs the type nothing.
-  paintRoundRectStroke(x, y, w, h, rad, 2, Role::Ink);
-}
-
 bool paintAccentsLegibleAt(int featurePx) {
   // Real ink reads at any size; a 25% dot pattern inside a 22px icon is noise.
   return panelIsColor() ? true : featurePx >= 40;
