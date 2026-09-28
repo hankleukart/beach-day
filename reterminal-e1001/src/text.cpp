@@ -10,7 +10,8 @@
 namespace {
 
 struct FaceInfo { stbtt_fontinfo info; const uint8_t* data; bool ok; uint8_t threshold; };
-FaceInfo faces[3];
+constexpr int N_FACES = 5;
+FaceInfo faces[N_FACES];
 uint8_t glyphBuf[128 * 128];
 
 FaceInfo& face(Face f) { return faces[(int)f]; }
@@ -33,12 +34,14 @@ void textInit() {
   // everywhere and the threshold barely bites; the small faces are the ones
   // that lose strokes, so they sit lower and pick up the partial pixels at
   // the edge of a stem instead of dropping them.
-  struct { const uint8_t* d; uint8_t thr; } src[3] = {
+  struct { const uint8_t* d; uint8_t thr; } src[N_FACES] = {
     { FONT_DISPLAY, 96 },
     { FONT_BODY, 104 },
     { FONT_BODY_LIGHT, 104 },
+    { FONT_DATA, 104 },
+    { FONT_DATA_BOLD, 104 },
   };
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < N_FACES; i++) {
     faces[i].data = src[i].d;
     faces[i].threshold = src[i].thr;
     faces[i].ok = stbtt_InitFont(&faces[i].info, src[i].d, stbtt_GetFontOffsetForIndex(src[i].d, 0)) != 0;

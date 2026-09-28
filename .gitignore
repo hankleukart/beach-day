@@ -21,3 +21,6 @@ reterminal-e1001/tools/fonts/*.ttf
 # Generated at build time from shared/v3/day-outcomes.json
 reterminal-e1001/data/
 reterminal-e1001/src/spec_embedded.h
+
+# Generated layout previews (tools/preview.sh)
+reterminal-e1001/docs-design/preview/

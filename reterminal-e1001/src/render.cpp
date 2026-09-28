@@ -38,10 +38,11 @@ const TextStyle T_SUBLINE  { Face::BodyLight, 15, 0,    Role::Ink };
 const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
 const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
 const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_STATLBL  { Face::Body,      12, 2.0f, Role::Caption };
-const TextStyle T_STATVAL  { Face::Display,   24, 0,    Role::Ink };
-const TextStyle T_STATSUB  { Face::BodyLight, 12, 0,    Role::Caption };
-const TextStyle T_STATWORD { Face::BodyLight, 15, 0,    Role::Caption };
+// The tiles are Lexend: numbers read at a glance, not prose.
+const TextStyle T_STATLBL  { Face::Data,      12, 2.0f, Role::Caption };
+const TextStyle T_STATVAL  { Face::DataBold,  24, 0,    Role::Ink };
+const TextStyle T_STATSUB  { Face::Data,      12, 0,    Role::Caption };
+const TextStyle T_STATWORD { Face::Data,      15, 0,    Role::Caption };
 const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
 const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
 const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
@@ -121,24 +122,18 @@ void drawRight(const ViewModel& vm) {
   // Weekday + corner stats
   textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
   // The corner is the board talking about itself - when it last managed to
-  // fetch, and how much charge is left - not anything about the weather. One
-  // quiet line, laid out from the right so the pieces stay put as the time
-  // and the percentage change width.
+  // fetch, and how much charge is left - not anything about the weather. Two
+  // quiet lines, each laid out from the right so the pieces stay put as the
+  // time and the percentage change width.
   {
-    const int baseline = 50;
-    int x = COL_X1;
+    if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 36, vm.updatedText);
     if (vm.batteryPct >= 0) {
+      const int baseline = 58;
       char pct[8];
       snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
-      x -= textWidth(T_CORNER, pct);
+      int x = COL_X1 - textWidth(T_CORNER, pct);
       textDraw(T_CORNER, x, baseline, pct);
-      x -= 6 + BATT_W;
-      batteryGlyph(x, baseline - BATT_H + 1, vm.batteryPct);
-      x -= 7;
-    }
-    if (vm.updatedText[0]) {
-      x -= textWidth(T_CORNER, vm.updatedText);
-      textDraw(T_CORNER, x, baseline, vm.updatedText);
+      batteryGlyph(x - 6 - BATT_W, baseline - BATT_H + 1, vm.batteryPct);
     }
   }
 
@@ -149,32 +144,62 @@ void drawRight(const ViewModel& vm) {
   int ruleY = y + 2;
   paintHLine(COL_X0, COL_X1, ruleY, 3, Role::Ink);
 
+  // Footer pill, anchored to the bottom.
+  const int pillH = 38, pillY = H - 30 - pillH;
+
+  // Everything below the rule has to share one fixed height, and when the
+  // copy runs long something has to give. The stat band is budgeted first,
+  // because a tile squeezed until its icon touches its label is unreadable,
+  // while the space around the wear tiles is only ever whitespace. So the
+  // band states what it needs and the rest of the column gives way to it, in
+  // order of least damage: the gaps first, then the tiles' own height, and
+  // only as a last resort the second line of the also-grab.
+  const int capLabel = textCapHeight(T_STATLBL);
+  const int capValue = textCapHeight(T_STATVAL);
+  const int capSub   = textCapHeight(T_STATSUB);
+  const int capWord  = textCapHeight(T_STATWORD);
+  bool anySub = false;
+  for (int i = 0; i < s.statCount && i < 6; i++) if (s.stats[i].sub[0]) anySub = true;
+
+  const int ICON_PX = 26, G_ICON = 11, G_LABEL = 13, G_VALUE = 8, G_SUB = 8;
+  const int bandCore = ICON_PX + G_ICON + capLabel + G_LABEL + capValue + G_VALUE +
+                       (anySub ? capSub + G_SUB : 0) + capWord;
+
+  int tileGapY = 18, tileH = 84, alsoGapY = 22, bandPad = 12, alsoLines = 2;
+  auto overBy = [&] {
+    const int maxBottom = (pillY - 14) - (bandCore + bandPad) - 10 - 18;
+    const int bottom = ruleY + tileGapY + tileH + alsoGapY + (alsoLines - 1) * 19 + 5;
+    return bottom - maxBottom;
+  };
+  while (overBy() > 0 && alsoGapY > 16) alsoGapY--;
+  while (overBy() > 0 && tileGapY > 12) tileGapY--;
+  while (overBy() > 0 && tileH > 74) tileH--;
+  while (overBy() > 0 && bandPad > 4) bandPad--;
+  if (overBy() > 0) alsoLines = 1;          // last resort: words are worth more
+
   // Wear tiles. No heading: the four pictures say what they are, and the row
   // it used to occupy is worth more to the stat strip.
-  const int tileY = ruleY + 18, tileH = 84, gap = 12;
+  const int tileY = ruleY + tileGapY, gap = 12;
   const int tileW = (COL_W - 3 * gap) / 4;
-  const bool tileAccents = paintAccentsLegibleAt(44);
+  const bool tileAccents = paintAccentsLegibleAt(tileH / 2);
   for (int i = 0; i < 4; i++) {
     int x = COL_X0 + i * (tileW + gap);
     paintRoundRectStroke(x, tileY, tileW, tileH, 12, 2, Role::Ink);
     if (i < s.outcome.wearCount) {
       const day::Wear& w = s.outcome.wear[i];
       IconStyle ist; ist.accents = tileAccents;
-      drawIcon(w.icon, x + tileW / 2, tileY + 33, 42, ist);
+      drawIcon(w.icon, x + tileW / 2, tileY + (tileH * 2) / 5, tileH / 2, ist);
       TextStyle st = T_TILE;
       while (st.px > 10 && textWidth(st, w.label) > tileW - 10) st.px -= 1;
-      textDrawCentered(st, x + tileW / 2, tileY + 73, w.label);
+      textDrawCentered(st, x + tileW / 2, tileY + tileH - 11, w.label);
     }
   }
 
-  // Also grab (up to two lines)
-  int alsoY = tileY + tileH + 22;
-  n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, 2);
+  // Also grab, in however many lines the budget above left room for.
+  int alsoY = tileY + tileH + alsoGapY;
+  n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, alsoLines);
   for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 19; }
   const int alsoBottom = alsoY - 19 + 5;
-
-  // Footer pill, anchored to the bottom
-  const int pillH = 38, pillY = H - 30 - pillH;
 
   // The strip is labelled, because after sunset it quietly switches to
   // tomorrow and nothing else on screen says so.
@@ -188,19 +213,12 @@ void drawRight(const ViewModel& vm) {
     paintBandPanel(COL_X0, bandY, COL_W, bandH, 10);
     int cols = s.statCount > 6 ? 6 : s.statCount;
     if (cols > 0) {
-      // Space the rows off measured cap heights rather than guessed offsets,
-      // so changing a size can't silently crowd its neighbour.
-      const int capLabel = textCapHeight(T_STATLBL);
-      const int capValue = textCapHeight(T_STATVAL);
-      const int capSub   = textCapHeight(T_STATSUB);
-      const int capWord  = textCapHeight(T_STATWORD);
-      bool anySub = false;
-      for (int i = 0; i < cols; i++) if (s.stats[i].sub[0]) anySub = true;
-
-      // How tall the band ends up depends on how far the subline and the
-      // also-grab line wrapped, so the tile contents close up to fit rather
-      // than spilling out of the box. Gaps give first, then the icon.
-      int iconPx = 26, GAP_ICON = 11, GAP_LABEL = 13, GAP_VALUE = 8, GAP_SUB = 8;
+      // The budget above normally gets the band the height it asked for. This
+      // is the backstop for the case it could not - a two-line subline and a
+      // two-line also-grab together - where the contents close up rather than
+      // spill out of the box. Gaps give first, then the icon.
+      int iconPx = ICON_PX, GAP_ICON = G_ICON, GAP_LABEL = G_LABEL,
+          GAP_VALUE = G_VALUE, GAP_SUB = G_SUB;
       const int fixedH = capLabel + capValue + capWord + (anySub ? capSub : 0);
       auto contentOf = [&] {
         return iconPx + GAP_ICON + GAP_LABEL + GAP_VALUE + (anySub ? GAP_SUB : 0) + fixedH;
@@ -217,7 +235,7 @@ void drawRight(const ViewModel& vm) {
       const int contentH = contentOf();
 
       int top = bandY + (bandH - contentH) / 2;
-      if (top < bandY + 6) top = bandY + 6;
+      if (top < bandY + 7) top = bandY + 7;   // icons can overshoot their box
 
       const bool statAccents = paintAccentsLegibleAt(iconPx);
       const float colW = (float)COL_W / cols;

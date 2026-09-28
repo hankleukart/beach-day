@@ -283,6 +283,26 @@ renders an aliased preview to `docs-design/icons-preview.png`), interpreted at
 100 px for the hero, 44 px in tiles, 22 px in the stat strip. One asset per
 face and per icon, for any panel size.
 
+### Seeing the layout without a board
+
+```
+tools/preview.sh                # every scenario, both panels
+tools/preview.sh stress mono    # one of them
+```
+
+Writes PNGs to `docs-design/preview/`. This is not a mockup: it compiles the
+real [src/render.cpp](src/render.cpp) against a panel that draws into memory
+instead of onto glass, so the type ramp, icons, dithering and every fitting
+decision are the ones the device makes. The Arduino shim in
+`tools/preview/shim` exists only because `text.cpp` calls `Serial.printf`; the
+render stack touches nothing else from the framework.
+
+Scenarios are in `tools/preview/preview.cpp`. `beach` is a long midsummer day,
+`winter` a short one, `rain` picks a wet outcome and one of its variants,
+`smoke` gives the AIR tile something to say, and `stress` forces the subline
+and the also-grab to two lines each — which is the case that decides whether
+the stat band still fits. Check `stress` after any change to the right column.
+
 ### Colour is a role
 
 Everything draws in roles — ink, paper, caption, band, and the accent fills

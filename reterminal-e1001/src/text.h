@@ -4,10 +4,11 @@
 #pragma once
 #include "paint.h"
 
-// Archivo Black for headlines - a uniform heavy grotesque, because a 1-bit
-// panel cannot render a hairline - and Atkinson Hyperlegible for everything
-// else, drawn for low vision and so still distinguishable when detail is lost.
-enum class Face : uint8_t { Display, Body, BodyLight };
+// Literata sets the page - a low-contrast serif with an optical-size axis, so
+// nothing thins out to nothing once the panel thresholds it to 1 bit. Lexend
+// sets the stat tiles, where the job is glanceable numbers rather than prose.
+// The names stay generic so changing family never reaches the layout.
+enum class Face : uint8_t { Display, Body, BodyLight, Data, DataBold };
 
 struct TextStyle {
   Face  face = Face::Body;
