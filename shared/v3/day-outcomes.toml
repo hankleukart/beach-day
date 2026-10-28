@@ -35,7 +35,7 @@ footer   = "Sunset {sunsetLocal}"
 
 # "dark" is white type on a black panel, "light" is black on white.
 # Colour panels (E1002) can also set an ink per outcome - see `color` below.
-hero_panel_default = "dark"
+hero_panel_default = "light"
 
 
 # ─── Holidays ────────────────────────────────────────────────────────────
@@ -230,7 +230,7 @@ is_beach_day = true   # the day other outcomes measure themselves against
 [[outcome.variant]]
 name    = "Swimsuit Day"
 icon    = "swim_trunks"
-tagline = "STRAIGHT IN"
+tagline = "DIVE IN"
 wear    = ["swimsuit", "towel", "sunscreen", "water_bottle"]
 also    = "Also grab: a dry set of clothes for the ride home."
 
