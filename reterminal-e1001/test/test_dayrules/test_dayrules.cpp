@@ -136,7 +136,7 @@ void test_beach_day() {
   TEST_ASSERT_TRUE(s.outcome.tagline[0] != '\0');
   TEST_ASSERT_TRUE(s.outcome.heroIcon[0] != '\0');
   TEST_ASSERT_EQUAL_INT(4, s.outcome.wearCount);
-  TEST_ASSERT_EQUAL_STRING("Sunset: 7:08 PM", s.footer);
+  TEST_ASSERT_EQUAL_STRING("Sunset 7:08 PM", s.footer);
   TEST_ASSERT_EQUAL_STRING("VENICE BEACH", s.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 this morning, 84\xC2\xB0 this afternoon", s.subline);
   TEST_ASSERT_EQUAL_STRING("", s.outcome.holiday);
@@ -199,27 +199,33 @@ void test_near_threshold_copy() {
 
 void test_stats() {
   auto s = run(base());
-  TEST_ASSERT_EQUAL_INT(4, s.statCount);
+  TEST_ASSERT_EQUAL_INT(6, s.statCount);
   TEST_ASSERT_EQUAL_STRING("SUN", s.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("9a-4p", s.stats[0].value);
-  TEST_ASSERT_EQUAL_STRING("10% cloud", s.stats[0].sub);
-  TEST_ASSERT_EQUAL_STRING("clear", s.stats[0].word);
+  TEST_ASSERT_EQUAL_STRING("10% cloudy", s.stats[0].sub);
+  TEST_ASSERT_EQUAL_STRING("Clear", s.stats[0].word);
 
-  // TEMP carries the day's range, with humidity under it saying how it feels.
   TEST_ASSERT_EQUAL_STRING("TEMP", s.stats[1].label);
-  TEST_ASSERT_EQUAL_STRING("62\xC2\xB0-84\xC2\xB0", s.stats[1].value);
-  TEST_ASSERT_EQUAL_STRING("49-83% hum", s.stats[1].sub);
-  TEST_ASSERT_EQUAL_STRING("muggy", s.stats[1].word);
+  TEST_ASSERT_EQUAL_STRING("62\xE2\x80\x93" "84\xC2\xB0", s.stats[1].value);
+  TEST_ASSERT_EQUAL_STRING("", s.stats[1].sub);
+  TEST_ASSERT_EQUAL_STRING("Hot", s.stats[1].word);
 
   TEST_ASSERT_EQUAL_STRING("RAIN", s.stats[2].label);
   TEST_ASSERT_EQUAL_STRING("5%", s.stats[2].value);
   TEST_ASSERT_EQUAL_STRING("5% chance", s.stats[2].sub);
+  TEST_ASSERT_EQUAL_STRING("Dry", s.stats[2].word);
 
-  // AIR pairs wind with air quality; the word takes whichever is worse.
-  TEST_ASSERT_EQUAL_STRING("AIR", s.stats[3].label);
-  TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[3].value);
-  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[3].sub);
-  TEST_ASSERT_EQUAL_STRING("calm", s.stats[3].word);
+  TEST_ASSERT_EQUAL_STRING("HUMIDITY", s.stats[3].label);
+  TEST_ASSERT_EQUAL_STRING("49\xE2\x80\x93" "83%", s.stats[3].value);
+  TEST_ASSERT_EQUAL_STRING("Muggy", s.stats[3].word);
+
+  TEST_ASSERT_EQUAL_STRING("WIND", s.stats[4].label);
+  TEST_ASSERT_EQUAL_STRING("8 mph", s.stats[4].value);
+  TEST_ASSERT_EQUAL_STRING("Calm", s.stats[4].word);
+
+  TEST_ASSERT_EQUAL_STRING("AIR QUALITY", s.stats[5].label);
+  TEST_ASSERT_EQUAL_STRING("40 aqi", s.stats[5].value);
+  TEST_ASSERT_EQUAL_STRING("Good", s.stats[5].word);
 }
 
 void test_rain_and_sun_windows() {
@@ -239,12 +245,13 @@ void test_rain_and_sun_windows() {
 void test_air_word_takes_the_worse_reading() {
   auto in = base();
   in.windMaxMph = 5; in.aqiMax = 30;
-  TEST_ASSERT_EQUAL_STRING("calm", run(in).stats[3].word);
-  in.aqiMax = 140;                    // calm but hazy still warns
+  TEST_ASSERT_EQUAL_STRING("Calm", run(in).stats[4].word);
+  TEST_ASSERT_EQUAL_STRING("Good", run(in).stats[5].word);
+  in.aqiMax = 160;
   auto s = run(in);
-  TEST_ASSERT_EQUAL_STRING("5 mph", s.stats[3].value);
-  TEST_ASSERT_EQUAL_STRING("140 aqi", s.stats[3].sub);
-  TEST_ASSERT_EQUAL_STRING("stay in", s.stats[3].word);
+  TEST_ASSERT_EQUAL_STRING("5 mph", s.stats[4].value);
+  TEST_ASSERT_EQUAL_STRING("160 aqi", s.stats[5].value);
+  TEST_ASSERT_EQUAL_STRING("Stay in", s.stats[5].word);
 }
 
 void test_sub_line_is_validated() {

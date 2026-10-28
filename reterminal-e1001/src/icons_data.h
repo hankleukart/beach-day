@@ -223,6 +223,15 @@ static const IcCmd IC_scarf[] PROGMEM = {
   { IC_LINE, 0, 4, IC_scarf_v + 50 },
   { IC_LINE, 0, 4, IC_scarf_v + 54 },
 };
+static const int16_t IC_sunset_v[] PROGMEM = { 48, 68, 20, 180, 360, 8, 68, 88, 68, 20, 84, 76, 84, 48, 16, 48, 32, 18, 38, 26, 46, 78, 38, 70, 46 };
+static const IcCmd IC_sunset[] PROGMEM = {
+  { IC_ARC, 0, 5, IC_sunset_v + 0 },
+  { IC_LINE, 0, 4, IC_sunset_v + 5 },
+  { IC_LINE, 0, 4, IC_sunset_v + 9 },
+  { IC_LINE, 0, 4, IC_sunset_v + 13 },
+  { IC_LINE, 0, 4, IC_sunset_v + 17 },
+  { IC_LINE, 0, 4, IC_sunset_v + 21 },
+};
 
 static const IconDef ICON_DEFS[] PROGMEM = {
   { "sun", IC_sun, 10 },
@@ -252,5 +261,6 @@ static const IconDef ICON_DEFS[] PROGMEM = {
   { "beanie", IC_beanie, 5 },
   { "mittens", IC_mittens, 3 },
   { "scarf", IC_scarf, 10 },
+  { "sunset", IC_sunset, 6 },
 };
 static const int ICON_DEF_COUNT = sizeof(ICON_DEFS) / sizeof(ICON_DEFS[0]);

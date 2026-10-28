@@ -266,6 +266,13 @@ def i_scarf(c):
     c.poly([(15, 22), (21.5, 22), (23.5, 43), (17, 43)], WARM, fill=True); c.poly([(15, 22), (21.5, 22), (23.5, 43), (17, 43)])
     c.poly([(24.5, 22), (31, 22), (30, 43), (23.5, 43)], WARM, fill=True); c.poly([(24.5, 22), (31, 22), (30, 43), (23.5, 43)])
     for x in (18, 20.5, 26, 28.5): c.line([(x, 43), (x, 46)])
+def i_sunset(c):
+    c.arc(24, 34, 10, 180, 360)
+    c.line([(4, 34), (44, 34)])
+    c.line([(10, 42), (38, 42)])
+    c.line([(24, 8), (24, 16)])
+    c.line([(9.2, 19.2), (12.8, 22.8)])
+    c.line([(38.8, 19.2), (35.2, 22.8)])
 
 ICONS = {
     "sun": i_sun, "sun_and_waves": i_sun_and_waves, "cloud": i_cloud, "rain_cloud": i_rain_cloud,
@@ -274,7 +281,7 @@ ICONS = {
     "water_bottle": i_water_bottle, "tshirt": i_tshirt, "shorts": i_shorts, "sneaker": i_sneaker,
     "sweater": i_sweater, "hoodie": i_hoodie, "jacket": i_jacket, "long_pants": i_long_pants,
     "raincoat": i_raincoat, "rain_boot": i_rain_boot, "umbrella": i_umbrella, "puffy_coat": i_puffy_coat,
-    "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf,
+    "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf, "sunset": i_sunset,
 }
 
 

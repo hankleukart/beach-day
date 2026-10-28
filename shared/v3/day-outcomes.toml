@@ -17,10 +17,10 @@ icons = [
   "swim_trunks", "towel", "water_bottle", "tshirt", "shorts",
   "sneaker", "sweater", "hoodie", "jacket", "long_pants",
   "raincoat", "rain_boot", "umbrella", "puffy_coat", "beanie",
-  "mittens", "scarf",
+  "mittens", "scarf", "sunset",
 ]
 
-version = "2.0"
+version = "2.1"
 name = "Beach Day Outcomes"
 
 
@@ -31,11 +31,11 @@ location = "VENICE BEACH"   # the eyebrow; a setup-portal label wins over this
 # The top-right corner shows the board's own state - last update and battery -
 # so it is not configurable here.
 subline  = "{conditionSummary} · {tempMinF}° this morning, {tempMaxF}° this afternoon"
-footer   = "Sunset: {sunsetLocal}"
+footer   = "Sunset {sunsetLocal}"
 
 # "dark" is white type on a black panel, "light" is black on white.
 # Colour panels (E1002) can also set an ink per outcome - see `color` below.
-hero_panel_default = "light"
+hero_panel_default = "dark"
 
 
 # ─── Holidays ────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ nth = 1   # 1st Monday of September
 
 # ─── Clothing ────────────────────────────────────────────────────────────
 # The catalogue outcomes pick from. Add a line to add an option; `icon` must
-# be one of the names in [icons] at the bottom.
+# be one of the names in [icons] at the bottom.go a
 
 [wear]
 hoodie       = { label = "Hoodie", icon = "hoodie" }
@@ -312,16 +312,9 @@ tagline = "LEGS OUT"
 wear    = ["shorts", "t_shirt", "sneakers", "sun_hat"]
 also    = "Also grab: sunscreen on the backs of the knees."
 
-[[outcome.variant]]
-name    = "Playground Day"
-icon    = "sneaker"
-tagline = "RUN AROUND"
-wear    = ["sneakers", "t_shirt", "shorts", "water_bottle"]
-also    = "Also grab: the shoes that are allowed to get scuffed."
-
 [[outcome]]
 id      = "jacket_day"
-names   = ["Jacket Day", "In Between Day", "Regular Day"]
+names   = ["Jacket Day"]
 tagline = "GRAB ONE BY THE DOOR"
 icon    = "jacket"
 wear    = ["jacket", "long_sleeves", "long_pants", "sneakers"]
@@ -334,23 +327,11 @@ tagline = "NOTHING DRAMATIC"
 wear    = ["long_sleeves", "long_pants", "sneakers", "jacket"]
 also    = "Also grab: nothing special. It is just a day."
 
-[[outcome.variant]]
-name    = "Sneakers Day"
-icon    = "sneaker"
-tagline = "OUT AND ABOUT"
-wear    = ["sneakers", "jacket", "long_pants", "long_sleeves"]
-also    = "Also grab: somewhere to walk to."
-
-# ─── Stat strip ──────────────────────────────────────────────────────────
-# Four tiles, each: icon, label, a big value, a supporting number under it,
-# and a plain word. Bands are read top to bottom; the first whose `max` is
-# at or above the value wins.
-#
-# Four rather than six because tiles only earn a place when they answer a
-# question on their own. Humidity never does - it just says how the heat
-# feels - so it rides along under TEMP. Same for the wind/air pairing.
-#
-# `sub_*` works exactly like `value_*`: either a format or a set of bands.
+# ─── Conditions grid (3 × 2) ────────────────────────────────────────────
+# Six cells in a 3×2 grid, each with: icon + label, a big primary value, and a
+# descriptive line below (either `word` alone or `word (sub)` when `sub_*` is
+# also set). Bands are read top to bottom; the first whose `max` is at or
+# above the value wins.
 
 [[stat]]
 id    = "sunshine"
@@ -368,33 +349,30 @@ value_bands = [
   { max = 24, text = "{sunWindow}" },
 ]
 sub_field = "cloud"
-sub_format = "{value}% cloud"
+sub_format = "{value}% cloudy"
 word_field = "sunHours"
 word_bands = [
-  { max = 0, text = "none" },
-  { max = 2, text = "barely" },
-  { max = 4, text = "a stretch" },
-  { max = 24, text = "clear" },
+  { max = 0, text = "Overcast" },
+  { max = 2, text = "Brief" },
+  { max = 4, text = "A stretch" },
+  { max = 24, text = "Clear" },
 ]
 
-# The day's range rather than just its peak, with humidity underneath saying
-# how that range actually feels.
 [[stat]]
 id    = "temp"
 label = "TEMP"
 icon  = "thermometer"
 value_field = "tempMax"
-value_format = "{tempMin}°-{tempMax}°"
-sub_field = "humidityMax"
-sub_format = "{humidityMin}-{humidityMax}% hum"
-word_field = "humidityMax"
+value_format = "{tempMin}–{tempMax}°"
+word_field = "tempMax"
 word_bands = [
-  { max = 45, text = "dry" },
-  { max = 65, text = "comfy" },
-  { max = 80, text = "sticky" },
-  { max = 100, text = "muggy" },
+  { max = 50, text = "Cold all day" },
+  { max = 62, text = "Cool all day" },
+  { max = 72, text = "Mild" },
+  { max = 82, text = "Warm" },
+  { max = 200, text = "Hot" },
 ]
-word_override = { field = "swing", op = ">=", value = 22, text = "swingy" }
+word_override = { field = "swing", op = ">=", value = 22, text = "Big swing" }
 
 [[stat]]
 id    = "rain"
@@ -409,29 +387,52 @@ sub_field = "rain"
 sub_format = "{value}% chance"
 word_field = "rain"
 word_bands = [
-  { max = 10, text = "dry" },
-  { max = 30, text = "mostly dry" },
-  { max = 55, text = "showers" },
-  { max = 100, text = "wet" },
+  { max = 10, text = "Dry" },
+  { max = 30, text = "Mostly dry" },
+  { max = 55, text = "Showers" },
+  { max = 100, text = "Wet" },
 ]
 
-# Wind and air quality are both "what the air is doing", and the word takes
-# whichever is worse - a hazy day says so even when it is perfectly calm.
 [[stat]]
-id    = "air"
-label = "AIR"
+id    = "humidity"
+label = "HUMIDITY"
+icon  = "raindrop"
+value_field = "humidityMax"
+value_format = "{humidityMin}–{humidityMax}%"
+word_field = "humidityMax"
+word_bands = [
+  { max = 45, text = "Dry" },
+  { max = 65, text = "Comfy" },
+  { max = 80, text = "Sticky" },
+  { max = 100, text = "Muggy" },
+]
+
+[[stat]]
+id    = "wind"
+label = "WIND"
 icon  = "wind"
 value_field = "wind"
 value_format = "{value} mph"
-sub_field = "aqi"
-sub_format = "{value} aqi"
 word_field = "wind"
 word_bands = [
-  { max = 8, text = "calm" },
-  { max = 13, text = "light" },
-  { max = 19, text = "breezy" },
-  { max = 200, text = "gusty" },
+  { max = 8, text = "Calm" },
+  { max = 13, text = "Light" },
+  { max = 19, text = "Breezy" },
+  { max = 200, text = "Gusty" },
 ]
-word_override = { field = "aqi", op = ">=", value = 100, text = "stay in" }
+
+[[stat]]
+id    = "air"
+label = "AIR QUALITY"
+icon  = "leaf"
+value_field = "aqi"
+value_format = "{value} aqi"
+word_field = "aqi"
+word_bands = [
+  { max = 50, text = "Good" },
+  { max = 100, text = "Moderate" },
+  { max = 150, text = "Hazy" },
+  { max = 500, text = "Stay in" },
+]
 
 

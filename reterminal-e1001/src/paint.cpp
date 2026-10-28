@@ -18,19 +18,20 @@ inline bool patternOn(int x, int y, Role r) {
 }
 inline bool isPattern(Role r) {
   if (panelIsColor()) return false;
-  return r == Role::Band || isAccent(r);
+  return r == Role::Band || r == Role::AccentInvert || isAccent(r);
 }
 
 inline uint16_t colorFor(Role r) {
   switch (r) {
-    case Role::Paper:   return panelPaper();
-    case Role::Caption: return panelCaption();
-    case Role::Band:    return panelPaper();
-    case Role::Sun:     return panelAccent(2);
-    case Role::Water:   return panelAccent(3);
-    case Role::Leaf:    return panelAccent(4);
-    case Role::Warm:    return panelAccent(5);
-    default:            return panelInk();
+    case Role::Paper:        return panelPaper();
+    case Role::AccentInvert: return panelPaper();
+    case Role::Caption:      return panelCaption();
+    case Role::Band:         return panelPaper();
+    case Role::Sun:          return panelAccent(2);
+    case Role::Water:        return panelAccent(3);
+    case Role::Leaf:         return panelAccent(4);
+    case Role::Warm:         return panelAccent(5);
+    default:                 return panelInk();
   }
 }
 
@@ -39,14 +40,18 @@ inline uint16_t colorFor(Role r) {
 void paintBegin() {}
 
 void paintPixel(int x, int y, Role r) {
-  if (isPattern(r)) { if (patternOn(x, y, r)) panelPixel(x, y, panelInk()); return; }
+  if (isPattern(r)) {
+    if (patternOn(x, y, r)) panelPixel(x, y, r == Role::AccentInvert ? panelPaper() : panelInk());
+    return;
+  }
   panelPixel(x, y, colorFor(r));
 }
 
 void paintSpan(int y, int x0, int x1, Role r) {
   if (x1 < x0) { int t = x0; x0 = x1; x1 = t; }
   if (!isPattern(r)) { panelHSpan(x0, x1, y, colorFor(r)); return; }
-  for (int x = x0; x <= x1; x++) if (patternOn(x, y, r)) panelPixel(x, y, panelInk());
+  uint16_t dot = (r == Role::AccentInvert) ? panelPaper() : panelInk();
+  for (int x = x0; x <= x1; x++) if (patternOn(x, y, r)) panelPixel(x, y, dot);
 }
 
 void paintRect(int x, int y, int w, int h, Role r) {
@@ -84,7 +89,9 @@ void paintThickLine(int x0, int y0, int x1, int y1, int w, Role role) {
   int dy = -abs(y1 - y0), sy = y0 < y1 ? 1 : -1;
   int err = dx + dy;
   for (;;) {
-    if (r <= 0) paintPixel(x0, y0, role); else paintDisc(x0, y0, r, role);
+    if (w <= 1) paintPixel(x0, y0, role);
+    else if (w == 2) paintRect(x0, y0, 2, 2, role);
+    else paintDisc(x0, y0, r, role);
     if (x0 == x1 && y0 == y1) break;
     int e2 = 2 * err;
     if (e2 >= dy) { err += dy; x0 += sx; }
@@ -99,11 +106,11 @@ void paintHLine(int x0, int x1, int y, int thickness, Role role) {
 HeroSurface paintHeroSurface(Tint tint, bool preferLight) {
   HeroSurface h;
   if (!panelIsColor() || tint == Tint::None) {
-    // Neutral field: the icon may use its own inks, except over black on mono
-    // where a dither would be invisible.
+    // Neutral field: the icon uses its own inks on color, or a dither pattern
+    // in the foreground color on mono (black dots on white, white dots on black).
     h.bg = preferLight ? Role::Paper : Role::Ink;
     h.fg = preferLight ? Role::Ink : Role::Paper;
-    h.accents = panelIsColor() || preferLight;
+    h.accents = true;
     return h;
   }
   switch (tint) {

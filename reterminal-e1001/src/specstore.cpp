@@ -12,6 +12,13 @@ day::Spec g;
 const char* PATH = "/day-outcomes.toml";
 bool fsOk = false;
 
+int parseVersion(const char* v) {
+  if (!v) return 0;
+  int maj = 0, min = 0;
+  sscanf(v, "%d.%d", &maj, &min);
+  return maj * 1000 + min;
+}
+
 bool mountFs() {
   if (fsOk) return true;
   fsOk = LittleFS.begin(true);
@@ -19,18 +26,12 @@ bool mountFs() {
   return fsOk;
 }
 
-bool loadFromFs(char* status, size_t n) {
-  if (!mountFs() || !LittleFS.exists(PATH)) return false;
-  File f = LittleFS.open(PATH, "r");
+bool saveToFs(const char* data, size_t len) {
+  if (!mountFs()) return false;
+  File f = LittleFS.open(PATH, "w");
   if (!f) return false;
-  String body = f.readString();
+  f.write((const uint8_t*)data, len);
   f.close();
-  char err[96];
-  if (!g.load(body.c_str(), body.length(), err, sizeof(err))) {
-    Serial.printf("[spec] LittleFS copy rejected: %s\n", err);
-    return false;
-  }
-  snprintf(status, n, "LittleFS: %s v%s", g.name(), g.version());
   return true;
 }
 } // namespace
@@ -41,13 +42,49 @@ bool specLoad(char* status, size_t n) {
   // Names are checked against the art actually compiled in, not just the
   // spec's own icons[] list.
   day::setIconChecker(iconExists);
-  if (loadFromFs(status, n)) return true;
-  char err[96];
-  if (g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, err, sizeof(err))) {
+
+  // Check embedded spec
+  day::Spec emb;
+  char embErr[96] = "";
+  bool embOk = emb.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, embErr, sizeof(embErr));
+
+  // Check LittleFS
+  day::Spec fsSpec;
+  char fsErr[96] = "";
+  bool fsLoaded = false;
+  if (mountFs() && LittleFS.exists(PATH)) {
+    File f = LittleFS.open(PATH, "r");
+    if (f) {
+      String body = f.readString();
+      f.close();
+      fsLoaded = fsSpec.load(body.c_str(), body.length(), fsErr, sizeof(fsErr));
+    }
+  }
+
+  // If embedded is newer than LittleFS, upgrade LittleFS with the embedded copy!
+  if (embOk && (!fsLoaded || parseVersion(emb.version()) > parseVersion(fsSpec.version()))) {
+    saveToFs(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN);
+    g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, embErr, sizeof(embErr));
+    snprintf(status, n, "embedded v%s (updated LittleFS, was v%s)", emb.version(), fsLoaded ? fsSpec.version() : "none");
+    return true;
+  }
+
+  if (fsLoaded) {
+    File f = LittleFS.open(PATH, "r");
+    String body = f.readString();
+    f.close();
+    g.load(body.c_str(), body.length(), fsErr, sizeof(fsErr));
+    snprintf(status, n, "LittleFS: %s v%s", g.name(), g.version());
+    return true;
+  }
+
+  if (embOk) {
+    g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, embErr, sizeof(embErr));
     snprintf(status, n, "embedded: %s v%s", g.name(), g.version());
     return true;
   }
-  snprintf(status, n, "embedded spec invalid: %s", err);
+
+  snprintf(status, n, "spec invalid: fs=%s, emb=%s", fsErr, embErr);
   return false;
 }
 

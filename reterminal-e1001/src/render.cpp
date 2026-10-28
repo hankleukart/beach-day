@@ -10,18 +10,18 @@
 
 namespace {
 
-// ---- geometry: the 1200x825 mock re-laid at 800x480, same proportions ------
+// ---- geometry: 800x480 e-ink layout -----------------------------------------
 constexpr int W = PANEL_W, H = PANEL_H;
-constexpr int LEFT_W = 282;                    // 35% like the mock
-constexpr int COL_X0 = 312, COL_X1 = 778;            // right column content bounds
+constexpr int LEFT_W = 272;
+constexpr int COL_X0 = LEFT_W + 26, COL_X1 = W - 26;   // 298..774 (476px)
 constexpr int COL_W = COL_X1 - COL_X0;
 
 // ---- type ramp --------------------------------------------------------------
-const TextStyle T_EYEBROW  { Face::Body,      15, 3.4f, Role::Paper };
-const TextStyle T_HEADLINE { Face::Display,   52, 0.5f, Role::Paper };
-const TextStyle T_TAGLINE  { Face::Body,      15, 3.4f, Role::Paper };
-const TextStyle T_WEEKDAY  { Face::Display,   40, 0,    Role::Ink };
-const TextStyle T_CORNER   { Face::BodyLight, 14, 0,    Role::Caption };
+const TextStyle T_EYEBROW       { Face::Body,      13, 3.4f, Role::Paper };
+const TextStyle T_HEADLINE      { Face::Display,   66, -0.5f, Role::Paper };
+const TextStyle T_TAGLINE       { Face::Body,      13, 3.4f, Role::Paper };
+const TextStyle T_WEEKDAY       { Face::Display,   44, 0,    Role::Ink };
+const TextStyle T_CORNER        { Face::Body,      13, 0,    Role::Ink };
 
 // Battery pictogram for the corner: outline, nub, and a proportional fill.
 constexpr int BATT_W = 22, BATT_H = 12;
@@ -34,18 +34,19 @@ void batteryGlyph(int x, int y, int pct) {
   const int fill = (inner * pct + 50) / 100;
   if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
 }
-const TextStyle T_SECTION  { Face::Body,      11, 3.0f, Role::Caption };
-const TextStyle T_TILE     { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_ALSO     { Face::Body,      14, 0,    Role::Ink };
-// The tiles are Lexend: numbers read at a glance, not prose.
-const TextStyle T_STATLBL  { Face::Data,      12, 2.0f, Role::Caption };
-const TextStyle T_STATVAL  { Face::DataBold,  24, 0,    Role::Ink };
-const TextStyle T_STATSUB  { Face::Data,      12, 0,    Role::Caption };
-const TextStyle T_STATWORD { Face::Data,      15, 0,    Role::Caption };
-const TextStyle T_FOOTER   { Face::Body,      17, 0,    Role::Paper };
-const TextStyle T_STATUS   { Face::BodyLight, 10, 0,    Role::Caption };
-const TextStyle T_MSG_H    { Face::Display,   34, 0,    Role::Ink };
-const TextStyle T_MSG_B    { Face::BodyLight, 16, 0,    Role::Ink };
+const TextStyle T_SECTION       { Face::Body,      12, 1.7f, Role::Ink };
+const TextStyle T_TILE          { Face::Body,      15, 0,    Role::Ink };
+const TextStyle T_ALSO_BOLD     { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_ALSO          { Face::BodyLight, 14, 0,    Role::Ink };
+const TextStyle T_STATLBL       { Face::Body,      12, 1.7f, Role::Ink };
+const TextStyle T_STATVAL       { Face::Body,      31, 0,    Role::Ink };
+const TextStyle T_STATUNIT_PCT  { Face::Body,      18, 0,    Role::Ink };
+const TextStyle T_STATUNIT_WORD { Face::Body,      16, 0,    Role::Ink };
+const TextStyle T_STATSUB       { Face::BodyLight, 14, 0,    Role::Ink };
+const TextStyle T_FOOTER        { Face::Body,      14, 0,    Role::Ink };
+const TextStyle T_STATUS        { Face::BodyLight, 10, 0,    Role::Caption };
+const TextStyle T_MSG_H         { Face::Display,   34, 0,    Role::Ink };
+const TextStyle T_MSG_B         { Face::BodyLight, 16, 0,    Role::Ink };
 
 Tint tintFor(const char* name) {
   if (!name) return Tint::None;
@@ -56,22 +57,34 @@ Tint tintFor(const char* name) {
   return Tint::None;
 }
 
-// Titles are free text now - "Rain Boots Day", or "Thanksgiving Rain Boots
+// Titles are free text now - "Puddle Day", or "Thanksgiving Rain Boots
 // Day" on a holiday - so the size comes from the words rather than the words
 // being pre-split to fit a size. Largest size that wraps into the panel wins.
-constexpr int TITLE_TOP = 214, TITLE_BOTTOM = 400, TITLE_MAX_LINES = 4;
+constexpr int TITLE_MAX_LINES = 4;
 
-int fitTitle(const char* title, char lines[TITLE_MAX_LINES][160], int& lineCount, int& leading) {
-  const int avail = LEFT_W - 26;
-  for (int px = 52; px >= 24; px -= 2) {
+int fitTitle(const char* title, int maxH, char lines[TITLE_MAX_LINES][160], int& lineCount, int& leading) {
+  const int avail = LEFT_W - 44;
+  for (int px = 66; px >= 24; px -= 2) {
     TextStyle st = T_HEADLINE; st.px = (float)px;
     int n = textWrap(st, title, avail, lines, TITLE_MAX_LINES);
+    // Keep "... Day" on its own line when a short two-word name would otherwise stay on one line.
+    if (n == 1) {
+      const char* sp = strrchr(title, ' ');
+      if (sp && sp > title && !strcmp(sp, " Day")) {
+        size_t firstLen = (size_t)(sp - title);
+        if (firstLen < 159) {
+          memcpy(lines[0], title, firstLen); lines[0][firstLen] = '\0';
+          snprintf(lines[1], 160, "%s", sp + 1);
+          n = 2;
+        }
+      }
+    }
     bool fits = (n > 0);
     for (int i = 0; i < n; i++) if (textWidth(st, lines[i]) > avail) fits = false;
-    int lead = (px * 92) / 100;
-    if (fits && n * lead <= TITLE_BOTTOM - TITLE_TOP) { lineCount = n; leading = lead; return px; }
+    int lead = (px * 90) / 100;
+    int blockH = (n - 1) * lead + textCapHeight(st);
+    if (fits && blockH <= maxH) { lineCount = n; leading = lead; return px; }
   }
-  // Nothing fit: take the smallest and let it clip rather than draw nothing.
   TextStyle st = T_HEADLINE; st.px = 24;
   lineCount = textWrap(st, title, avail, lines, TITLE_MAX_LINES);
   leading = 22;
@@ -82,10 +95,6 @@ void drawHero(const ViewModel& vm) {
   const day::Outcome& oc = vm.screen.outcome;
   const int cx = LEFT_W / 2;
 
-  // One flat field of colour is the whole colour idea: the panel is a third of
-  // the screen, so the verdict is legible from across a room before a word is
-  // read. Mono ignores the tint and uses the outcome's light/dark choice, so
-  // the black-and-white layout is exactly what it was.
   const HeroSurface hero = paintHeroSurface(tintFor(oc.heroColor), oc.heroLight);
 
   paintRect(0, 0, LEFT_W, H, hero.bg);
@@ -94,101 +103,136 @@ void drawHero(const ViewModel& vm) {
 
   TextStyle eyebrow = T_EYEBROW; eyebrow.role = hero.fg;
   TextStyle tagline = T_TAGLINE; tagline.role = hero.fg;
-  textDrawCentered(eyebrow, cx, 44, vm.screen.eyebrow);
+  const int eyeCap = textCapHeight(eyebrow);
+  const int tagCap = textCapHeight(tagline);
+  const int eyeBase = 30 + eyeCap;
+  const int tagBase = H - 28;
+  textDrawCentered(eyebrow, cx, eyeBase, vm.screen.eyebrow);
+  textDrawCentered(tagline, cx, tagBase, oc.tagline);
 
-  const int iconPx = 100;
+  const int iconPx = 124;
+  const int iconTitleGap = 18;
+  const int zoneTop = eyeBase + 16;
+  const int zoneBottom = tagBase - tagCap - 16;
+  const int maxTitleH = (zoneBottom - zoneTop) - iconPx - iconTitleGap;
+
+  char lines[TITLE_MAX_LINES][160];
+  int n = 0, leading = 0;
+  int px = fitTitle(oc.title, maxTitleH, lines, n, leading);
+  TextStyle st = T_HEADLINE; st.px = (float)px; st.role = hero.fg;
+  const int cap = textCapHeight(st);
+  const int titleBlockH = (n > 0 ? (n - 1) * leading + cap : 0);
+  const int groupH = iconPx + iconTitleGap + titleBlockH;
+  const int groupTop = zoneTop + (zoneBottom - zoneTop - groupH) / 2;
+
   IconStyle heroStyle;
   heroStyle.ink = hero.fg;
   heroStyle.paper = hero.bg;
   heroStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(iconPx));
-  drawIcon(oc.heroIcon, cx, 150, iconPx, heroStyle);
+  drawIcon(oc.heroIcon, cx, groupTop + iconPx / 2, iconPx, heroStyle);
 
-  char lines[TITLE_MAX_LINES][160];
-  int n = 0, leading = 0;
-  int px = fitTitle(oc.title, lines, n, leading);
-  TextStyle st = T_HEADLINE; st.px = (float)px; st.role = hero.fg;
-  int block = n * leading;
-  int y = TITLE_TOP + (TITLE_BOTTOM - TITLE_TOP - block) / 2 + textCapHeight(st);
-  for (int i = 0; i < n; i++) { textDrawCentered(st, cx, y, lines[i]); y += leading; }
-
-  textDrawCentered(tagline, cx, 434, oc.tagline);
+  int y = groupTop + iconPx + iconTitleGap + cap;
+  for (int i = 0; i < n; i++) {
+    textDrawCentered(st, cx, y, lines[i]);
+    y += leading;
+  }
 }
 
-// ---- the stat band ---------------------------------------------------------
-// The band sizes itself from its own contents and the column gives it that
-// height, rather than making do with what the copy above it leaves over. It
-// carries no frame: the four columns group themselves, and the rule under the
-// weekday already separates them from the day.
-constexpr int BAND_ICON = 26, BAND_G_ICON = 11, BAND_G_LABEL = 13,
-              BAND_G_VALUE = 8, BAND_G_SUB = 8, BAND_PAD = 14;
+// ---- 3x2 conditions grid ----------------------------------------------------
+void drawStatValue(int x, int baseline, int avail, const char* valStr) {
+  const size_t len = strlen(valStr);
+  const char* unit = nullptr;
+  TextStyle unitStyle = T_STATUNIT_WORD;
+  int unitGap = 4;
+  size_t numLen = len;
 
-bool bandHasSub(const day::Screen& s) {
-  for (int i = 0; i < s.statCount && i < 6; i++) if (s.stats[i].sub[0]) return true;
-  return false;
+  if (len > 4 && !strcmp(valStr + len - 4, " mph")) {
+    unit = "mph"; numLen = len - 4;
+  } else if (len > 4 && !strcmp(valStr + len - 4, " aqi")) {
+    unit = "aqi"; numLen = len - 4;
+  } else if (len > 1 && valStr[len - 1] == '%') {
+    unit = "%"; numLen = len - 1;
+    unitStyle = T_STATUNIT_PCT;
+    unitGap = 2;
+  }
+
+  char numBuf[24];
+  if (numLen >= sizeof(numBuf)) numLen = sizeof(numBuf) - 1;
+  memcpy(numBuf, valStr, numLen);
+  numBuf[numLen] = '\0';
+
+  TextStyle val = T_STATVAL;
+  const int unitW = unit ? (unitGap + textWidth(unitStyle, unit)) : 0;
+  while (val.px > 18 && textWidth(val, numBuf) + unitW > avail) val.px -= 1;
+
+  int penX = textDraw(val, x, baseline, numBuf);
+  if (unit) textDraw(unitStyle, penX + unitGap, baseline, unit);
 }
 
-int bandHeight(const day::Screen& s) {
-  return BAND_ICON + BAND_G_ICON + textCapHeight(T_STATLBL) + BAND_G_LABEL +
-         textCapHeight(T_STATVAL) + BAND_G_VALUE +
-         (bandHasSub(s) ? textCapHeight(T_STATSUB) + BAND_G_SUB : 0) +
-         textCapHeight(T_STATWORD) + BAND_PAD;
-}
+void drawConditionsGrid(const day::Screen& s, int gridY0, int rowH) {
+  constexpr int COLS = 3, ROWS = 2;
+  const int colW = COL_W / COLS;
+  const int x1 = COL_X0 + colW;
+  const int x2 = COL_X0 + 2 * colW;
 
-void drawStatBand(const day::Screen& s, int bandY, int bandH) {
-  const int cols = s.statCount > 6 ? 6 : s.statCount;
-  if (cols <= 0) return;
+  // Inner dividers + bottom border
+  paintHLine(COL_X0, COL_X1, gridY0 + rowH, 1, Role::Ink);
+  paintHLine(COL_X0, COL_X1, gridY0 + 2 * rowH, 1, Role::Ink);
+  paintRect(x1, gridY0, 1, 2 * rowH, Role::Ink);
+  paintRect(x2, gridY0, 1, 2 * rowH, Role::Ink);
 
-  // Rows are spaced off measured cap heights rather than guessed offsets, so
-  // changing a size cannot silently crowd its neighbour.
-  const bool anySub = bandHasSub(s);
-  const int capLabel = textCapHeight(T_STATLBL);
-  const int capValue = textCapHeight(T_STATVAL);
-  const int capSub   = textCapHeight(T_STATSUB);
-  const int capWord  = textCapHeight(T_STATWORD);
-  const int contentH = bandHeight(s) - BAND_PAD;
+  const int capLbl = textCapHeight(T_STATLBL);
+  const bool statAccents = paintAccentsLegibleAt(18);
 
-  int top = bandY + (bandH - contentH) / 2;
-  if (top < bandY + 7) top = bandY + 7;   // icons can overshoot their box
+  for (int i = 0; i < s.statCount && i < COLS * ROWS; i++) {
+    const int r = i / COLS, c = i % COLS;
+    const int ry = gridY0 + r * rowH;
+    const int cellX = (c == 0) ? COL_X0 : (c == 1 ? x1 + 14 : x2 + 14);
+    const int cellRight = (c == 0) ? (x1 - 14) : (c == 1 ? (x2 - 14) : COL_X1);
+    const int avail = cellRight - cellX;
 
-  const bool statAccents = paintAccentsLegibleAt(BAND_ICON);
-  const float colW = (float)COL_W / cols;
-  for (int i = 0; i < cols; i++) {
     const day::Stat& st = s.stats[i];
-    const int cx = COL_X0 + (int)(colW * i + colW / 2);
-    const int avail = (int)colW - 10;
-    int y = top;
 
+    // Row 1: 18x18 icon + uppercase label
     IconStyle ist; ist.accents = statAccents;
-    drawIcon(st.icon, cx, y + BAND_ICON / 2, BAND_ICON, ist);
-    y += BAND_ICON + BAND_G_ICON;
+    const int iconCy = ry + 13 + 9;
+    drawIcon(st.icon, cellX + 9, iconCy, 18, ist);
 
     TextStyle lbl = T_STATLBL;
-    while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > avail) lbl.tracking -= 0.4f;
-    while (lbl.px > 8 && textWidth(lbl, st.label) > avail) lbl.px -= 1;
-    y += capLabel;
-    textDrawCentered(lbl, cx, y, st.label);
-    y += BAND_G_LABEL;
+    const int lblX = cellX + 18 + 7;
+    const int lblAvail = cellRight - lblX;
+    while (lbl.tracking > 0.4f && textWidth(lbl, st.label) > lblAvail) lbl.tracking -= 0.3f;
+    while (lbl.px > 9 && textWidth(lbl, st.label) > lblAvail) lbl.px -= 1;
+    textDraw(lbl, lblX, iconCy + capLbl / 2, st.label);
 
-    TextStyle val = T_STATVAL;
-    while (val.px > 14 && textWidth(val, st.value) > avail) val.px -= 1;
-    y += capValue;
-    textDrawCentered(val, cx, y, st.value);
-    y += BAND_G_VALUE;
+    // Row 2: 31px primary value (with smaller unit suffix when present)
+    drawStatValue(cellX, ry + 62, avail, st.value);
 
-    if (anySub) {
-      y += capSub;
-      if (st.sub[0]) {
-        TextStyle sb = T_STATSUB;
-        while (sb.px > 8 && textWidth(sb, st.sub) > avail) sb.px -= 1;
-        textDrawCentered(sb, cx, y, st.sub);
-      }
-      y += BAND_G_SUB;
+    // Row 3: 14px descriptive line: "Word (sub)" or "Word"
+    char desc[48] = "";
+    if (st.sub[0] && st.word[0]) {
+      snprintf(desc, sizeof(desc), "%s (%s)", st.word, st.sub);
+    } else if (st.word[0]) {
+      snprintf(desc, sizeof(desc), "%s", st.word);
+    } else if (st.sub[0]) {
+      snprintf(desc, sizeof(desc), "%s", st.sub);
     }
+    if (desc[0]) {
+      TextStyle sb = T_STATSUB;
+      while (sb.px > 10 && textWidth(sb, desc) > avail) sb.px -= 1;
+      textDraw(sb, cellX, ry + 86, desc);
+    }
+  }
+}
 
-    TextStyle wrd = T_STATWORD;
-    while (wrd.px > 10 && textWidth(wrd, st.word) > avail) wrd.px -= 1;
-    y += capWord;
-    textDrawCentered(wrd, cx, y, st.word);
+void drawAlsoLine(int x, int baseline, const char* line) {
+  constexpr const char* PREFIX = "Also grab:";
+  const size_t plen = strlen(PREFIX);
+  if (!strncmp(line, PREFIX, plen)) {
+    int pen = textDraw(T_ALSO_BOLD, x, baseline, PREFIX);
+    textDraw(T_ALSO, pen, baseline, line + plen);
+  } else {
+    textDraw(T_ALSO, x, baseline, line);
   }
 }
 
@@ -196,16 +240,12 @@ void drawRight(const ViewModel& vm) {
   const day::Screen& s = vm.screen;
   char lines[2][160];
 
-  // Weekday + corner stats
-  textDraw(T_WEEKDAY, COL_X0, 58, s.weekday);
-  // The corner is the board talking about itself - when it last managed to
-  // fetch, and how much charge is left - not anything about the weather. Two
-  // quiet lines, each laid out from the right so the pieces stay put as the
-  // time and the percentage change width.
+  // Header: Weekday + corner status
+  textDraw(T_WEEKDAY, COL_X0, 52, s.weekday);
   {
-    if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 36, vm.updatedText);
+    if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 35, vm.updatedText);
     if (vm.batteryPct >= 0) {
-      const int baseline = 58;
+      const int baseline = 53;
       char pct[8];
       snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
       int x = COL_X1 - textWidth(T_CORNER, pct);
@@ -214,65 +254,75 @@ void drawRight(const ViewModel& vm) {
     }
   }
 
-  // The day, then the numbers, then what to put on, then the tip. The subline
-  // that used to sit under the weekday is gone: the band says the same things
-  // in less room and says them more precisely, and the room it frees is what
-  // lets everything below it sit at a comfortable size again.
-  const int ruleY = 76;
+  const int ruleY = 67;
   paintHLine(COL_X0, COL_X1, ruleY, 3, Role::Ink);
 
-  // Footer pill, anchored to the bottom.
-  const int pillH = 38, pillY = H - 30 - pillH;
+  // 3x2 Conditions Grid
+  const int gridY0 = ruleY + 3;
+  const int rowH = 104;
+  drawConditionsGrid(s, gridY0, rowH);
+  const int gridY2 = gridY0 + 2 * rowH;
 
-  const int bandY = ruleY + 16;
-  const int bandH = bandHeight(s);
-  drawStatBand(s, bandY, bandH);
-
-  // With the subline gone this heading is the only thing left that says the
-  // screen has flipped to tomorrow, so it says it.
-  const int headY = bandY + bandH + 26;
+  // What to wear section
+  const int headY = gridY2 + 16 + textCapHeight(T_SECTION);
   textDraw(T_SECTION, COL_X0, headY, s.tomorrow ? "WHAT TO WEAR TOMORROW" : "WHAT TO WEAR");
 
-  // Two lines of also-grab are reserved underneath; the tiles take what is
-  // left, within reason, so the column stays balanced whatever the copy does.
-  const int tileY = headY + 12;
-  const int alsoGapY = 22, alsoLines = 2;
-  const int alsoBlockH = alsoGapY + (alsoLines - 1) * 19 + 5;
-  int tileH = (pillY - 16) - alsoBlockH - tileY;
-  if (tileH > 100) tileH = 100;
-  if (tileH < 64)  tileH = 64;
-
-  const int gap = 12;
+  const int tileY = headY + 9;
+  const int tileH = 80;
+  const int gap = 10;
   const int tileW = (COL_W - 3 * gap) / 4;
-  const bool tileAccents = paintAccentsLegibleAt(tileH / 2);
+  const bool tileAccents = paintAccentsLegibleAt(30);
   for (int i = 0; i < 4; i++) {
     int x = COL_X0 + i * (tileW + gap);
-    paintRoundRectStroke(x, tileY, tileW, tileH, 12, 2, Role::Ink);
+    paintRoundRectStroke(x, tileY, tileW, tileH, 10, 2, Role::Ink);
     if (i < s.outcome.wearCount) {
       const day::Wear& w = s.outcome.wear[i];
       IconStyle ist; ist.accents = tileAccents;
-      drawIcon(w.icon, x + tileW / 2, tileY + (tileH * 2) / 5, tileH / 2, ist);
+      drawIcon(w.icon, x + tileW / 2, tileY + 29, 30, ist);
       TextStyle st = T_TILE;
       while (st.px > 10 && textWidth(st, w.label) > tileW - 10) st.px -= 1;
-      textDrawCentered(st, x + tileW / 2, tileY + tileH - 11, w.label);
+      textDrawCentered(st, x + tileW / 2, tileY + 66, w.label);
     }
   }
 
-  // Also grab, the closing tip.
-  int alsoY = tileY + tileH + alsoGapY;
-  const int n = textWrap(T_ALSO, s.outcome.alsoGrab, COL_W, lines, alsoLines);
-  for (int i = 0; i < n; i++) { textDraw(T_ALSO, COL_X0, alsoY, lines[i]); alsoY += 19; }
+  // Footer: 1px top border, "Also grab: ..." on the left, Sunset / Parking alert on the right
+  const int footerRuleY = 430;
+  paintHLine(COL_X0, COL_X1, footerRuleY, 1, Role::Ink);
 
-  // A filled black bar is an alarm, so it belongs to the parking warning only.
-  // The sunset line is ordinary information and reads as plain text.
-  const char* footer = vm.parkingActive ? vm.parkingText : s.footer;
-  TextStyle ft = T_FOOTER;
-  ft.role = vm.parkingActive ? paintAlertTextRole() : Role::Ink;
-  const int inset = vm.parkingActive ? 24 : 8;
-  while (ft.px > 12 && textWidth(ft, footer) > COL_W - inset) ft.px -= 1;
-  if (vm.parkingActive) paintAlertBar(COL_X0, pillY, COL_W, pillH, 9);
-  textDrawCentered(ft, COL_X0 + COL_W / 2, pillY + 25, footer);
+  int rightStartX = COL_X1;
+  if (vm.parkingActive) {
+    TextStyle ft = T_FOOTER;
+    ft.role = paintAlertTextRole();
+    int pillW = textWidth(ft, vm.parkingText) + 22;
+    if (pillW > COL_W / 2) pillW = COL_W / 2;
+    rightStartX = COL_X1 - pillW;
+    paintAlertBar(rightStartX, footerRuleY + 10, pillW, 30, 7);
+    textDrawCentered(ft, rightStartX + pillW / 2, footerRuleY + 30, vm.parkingText);
+  } else if (s.footer[0]) {
+    int fw = textWidth(T_FOOTER, s.footer);
+    int fx = COL_X1 - fw;
+    textDraw(T_FOOTER, fx, footerRuleY + 27, s.footer);
+    IconStyle ist; ist.accents = false;
+    drawIcon("sunset", fx - 7 - 10, footerRuleY + 22, 20, ist);
+    rightStartX = fx - 7 - 20;
+  }
 
+  const int availLeft = rightStartX - COL_X0 - 16;
+  if (availLeft > 60 && s.outcome.alsoGrab[0]) {
+    char cleanAlso[180];
+    snprintf(cleanAlso, sizeof(cleanAlso), "%s", s.outcome.alsoGrab);
+    size_t alen = strlen(cleanAlso);
+    if (alen > 0 && cleanAlso[alen - 1] == '.' && !strncmp(cleanAlso, "Also grab:", 10)) {
+      cleanAlso[alen - 1] = '\0';
+    }
+    const int n = textWrap(T_ALSO, cleanAlso, availLeft, lines, 2);
+    if (n == 1) {
+      drawAlsoLine(COL_X0, footerRuleY + 27, lines[0]);
+    } else if (n >= 2) {
+      drawAlsoLine(COL_X0, footerRuleY + 20, lines[0]);
+      drawAlsoLine(COL_X0, footerRuleY + 37, lines[1]);
+    }
+  }
 }
 
 void frame() {

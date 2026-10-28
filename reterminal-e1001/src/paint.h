@@ -5,7 +5,7 @@
 #pragma once
 #include <cstdint>
 
-enum class Role : uint8_t { Ink = 0, Paper = 1, Sun = 2, Water = 3, Leaf = 4, Warm = 5, Band = 6, Caption = 7 };
+enum class Role : uint8_t { Ink = 0, Paper = 1, Sun = 2, Water = 3, Leaf = 4, Warm = 5, Band = 6, Caption = 7, AccentInvert = 8 };
 
 void paintBegin();
 void paintPixel(int x, int y, Role r);

@@ -14,9 +14,10 @@ struct Ctx {
 };
 
 Role roleFor(const Ctx& c, uint8_t role) {
+  if (role == 0) return c.st.ink;
+  if (role == 1) return c.st.paper;
+  if (c.st.ink == Role::Paper && c.st.paper == Role::Ink) return Role::AccentInvert;
   switch (role) {
-    case 0: return c.st.ink;
-    case 1: return c.st.paper;
     case 2: return Role::Sun;
     case 3: return Role::Water;
     case 4: return Role::Leaf;
