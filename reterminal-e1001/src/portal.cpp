@@ -262,11 +262,18 @@ void runSetupPortal(const Settings& s) {
   Serial.printf("[portal] http://%s/  (timeout %lu min)\n", ip.toString().c_str(), (unsigned long)(PORTAL_TIMEOUT_MS / 60000));
 
   pinMode(PIN_LED, OUTPUT);
+  pinMode(PIN_KEY0, INPUT_PULLUP);
   uint32_t started = millis(), lastBlink = 0;
   bool led = false;
   for (;;) {
     dns.processNextRequest();
     server.handleClient();
+
+    if (current.configured() && digitalRead(PIN_KEY0) == LOW) {
+      Serial.println(F("[portal] cancelled by right button (KEY0)"));
+      Serial.flush();
+      ESP.restart();
+    }
 
     if (restartAt && millis() > restartAt) {
       Serial.println("[portal] restarting");

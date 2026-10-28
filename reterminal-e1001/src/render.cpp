@@ -490,8 +490,8 @@ void renderSetup(const char* apName, const char* ip) {
     textDraw(step, x0 + 48, y, "Enter your Wi-Fi and your beach town, then tap Save.");
     textDraw(T_MSG_B, x0 + 48, y + 26, "The forecast appears about a minute later.");
 
-    textDrawCentered(T_STATUS, W / 2, H - 42, "This screen turns off after 10 minutes. Hold the middle button");
-    textDrawCentered(T_STATUS, W / 2, H - 28, "and press the right one to open setup again.");
+    textDrawCentered(T_STATUS, W / 2, H - 42, "Press the right button (KEY0) to cancel and return to the forecast.");
+    textDrawCentered(T_STATUS, W / 2, H - 28, "This screen turns off automatically after 10 minutes.");
   } while (panelNextPage());
 }
 
