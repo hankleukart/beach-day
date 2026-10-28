@@ -12,13 +12,6 @@ day::Spec g;
 const char* PATH = "/day-outcomes.toml";
 bool fsOk = false;
 
-int parseVersion(const char* v) {
-  if (!v) return 0;
-  int maj = 0, min = 0;
-  sscanf(v, "%d.%d", &maj, &min);
-  return maj * 1000 + min;
-}
-
 bool mountFs() {
   if (fsOk) return true;
   fsOk = LittleFS.begin(true);
@@ -52,27 +45,30 @@ bool specLoad(char* status, size_t n) {
   day::Spec fsSpec;
   char fsErr[96] = "";
   bool fsLoaded = false;
+  String fsBody;
   if (mountFs() && LittleFS.exists(PATH)) {
     File f = LittleFS.open(PATH, "r");
     if (f) {
-      String body = f.readString();
+      fsBody = f.readString();
       f.close();
-      fsLoaded = fsSpec.load(body.c_str(), body.length(), fsErr, sizeof(fsErr));
+      fsLoaded = fsSpec.load(fsBody.c_str(), fsBody.length(), fsErr, sizeof(fsErr));
     }
   }
+
+  // If LittleFS matches embedded byte-for-byte, we're already perfectly in sync.
+  bool isDifferent = !fsLoaded || (fsBody.length() != SPEC_EMBEDDED_LEN) || (strcmp(fsBody.c_str(), SPEC_EMBEDDED) != 0);
 
   Preferences p;
   p.begin("beachday", false);
   uint32_t fsMtime = p.getUInt("rulesMtime", 0);
 
-  // If embedded is newer than LittleFS (by mtime or version string), upgrade LittleFS!
-  bool embIsNewer = (SPEC_EMBEDDED_MTIME > fsMtime) || (parseVersion(emb.version()) > parseVersion(fsSpec.version()));
-  if (embOk && (!fsLoaded || embIsNewer)) {
+  // If different and embedded is newer (or no timestamp recorded yet), update LittleFS!
+  if (embOk && isDifferent && (SPEC_EMBEDDED_MTIME >= fsMtime || fsMtime == 0)) {
     saveToFs(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN);
     p.putUInt("rulesMtime", SPEC_EMBEDDED_MTIME);
     p.end();
     g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, embErr, sizeof(embErr));
-    snprintf(status, n, "embedded v%s (updated LittleFS, mtime %lu)", emb.version(), (unsigned long)SPEC_EMBEDDED_MTIME);
+    snprintf(status, n, "embedded (updated LittleFS, content changed)");
     return true;
   }
   p.end();
@@ -124,8 +120,18 @@ bool specFetch(const Settings& s, char* status, size_t n) {
   if (!probe.load(body.c_str(), body.length(), err, sizeof(err))) { snprintf(status, n, "rules rejected: %s", err); return false; }
 
   if (mountFs()) {
-    File f = LittleFS.open(PATH, "w");
-    if (f) { f.print(body); f.close(); }
+    String cur;
+    if (LittleFS.exists(PATH)) {
+      File f = LittleFS.open(PATH, "r");
+      if (f) { cur = f.readString(); f.close(); }
+    }
+    if (cur != body) {
+      File f = LittleFS.open(PATH, "w");
+      if (f) { f.print(body); f.close(); }
+      Serial.println(F("[spec] downloaded new rules from GitHub (content changed)"));
+    } else {
+      Serial.println(F("[spec] rules on GitHub match current local rules"));
+    }
   }
   if (!g.load(body.c_str(), body.length(), err, sizeof(err))) { snprintf(status, n, "rules: reload failed"); return false; }
   snprintf(status, n, "rules: %s v%s (%u bytes)", g.name(), g.version(), body.length());
