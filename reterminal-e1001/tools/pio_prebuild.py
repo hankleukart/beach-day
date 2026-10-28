@@ -15,9 +15,11 @@ data.parent.mkdir(exist_ok=True)
 if not data.exists() or data.read_text(encoding="utf-8") != text:
     shutil.copyfile(src, data)
 
+mtime = int(src.stat().st_mtime)
 body = ('// GENERATED at build time by tools/pio_prebuild.py from shared/v3/day-outcomes.toml.\n'
         '// Fallback copy of the rules, used when LittleFS has none (or a broken one).\n'
         '#pragma once\n#include <pgmspace.h>\n'
+        f'static const uint32_t SPEC_EMBEDDED_MTIME = {mtime}UL;\n'
         'static const char SPEC_EMBEDDED[] PROGMEM = R"SPECTOML(' + text + ')SPECTOML";\n'
         'static const size_t SPEC_EMBEDDED_LEN = sizeof(SPEC_EMBEDDED) - 1;\n')
 if not hdr.exists() or hdr.read_text(encoding="utf-8") != body:

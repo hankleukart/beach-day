@@ -61,13 +61,21 @@ bool specLoad(char* status, size_t n) {
     }
   }
 
-  // If embedded is newer than LittleFS, upgrade LittleFS with the embedded copy!
-  if (embOk && (!fsLoaded || parseVersion(emb.version()) > parseVersion(fsSpec.version()))) {
+  Preferences p;
+  p.begin("beachday", false);
+  uint32_t fsMtime = p.getUInt("rulesMtime", 0);
+
+  // If embedded is newer than LittleFS (by mtime or version string), upgrade LittleFS!
+  bool embIsNewer = (SPEC_EMBEDDED_MTIME > fsMtime) || (parseVersion(emb.version()) > parseVersion(fsSpec.version()));
+  if (embOk && (!fsLoaded || embIsNewer)) {
     saveToFs(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN);
+    p.putUInt("rulesMtime", SPEC_EMBEDDED_MTIME);
+    p.end();
     g.load(SPEC_EMBEDDED, SPEC_EMBEDDED_LEN, embErr, sizeof(embErr));
-    snprintf(status, n, "embedded v%s (updated LittleFS, was v%s)", emb.version(), fsLoaded ? fsSpec.version() : "none");
+    snprintf(status, n, "embedded v%s (updated LittleFS, mtime %lu)", emb.version(), (unsigned long)SPEC_EMBEDDED_MTIME);
     return true;
   }
+  p.end();
 
   if (fsLoaded) {
     File f = LittleFS.open(PATH, "r");
@@ -103,7 +111,12 @@ bool specFetch(const Settings& s, char* status, size_t n) {
   String body;
   if (!netGet(s.rulesUrl, s.useTls, body)) { snprintf(status, n, "rules: request failed"); return false; }
   Preferences p;
-  if (p.begin("beachday", false)) { p.putULong64("rulesLast", (uint64_t)time(nullptr)); p.end(); }
+  if (p.begin("beachday", false)) {
+    time_t now = time(nullptr);
+    p.putULong64("rulesLast", (uint64_t)now);
+    p.putUInt("rulesMtime", (uint32_t)now);
+    p.end();
+  }
 
   // Validate on a scratch instance so a bad file never displaces the live one.
   day::Spec probe;

@@ -20,7 +20,7 @@ icons = [
   "mittens", "scarf", "sunset",
 ]
 
-version = "2.2"
+version = "2.3"
 name = "Beach Day Outcomes"
 
 
@@ -345,6 +345,7 @@ icon_bands = [
 value_field = "sunHours"
 value_bands = [
   { max = 0, text = "None" },
+  { max = 2, text = "Brief" },
   { max = 24, text = "{sunWindow}" },
 ]
 sub_field = "cloud"

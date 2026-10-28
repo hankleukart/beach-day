@@ -225,6 +225,14 @@ void setup() {
   bool online = netConnect(s, 20000);
   bool clockOk = online && netSyncTime(6000);
 
+  if (online && forceOta) {
+    char st[96] = "";
+    otaCheck(s, true, st, sizeof(st));
+    if (specFetch(s, st, sizeof(st))) {
+      Serial.printf("[beach] %s\n", st);
+    }
+  }
+
   if (online && s.needsGeocode()) {
     GeoResult geo; char gerr[64];
     if (geocode(s.locationQuery, s.countryCode, s.useTls, geo, gerr, sizeof(gerr))) {
@@ -346,8 +354,8 @@ void setup() {
 
   // Housekeeping after the screen is right: rules first (visible next wake),
   // then firmware (reboots on success).
-  bool rulesDue = forceOta || specFetchDue(s);
-  bool otaWanted = forceOta || otaDue(s);
+  bool rulesDue = !forceOta && specFetchDue(s);
+  bool otaWanted = !forceOta && otaDue(s);
   if (rulesDue || otaWanted) {
     char st[96] = "";
     if (netConnect(s, 20000)) {
