@@ -20,8 +20,8 @@
 # Firmware uploads also upload the LittleFS image, which carries the rules
 # JSON; the firmware falls back to a built-in copy if the image is missing.
 #
-# If the upload can't find the board, press KEY0 (the right-hand button) to
-# wake it and run this again.
+# If the upload can't find the board, press Green (Refresh, KEY0) to wake it
+# and run this again.
 set -euo pipefail
 cd "$(dirname "$0")"
 PIO=.venv/bin/pio
@@ -40,7 +40,7 @@ if [ "$WHAT" != "test" ] && ! ls /dev/cu.usbserial* >/dev/null 2>&1; then
   echo "No board found (no /dev/cu.usbserial* port)."
   echo "  - is the USB-C cable a data cable, not charge-only?"
   echo "  - is the power switch on the side set to ON?"
-  echo "  - press KEY0 (right button) to wake a sleeping board"
+  echo "  - press Green (Refresh) to wake a sleeping board"
   exit 1
 fi
 

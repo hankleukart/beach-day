@@ -15,6 +15,7 @@
 #include <fstream>
 #include <sstream>
 #include "render.h"
+#include "version.h"
 #include "dayspec.h"
 #include "derive.h"
 
@@ -186,7 +187,10 @@ int main(int argc, char** argv) {
   renderScreen(vm);
   if (!previewSave(outDash)) { std::fprintf(stderr, "cannot write %s\n", outDash); return 1; }
 
-  renderHourly(raw, 0, in, "Today's readings", "beach-day 0.9.4");
+  // The board's own footer for this screen (main.cpp).
+  char foot[72];
+  std::snprintf(foot, sizeof(foot), "%s \xC2\xB7 firmware %s \xC2\xB7 any button returns", vm.updatedText, FIRMWARE_VERSION);
+  renderHourly(raw, 0, in, "Today's readings", foot);
   if (!previewSave(outRead)) { std::fprintf(stderr, "cannot write %s\n", outRead); return 1; }
 
   renderEnd();

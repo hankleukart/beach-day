@@ -41,9 +41,9 @@ bool wokeByButton() { return esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EX
 WakeButton wakeButton() {
   if (esp_sleep_get_wakeup_cause() != ESP_SLEEP_WAKEUP_EXT1) return WakeButton::None;
   uint64_t mask = esp_sleep_get_ext1_wakeup_status();
-  if (mask & (1ULL << PIN_KEY1)) return WakeButton::Middle;
-  if (mask & (1ULL << PIN_KEY2)) return WakeButton::Left;
-  if (mask & (1ULL << PIN_KEY0)) return WakeButton::Right;
+  if (mask & (1ULL << PIN_KEY1)) return WakeButton::LeftNav;
+  if (mask & (1ULL << PIN_KEY2)) return WakeButton::RightNav;
+  if (mask & (1ULL << PIN_KEY0)) return WakeButton::Green;
   return WakeButton::None;
 }
 

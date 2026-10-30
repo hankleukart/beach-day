@@ -30,8 +30,8 @@ unfortunate folder name by now.
 On first boot the board has no credentials, so it raises its own Wi-Fi hotspot
 and shows the join instructions on screen. You connect a phone, pick a network,
 type a password and type a place name. It reboots, resolves the place to
-coordinates, fetches, and draws. To change any of it later, press the **middle**
-button.
+coordinates, fetches, and draws. To change any of it later, press
+**Left Nav**.
 
 Build and flash instructions, the OTA update server layout, and the design
 notes are in **[reterminal-e1001/README.md](reterminal-e1001/README.md)**.
@@ -50,12 +50,16 @@ Three buttons, one press each:
 
 | Button | Does |
 | --- | --- |
-| **Right** | Refresh the forecast now |
-| **Middle** | Open the setup portal (Wi-Fi, place, parking, trash reminder) |
-| **Left** | Show the hourly readings behind the dashboard |
+| **Green (Refresh)** | Refresh the forecast now |
+| **Left Nav** | Open the setup portal (Wi-Fi, place, parking, trash reminder) |
+| **Right Nav** | Show the hourly readings behind the dashboard |
+
+**To force a firmware and rules update:** hold Right Nav, then press Green,
+and keep holding Right Nav until the screen starts to refresh.
 
 The readings screen is the "why did it decide that?" answer: every hourly row
-inside the daylight window with the derived figures along the bottom.
+inside the daylight window with the derived figures along the bottom. Its
+footer also shows the firmware version the board is running.
 
 ---
 
@@ -210,7 +214,7 @@ street-cleaning window.
 backs off to 60 min. The last good screen stays up, restamped `OFFLINE since
 …`, so the display is never blank and never silently stale.
 
-**On a button:** the right button forces an immediate refresh.
+**On a button:** Green (Refresh) forces an immediate refresh.
 
 **Separately,** the board checks for a new rules file and new firmware every
 **24 hours** each. Both are validated before being accepted — a rules file that

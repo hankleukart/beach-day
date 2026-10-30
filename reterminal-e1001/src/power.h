@@ -7,7 +7,7 @@ bool  wokeByButton();
 
 // Which button woke the board. Each one has a single-press job, so nobody has
 // to hold one button while pressing another.
-enum class WakeButton : uint8_t { None, Right, Middle, Left };
+enum class WakeButton : uint8_t { None, Green, LeftNav, RightNav };   // KEY0, KEY1, KEY2
 WakeButton wakeButton();
 bool  lastResetWasCrash();       // panic / watchdog / brownout - not power-on, flash or deep-sleep wake
 const char* resetReasonText();

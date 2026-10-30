@@ -48,7 +48,7 @@ void devShowHourly() {
     return;
   }
   renderHourly(g_fetched.raw, g_day, g_inputs,
-               g_day ? "Tomorrow's readings" : "Today's readings", "press l for the forecast");
+               g_day ? "Tomorrow's readings" : "Today's readings", "press Green (or l) for the forecast");
 #endif
 }
 
@@ -183,13 +183,13 @@ void setup() {
   pinMode(PIN_KEY1, INPUT_PULLUP);
   pinMode(PIN_KEY2, INPUT_PULLUP);
   const WakeButton woke = wakeButton();
-  bool wantSetup  = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::Middle;
-  bool wantHourly = (woke == WakeButton::Left);
+  bool wantSetup  = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::LeftNav;
+  bool wantHourly = (woke == WakeButton::RightNav);
   bool forceOta   = !wantHourly && (digitalRead(PIN_KEY2) == LOW);
 
   if (wantSetup || !s.configured()) {
     Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
-                  wantSetup ? "middle button held" : "nothing configured");
+                  wantSetup ? "Left Nav pressed" : "nothing configured");
     clearBootFailures();
     renderBegin();
     runSetupPortal(s);
@@ -211,9 +211,9 @@ void setup() {
   if (failures) Serial.printf("[beach] %d consecutive crash%s\n", failures, failures == 1 ? "" : "es");
   Serial.printf("[beach] wi-fi '%s' %s\n", s.ssid,
                 s.configWon  ? "(from beachday_config.h, overriding the saved network - dev build)" :
-                s.fromPortal ? "(saved by the setup portal - beachday_config.h is NOT used; hold the middle button to change it)"
+                s.fromPortal ? "(saved by the setup portal - beachday_config.h is NOT used; press Left Nav to change it)"
                              : "(from beachday_config.h)");
-  if (forceOta) Serial.println(F("[beach] KEY2 held: forcing update + rules check"));
+  if (forceOta) Serial.println(F("[beach] Right Nav held: forcing update + rules check"));
 
   renderBegin();
 
@@ -271,7 +271,7 @@ void setup() {
       netDisconnect();
       char line[140];
       snprintf(line, sizeof(line), "Couldn't find \"%s\" - check the spelling or use a postal code.", s.locationQuery);
-      renderMessage("Where's the beach?", line, "Hold the middle button and press the right one to open setup.");
+      renderMessage("Where's the beach?", line, "Press Left Nav to open setup.");
       sleepNow(3600);
     }
   }
@@ -297,7 +297,7 @@ void setup() {
     } else {
       char line[140];
       snprintf(line, sizeof(line), "Can't get online via Wi-Fi \"%s\" (%s).", s.ssid, err);
-      renderMessage("No connection yet", line, "Retrying. To change Wi-Fi: hold the middle button, press the right one.");
+      renderMessage("No connection yet", line, "Retrying. To change Wi-Fi, press Left Nav.");
     }
     sleepNow(retry);
   }
@@ -389,9 +389,11 @@ void setup() {
   if (wantHourly) {
     // Show the readings instead of the verdict, then sleep as usual - the
     // next ordinary wake puts the dashboard back.
-    Serial.println(F("[beach] left button: showing the hourly readings"));
-    char foot[56];
-    snprintf(foot, sizeof(foot), "%s \xC2\xB7 any button returns", vm.updatedText);
+    Serial.println(F("[beach] Right Nav: showing the hourly readings"));
+    // The version lives here: this is the screen you open to check what the
+    // board is running, and the setup portal is only on someone's phone.
+    char foot[72];
+    snprintf(foot, sizeof(foot), "%s \xC2\xB7 firmware %s \xC2\xB7 any button returns", vm.updatedText, FIRMWARE_VERSION);
     renderHourly(f.raw, d, in, tomorrow ? "Tomorrow's readings" : "Today's readings", foot);
     failCount = 0;
     clearBootFailures();

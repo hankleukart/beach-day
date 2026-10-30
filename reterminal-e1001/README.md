@@ -162,9 +162,11 @@ from the three front buttons:
 
 | Key | Button | Action |
 | --- | --- | --- |
-| `n` | KEY2 (left) | Step through the outcomes with preset numbers, run through the real rules |
-| `p` | KEY1 (middle) | Toggle the parking-alert bar |
-| `l` | KEY0 (right) | Back to the real forecast fetched at boot |
+| `n` | Left Nav (KEY1) | Step through the outcomes with preset numbers, run through the real rules |
+| `h` | Right Nav (KEY2) | The hourly readings behind the screen |
+| `p` | — | Toggle the parking-alert bar |
+| `l` | Green (KEY0) | Back to the real forecast fetched at boot |
+| `w` | — | Open the setup portal |
 | `d` | — | Dump the current view as text |
 | `R` | — | Reboot and re-fetch |
 | `?` | — | Reprint the key list |
@@ -405,7 +407,7 @@ Rough budget at those defaults: ~17 wakes a day at ~12 s each on Wi-Fi, plus
 "months" range Seeed quotes, and far more sensitive to the interval you choose
 than to anything in the code.
 
-Pressing the right-hand button (KEY0) wakes the board for an immediate refresh.
+Pressing Green (Refresh, KEY0) wakes the board for an immediate refresh.
 
 ## When the network is down
 
@@ -457,9 +459,10 @@ firmware cannot fetch, only a cable fixes it.
 
 - On their own within `CFG_OTA_CHECK_HOURS` (default 24). The check is skipped
   unless that long has passed, so it costs one small HTTPS request a day.
-- Immediately if someone **holds the left button (KEY2) while the board wakes**.
-  That is the instruction to give a friend: *hold the left button and press the
-  right one.*
+- Immediately if someone **holds Right Nav (KEY2) while the board wakes**.
+  That is the instruction to give a friend: *hold Right Nav, press Green, and
+  keep holding Right Nav until the screen refreshes.* The readings screen
+  (Right Nav alone) shows the version in its footer, to confirm it worked.
 
 The check runs **after** the screen has been drawn, so a failed or interrupted
 update never leaves a viewer looking at a stale or blank panel.
@@ -543,9 +546,9 @@ pulled low, so the board knows which one it was:
 
 | Button | Does |
 | --- | --- |
-| **KEY0** (right) | Refresh the forecast now |
-| **KEY1** (middle) | Open the setup portal (Wi-Fi, place, parking) |
-| **KEY2** (left) | Show the hourly readings behind the dashboard |
+| **Green (Refresh)** (KEY0) | Refresh the forecast now |
+| **Left Nav** (KEY1) | Open the setup portal (Wi-Fi, place, parking, trash reminder) |
+| **Right Nav** (KEY2) | Show the hourly readings behind the dashboard |
 
 The readings screen answers "why did it decide that?". It lists one row per
 hour of the daylight window — the whole hour containing sunrise through the
@@ -555,7 +558,8 @@ derived figures along the bottom. The header names the window. Row pitch
 closes up on long summer days so the whole window stays on one screen. Any
 button returns to the forecast on the next wake.
 
-Holding KEY2 while waking with KEY0 still forces an update check.
+Holding Right Nav (KEY2) while waking with Green (KEY0) still forces an
+update check. The readings screen's footer shows the firmware version.
 
 ### Why geocoding happens after the portal, not in it
 

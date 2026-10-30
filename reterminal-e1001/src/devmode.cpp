@@ -57,9 +57,9 @@ void banner() {
   Serial.println(F("=================================================="));
   Serial.println(F(" Beach Day v3 - DEV MODE (stays awake)"));
   Serial.println(F(" Type a key here, or press a button on the board:"));
-  Serial.println(F("   l / KEY0 (right)   back to the live forecast"));
-  Serial.println(F("   n / KEY1 (middle)  next demo outcome"));
-  Serial.println(F("   h / KEY2 (left)    hourly readings behind the screen"));
+  Serial.println(F("   l / Green          back to the live forecast"));
+  Serial.println(F("   n / Left Nav       next demo outcome"));
+  Serial.println(F("   h / Right Nav      hourly readings behind the screen"));
   Serial.println(F("   p                  toggle parking alert"));
   Serial.println(F("   d                  dump the current screen as text"));
   Serial.println(F("   w                  open the Wi-Fi setup portal now"));

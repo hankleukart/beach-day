@@ -299,7 +299,7 @@ void runSetupPortal(const Settings& s) {
     server.handleClient();
 
     if (current.configured() && digitalRead(PIN_KEY0) == LOW) {
-      Serial.println(F("[portal] cancelled by right button (KEY0)"));
+      Serial.println(F("[portal] cancelled by Green (KEY0)"));
       Serial.flush();
       ESP.restart();
     }
@@ -311,8 +311,7 @@ void runSetupPortal(const Settings& s) {
     }
     if (millis() - started > PORTAL_TIMEOUT_MS) {
       Serial.println("[portal] timed out");
-      renderMessage("Setup timed out", "Hold the middle button and press the right one",
-                    "to open setup again.");
+      renderMessage("Setup timed out", "Press Left Nav to open setup again.", nullptr);
       renderEnd();
       deepSleepFor(3600);
     }
