@@ -5,8 +5,9 @@
 #     tools/preview.sh rain           # one scenario, both panels
 #     tools/preview.sh rain mono      # one scenario, one panel
 #
-# Scenarios live in tools/preview/preview.cpp: beach, rain, winter, smoke and
-# stress (the worst-case copy that squeezes the stat band).
+# Scenarios live in tools/preview/preview.cpp: beach, rain, winter, smoke,
+# stress (the worst-case copy that squeezes the stat band), snow, and whimsy
+# (a date that swaps one tile).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -32,7 +33,7 @@ if [ ! -x "$BUILD/preview" ] || [ -n "$(find "${SRC[@]}" src/*.h lib -newer "$BU
 fi
 
 scenarios=("${1:-all}")
-[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain winter smoke stress)
+[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain winter smoke stress snow whimsy trash)
 panels=("${2:-all}")
 [ "${panels[0]}" = "all" ] && panels=(mono color)
 

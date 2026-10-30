@@ -56,6 +56,13 @@
 #define CFG_PARKING_RIGHT_START    (8 * 60)
 #define CFG_PARKING_RIGHT_END      (10 * 60)
 
+// ---- Weekly reminder --------------------------------------------------------
+// The footer bar, all day on its day - trash night by default. Street cleaning
+// takes the bar first when both are due. The setup portal can change all three.
+#define CFG_REMINDER_ENABLED       true
+#define CFG_REMINDER_DAY           3        // Wednesday
+#define CFG_REMINDER_TEXT          "Take your trash to the street tonight"
+
 // ---- Dev build only ---------------------------------------------------------
 // [env:dev] stays awake instead of deep-sleeping, so it has to refresh the
 // forecast on a timer. It does that by restarting, which re-runs the normal

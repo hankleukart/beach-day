@@ -58,6 +58,30 @@ bool Settings::needsGeocode() const {
 
 static const char* NVS_NS = "beachday";
 
+// beachday_config.h files from before the reminder existed leave these out;
+// the defaults keep them building.
+#ifndef CFG_REMINDER_ENABLED
+#define CFG_REMINDER_ENABLED true
+#endif
+#ifndef CFG_REMINDER_DAY
+#define CFG_REMINDER_DAY 3        // Wednesday
+#endif
+#ifndef CFG_REMINDER_TEXT
+#define CFG_REMINDER_TEXT "Take your trash to the street tonight"
+#endif
+
+static void loadReminder(Preferences& p, beach::Reminder& r) {
+  if (p.isKey("rmOn"))   r.enabled = p.getBool("rmOn", r.enabled);
+  if (p.isKey("rmDay"))  r.dayOfWeek = (int8_t)p.getChar("rmDay", r.dayOfWeek);
+  if (p.isKey("rmText")) p.getString("rmText", r.text, sizeof(r.text));
+}
+
+static void storeReminder(Preferences& p, const beach::Reminder& r) {
+  p.putBool("rmOn", r.enabled);
+  p.putChar("rmDay", r.dayOfWeek);
+  p.putString("rmText", r.text);
+}
+
 // Parking rule <-> NVS. Keys are <= 15 chars as NVS requires.
 static void loadParkingRule(Preferences& p, const char* side, beach::ParkingRule& r) {
   char k[16];
@@ -121,6 +145,9 @@ const Settings& loadSettings() {
                                      beach::weeks(CFG_PARKING_RIGHT_WEEKS), CFG_PARKING_RIGHT_DAY,
                                      CFG_PARKING_RIGHT_START, CFG_PARKING_RIGHT_END };
   g.parkingCount = 2;
+  g.reminder.enabled = CFG_REMINDER_ENABLED;
+  g.reminder.dayOfWeek = CFG_REMINDER_DAY;
+  copyStr(g.reminder.text, sizeof(g.reminder.text), CFG_REMINDER_TEXT);
 
   // 2. NVS overrides written by the setup portal. If the portal has ever
   //    saved a Wi-Fi network, its view of the world wins over beachday_config.h.
@@ -150,6 +177,7 @@ const Settings& loadSettings() {
 
       loadParkingRule(prefs, "L", g.parking[0]);
       loadParkingRule(prefs, "R", g.parking[1]);
+      loadReminder(prefs, g.reminder);
 
       // Bench builds: hand Wi-Fi back to the config file if it has real
       // credentials. Location and parking still come from the portal.
@@ -185,6 +213,7 @@ bool savePortalInput(const PortalInput& in) {
   prefs.remove("geoName");
   storeParkingRule(prefs, "L", in.parking[0]);
   storeParkingRule(prefs, "R", in.parking[1]);
+  storeReminder(prefs, in.reminder);
   prefs.end();
   loaded = false;              // force a re-read on next loadSettings()
   return true;

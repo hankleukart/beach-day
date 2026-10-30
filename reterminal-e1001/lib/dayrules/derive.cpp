@@ -15,6 +15,10 @@ void formatClock12(int minutes, char* out, size_t n) {
   snprintf(out, n, "%d:%02d %s", dh, m, h >= 12 ? "PM" : "AM");
 }
 
+// WMO 71-77 and 85-86: snowfall, snow grains, snow showers. Freezing rain and
+// drizzle (56-57, 66-67) are left out: they want a raincoat, not snow boots.
+static bool isSnowCode(int c) { return (c >= 71 && c <= 77) || c == 85 || c == 86; }
+
 static int modeCode(const Raw& raw, int d, int h0, int h1, int fallback) {
   int codes[MAX_ROWS], counts[MAX_ROWS], k = 0;
   for (int i = 0; i < raw.n; i++) {
@@ -47,6 +51,7 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   double tMin = 1e9, tMax = -1e9, wMax = -1e9;
   int pMax = -1, hMin = 1 << 14, hMax = -1;
   long cloudSum = 0; int cloudN = 0;
+  int snowN = 0;
   bool any = false;
   for (int i = 0; i < raw.n; i++) {
     const HourRow& r = raw.hours[i];
@@ -58,6 +63,7 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
     if (r.precipProb > pMax) pMax = r.precipProb;
     if (r.humidity >= 0) { if (r.humidity < hMin) hMin = r.humidity; if (r.humidity > hMax) hMax = r.humidity; }
     if (r.cloud >= 0) { cloudSum += r.cloud; cloudN++; }
+    if (isSnowCode(r.code)) snowN++;
   }
   // Walk the window in hour order: first clear hour, and the longest unbroken
   // run of them. A missing cloud reading breaks a run rather than extending it.
@@ -103,6 +109,7 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   out.humidityMinPct = hMax < 0 ? 0 : hMin;
   out.humidityMaxPct = hMax < 0 ? 0 : hMax;
   out.cloudCoverAvgPct = cloudN ? std::round((double)cloudSum / cloudN) : 0;
+  out.snowHours = snowN;
 
   int aMin = 1 << 20, aMax = -1;
   for (int i = 0; i < raw.na; i++) {

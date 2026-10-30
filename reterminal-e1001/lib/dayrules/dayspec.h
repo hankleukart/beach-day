@@ -20,6 +20,7 @@ struct Inputs {
   bool   hasFirstClearHour = false;
   int    firstClearHour = -1;
   double sunRunHours = 0;
+  double snowHours = 0;           // daylight hours whose weather code is snow
   int    sunRunStartHour = -1, sunRunEndHour = -1;
   int    rainStartHour = -1, rainEndHour = -1;
   char   conditionSummary[40] = "";
@@ -74,6 +75,20 @@ using IconChecker = bool (*)(const char* name);
 void setIconChecker(IconChecker fn);
 IconChecker g_iconCheckerAccessor();   // internal: for the validator
 
+// The day's outcome, held from the first morning look.
+struct DayPin { long epochDay = -1; char id[24] = ""; };
+
+class Spec;
+
+// Which outcome to show, given what the forecast says right now (`liveId`).
+// The first `pinnable` look of a day pins it, and later looks keep it - unless
+// the forecast turns to an outcome marked breaks_pin (rain, snow), which then
+// takes over the pin. A look that is not pinnable - the evening preview of
+// tomorrow, or before dawn - shows the forecast as it is and leaves the pin
+// alone. Returns true when the pin changed and wants saving.
+bool resolvePin(const Spec& spec, DayPin& pin, long epochDay, bool pinnable,
+                const char* liveId, char* showId, size_t n);
+
 class Spec {
  public:
   ~Spec();
@@ -90,7 +105,12 @@ class Spec {
   int outcomeCount() const;
   const char* outcomeId(int i) const;
 
-  bool evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow) const;
+  // `forceId` shows that outcome rather than matching `when` - how a pinned
+  // day is drawn. An id the file does not have is ignored.
+  bool evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow,
+                const char* forceId = nullptr) const;
+  bool hasOutcome(const char* id) const;
+  bool breaksPin(const char* id) const;   // `breaks_pin = true`: may replace a pinned day
 
  private:
   toml_table_t* root_ = nullptr;

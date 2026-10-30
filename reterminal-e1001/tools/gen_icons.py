@@ -273,6 +273,49 @@ def i_sunset(c):
     c.line([(24, 8), (24, 16)])
     c.line([(9.2, 19.2), (12.8, 22.8)])
     c.line([(38.8, 19.2), (35.2, 22.8)])
+def i_sandals(c):
+    # a flip-flop from above: the sole and its Y strap
+    c.ellipse(14, 5, 34, 44, SUN, fill=True); c.ellipse(14, 5, 34, 44)
+    c.line([(24, 13), (16.5, 27)]); c.line([(24, 13), (31.5, 27)]); c.disc(24, 13, 2.2)
+def i_cap(c):
+    c.pie(20, 31, 13, 180, 360, LEAF); c.arc(20, 31, 13, 180, 360)
+    c.line([(7, 31), (33, 31)])
+    c.poly([(31, 27.5), (44, 30), (44, 34), (31, 33)])
+    c.disc(20, 17, 2.2)
+def i_sunglasses(c):
+    c.rrect(5, 18, 22, 31, 5, fill=True); c.rrect(26, 18, 43, 31, 5, fill=True)
+    c.line([(22, 21.5), (26, 21.5)])
+    c.line([(5, 20.5), (3, 15)]); c.line([(43, 20.5), (45, 15)])
+def i_gloves(c):
+    shapes = [("rrect", 13, 8, 17.5, 28, 2.2), ("rrect", 18.5, 5, 23, 28, 2.2),
+              ("rrect", 24, 6, 28.5, 28, 2.2), ("rrect", 29.5, 10, 34, 28, 2.2),
+              ("rrect", 13, 22, 34, 42, 5), ("rrect", 6, 23, 14, 30, 3.5)]
+    c.union_fill(shapes, WARM); c.union_outline(shapes); c.line([(13.5, 36), (33.5, 36)])
+def i_snow_boot(c):
+    pts = [(12, 15), (28, 15), (28, 27), (41, 32), (42, 41), (10, 41), (10, 15)]
+    c.poly(pts, WATER, fill=True); c.poly(pts)
+    # the fleece cuff is what says "snow" rather than "rain"
+    c.rrect(8, 8, 32, 17, 4.5, PAPER, fill=True); c.rrect(8, 8, 32, 17, 4.5)
+    for x in (14, 20, 26): c.line([(x, 11.5), (x, 13.5)])
+    c.line([(10, 36.5), (42, 36.5)])
+def i_snow_pants(c):
+    pts = [(13, 15), (35, 15), (37, 43), (27, 43), (24, 28), (21, 43), (11, 43)]
+    c.poly(pts, WATER, fill=True); c.poly(pts)
+    c.rrect(17, 7, 31, 15, 2)
+    c.line([(17.5, 7.5), (14, 3)]); c.line([(30.5, 7.5), (34, 3)])
+def i_backpack(c):
+    c.rrect(12, 12, 36, 43, 7, LEAF, fill=True); c.rrect(12, 12, 36, 43, 7)
+    c.arc(24, 12, 5, 180, 360)
+    c.rrect(16.5, 29, 31.5, 38.5, 3)
+def i_snowflake(c):
+    c.disc(24, 24, 3.5, WATER)
+    for i in range(6):
+        a = math.radians(i * 60 - 90)
+        c.line([(24, 24), (24 + 18 * math.cos(a), 24 + 18 * math.sin(a))])
+        px, py = 24 + 11 * math.cos(a), 24 + 11 * math.sin(a)
+        for side in (-1, 1):
+            b = a + side * math.radians(42)
+            c.line([(px, py), (px + 6 * math.cos(b), py + 6 * math.sin(b))])
 
 ICONS = {
     "sun": i_sun, "sun_and_waves": i_sun_and_waves, "cloud": i_cloud, "rain_cloud": i_rain_cloud,
@@ -282,6 +325,8 @@ ICONS = {
     "sweater": i_sweater, "hoodie": i_hoodie, "jacket": i_jacket, "long_pants": i_long_pants,
     "raincoat": i_raincoat, "rain_boot": i_rain_boot, "umbrella": i_umbrella, "puffy_coat": i_puffy_coat,
     "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf, "sunset": i_sunset,
+    "sandals": i_sandals, "cap": i_cap, "sunglasses": i_sunglasses, "gloves": i_gloves,
+    "snow_boot": i_snow_boot, "snow_pants": i_snow_pants, "backpack": i_backpack, "snowflake": i_snowflake,
 }
 
 

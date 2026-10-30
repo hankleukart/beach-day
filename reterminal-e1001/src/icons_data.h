@@ -232,6 +232,84 @@ static const IcCmd IC_sunset[] PROGMEM = {
   { IC_LINE, 0, 4, IC_sunset_v + 17 },
   { IC_LINE, 0, 4, IC_sunset_v + 21 },
 };
+static const int16_t IC_sandals_v[] PROGMEM = { 28, 10, 68, 88, 28, 10, 68, 88, 48, 26, 33, 54, 48, 26, 63, 54, 48, 26, 4 };
+static const IcCmd IC_sandals[] PROGMEM = {
+  { IC_ELLIPSE_FILL, 2, 4, IC_sandals_v + 0 },
+  { IC_ELLIPSE, 0, 4, IC_sandals_v + 4 },
+  { IC_LINE, 0, 4, IC_sandals_v + 8 },
+  { IC_LINE, 0, 4, IC_sandals_v + 12 },
+  { IC_DISC, 0, 3, IC_sandals_v + 16 },
+};
+static const int16_t IC_cap_v[] PROGMEM = { 40, 62, 26, 180, 360, 40, 62, 26, 180, 360, 14, 62, 66, 62, 62, 55, 88, 60, 88, 68, 62, 66, 40, 34, 4 };
+static const IcCmd IC_cap[] PROGMEM = {
+  { IC_PIE, 4, 5, IC_cap_v + 0 },
+  { IC_ARC, 0, 5, IC_cap_v + 5 },
+  { IC_LINE, 0, 4, IC_cap_v + 10 },
+  { IC_POLY, 0, 8, IC_cap_v + 14 },
+  { IC_DISC, 0, 3, IC_cap_v + 22 },
+};
+static const int16_t IC_sunglasses_v[] PROGMEM = { 10, 36, 44, 62, 10, 52, 36, 86, 62, 10, 44, 43, 52, 43, 10, 41, 6, 30, 86, 41, 90, 30 };
+static const IcCmd IC_sunglasses[] PROGMEM = {
+  { IC_RRECT_FILL, 0, 5, IC_sunglasses_v + 0 },
+  { IC_RRECT_FILL, 0, 5, IC_sunglasses_v + 5 },
+  { IC_LINE, 0, 4, IC_sunglasses_v + 10 },
+  { IC_LINE, 0, 4, IC_sunglasses_v + 14 },
+  { IC_LINE, 0, 4, IC_sunglasses_v + 18 },
+};
+static const int16_t IC_gloves_v[] PROGMEM = { 6, 1, 26, 16, 35, 56, 4, 1, 37, 10, 46, 56, 4, 1, 48, 12, 57, 56, 4, 1, 59, 20, 68, 56, 4, 1, 26, 44, 68, 84, 10, 1, 12, 46, 28, 60, 7, 6, 1, 26, 16, 35, 56, 4, 1, 37, 10, 46, 56, 4, 1, 48, 12, 57, 56, 4, 1, 59, 20, 68, 56, 4, 1, 26, 44, 68, 84, 10, 1, 12, 46, 28, 60, 7, 27, 72, 67, 72 };
+static const IcCmd IC_gloves[] PROGMEM = {
+  { IC_UNION_FILL, 5, 37, IC_gloves_v + 0 },
+  { IC_UNION_OUTLINE, 0, 37, IC_gloves_v + 37 },
+  { IC_LINE, 0, 4, IC_gloves_v + 74 },
+};
+static const int16_t IC_snow_boot_v[] PROGMEM = { 24, 30, 56, 30, 56, 54, 82, 64, 84, 82, 20, 82, 20, 30, 24, 30, 56, 30, 56, 54, 82, 64, 84, 82, 20, 82, 20, 30, 16, 16, 64, 34, 9, 16, 16, 64, 34, 9, 28, 23, 28, 27, 40, 23, 40, 27, 52, 23, 52, 27, 20, 73, 84, 73 };
+static const IcCmd IC_snow_boot[] PROGMEM = {
+  { IC_POLY_FILL, 3, 14, IC_snow_boot_v + 0 },
+  { IC_POLY, 0, 14, IC_snow_boot_v + 14 },
+  { IC_RRECT_FILL, 1, 5, IC_snow_boot_v + 28 },
+  { IC_RRECT, 0, 5, IC_snow_boot_v + 33 },
+  { IC_LINE, 0, 4, IC_snow_boot_v + 38 },
+  { IC_LINE, 0, 4, IC_snow_boot_v + 42 },
+  { IC_LINE, 0, 4, IC_snow_boot_v + 46 },
+  { IC_LINE, 0, 4, IC_snow_boot_v + 50 },
+};
+static const int16_t IC_snow_pants_v[] PROGMEM = { 26, 30, 70, 30, 74, 86, 54, 86, 48, 56, 42, 86, 22, 86, 26, 30, 70, 30, 74, 86, 54, 86, 48, 56, 42, 86, 22, 86, 34, 14, 62, 30, 4, 35, 15, 28, 6, 61, 15, 68, 6 };
+static const IcCmd IC_snow_pants[] PROGMEM = {
+  { IC_POLY_FILL, 3, 14, IC_snow_pants_v + 0 },
+  { IC_POLY, 0, 14, IC_snow_pants_v + 14 },
+  { IC_RRECT, 0, 5, IC_snow_pants_v + 28 },
+  { IC_LINE, 0, 4, IC_snow_pants_v + 33 },
+  { IC_LINE, 0, 4, IC_snow_pants_v + 37 },
+};
+static const int16_t IC_backpack_v[] PROGMEM = { 24, 24, 72, 86, 14, 24, 24, 72, 86, 14, 48, 24, 10, 180, 360, 33, 58, 63, 77, 6 };
+static const IcCmd IC_backpack[] PROGMEM = {
+  { IC_RRECT_FILL, 4, 5, IC_backpack_v + 0 },
+  { IC_RRECT, 0, 5, IC_backpack_v + 5 },
+  { IC_ARC, 0, 5, IC_backpack_v + 10 },
+  { IC_RRECT, 0, 5, IC_backpack_v + 15 },
+};
+static const int16_t IC_snowflake_v[] PROGMEM = { 48, 48, 7, 48, 48, 48, 12, 48, 26, 40, 17, 48, 26, 56, 17, 48, 48, 79, 30, 67, 37, 71, 26, 67, 37, 79, 39, 48, 48, 79, 66, 67, 59, 79, 57, 67, 59, 71, 70, 48, 48, 48, 84, 48, 70, 56, 79, 48, 70, 40, 79, 48, 48, 17, 66, 29, 59, 25, 70, 29, 59, 17, 57, 48, 48, 17, 30, 29, 37, 17, 39, 29, 37, 25, 26 };
+static const IcCmd IC_snowflake[] PROGMEM = {
+  { IC_DISC, 3, 3, IC_snowflake_v + 0 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 3 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 7 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 11 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 15 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 19 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 23 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 27 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 31 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 35 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 39 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 43 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 47 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 51 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 55 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 59 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 63 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 67 },
+  { IC_LINE, 0, 4, IC_snowflake_v + 71 },
+};
 
 static const IconDef ICON_DEFS[] PROGMEM = {
   { "sun", IC_sun, 10 },
@@ -262,5 +340,13 @@ static const IconDef ICON_DEFS[] PROGMEM = {
   { "mittens", IC_mittens, 3 },
   { "scarf", IC_scarf, 10 },
   { "sunset", IC_sunset, 6 },
+  { "sandals", IC_sandals, 5 },
+  { "cap", IC_cap, 5 },
+  { "sunglasses", IC_sunglasses, 5 },
+  { "gloves", IC_gloves, 3 },
+  { "snow_boot", IC_snow_boot, 8 },
+  { "snow_pants", IC_snow_pants, 5 },
+  { "backpack", IC_backpack, 4 },
+  { "snowflake", IC_snowflake, 19 },
 };
 static const int ICON_DEF_COUNT = sizeof(ICON_DEFS) / sizeof(ICON_DEFS[0]);

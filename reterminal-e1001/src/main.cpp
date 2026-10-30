@@ -67,6 +67,26 @@ static void clearBootFailures() {
   p.end();
 }
 
+// The day's pinned outcome, in NVS so a reboot or a flat battery mid-morning
+// does not re-decide the day from whatever the forecast says by then.
+static day::DayPin loadPin() {
+  day::DayPin pin;
+  Preferences p;
+  if (p.begin("beachday", true)) {
+    pin.epochDay = p.getLong("pinDay", -1);
+    p.getString("pinId", pin.id, sizeof(pin.id));
+    p.end();
+  }
+  return pin;
+}
+static void savePin(const day::DayPin& pin) {
+  Preferences p;
+  if (!p.begin("beachday", false)) return;
+  p.putLong("pinDay", pin.epochDay);
+  p.putString("pinId", pin.id);
+  p.end();
+}
+
 struct LocalClock {
   time_t utc = 0; int32_t off = 0; long days = 0;
   int minuteOfDay = 0, secondOfMinute = 0;
@@ -101,8 +121,16 @@ static LocalClock makeClock(time_t utc, int32_t off) {
   return c;
 }
 
+// The evening flip: an hour after sunset the screen stops planning today and
+// starts planning tomorrow. Clamped to the last minute of the day so a sunset
+// close to midnight still flips before the date rolls over by itself.
+static int eveningFlipMinute(int sunsetMin) {
+  int m = sunsetMin + 60;
+  return m > 1439 ? 1439 : m;
+}
+
 // Sleep until the next regular interval or the next moment the screen would
-// change (sunrise, the evening flip to tomorrow, sunset, a parking cutoff).
+// change (sunrise, sunset, the evening flip to tomorrow, a parking cutoff).
 static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, const Settings& s) {
   const int now = lc.minuteOfDay;
   int sunrise = raw.day[0].sunriseMin, sunset = raw.day[0].sunsetMin;
@@ -110,7 +138,7 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, con
   bool dayPeriod = !sunKnown || (now >= sunrise - 60 && now < sunset);
   int next = now + (dayPeriod ? s.wakeDayMinutes : s.wakeNightMinutes);
   auto consider = [&](int b) { if (b > now && b + 1 < next) next = b + 1; };
-  if (sunKnown) { consider(sunrise); consider(sunset - 60); consider(sunset); consider(sunrise + 1440); }
+  if (sunKnown) { consider(sunrise); consider(sunset); consider(eveningFlipMinute(sunset)); consider(sunrise + 1440); }
   for (int i = 0; i < s.parkingCount; i++) {
     const beach::ParkingRule& r = s.parking[i];
     if (!r.enabled) continue;
@@ -281,10 +309,10 @@ void setup() {
   }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
 
-  // After the evening flip (sunset - 1h) the screen plans tomorrow. Before
-  // dawn it still shows today: "Thursday" at 5 AM Thursday is right.
+  // After the evening flip (an hour past sunset) the screen plans tomorrow.
+  // Before dawn it still shows today: "Thursday" at 5 AM Thursday is right.
   int sunset = f.raw.day[0].sunsetMin;
-  bool tomorrow = (sunset > 0 && lc.minuteOfDay >= sunset - 60 && f.raw.day[1].valid);
+  bool tomorrow = (sunset > 0 && lc.minuteOfDay >= eveningFlipMinute(sunset) && f.raw.day[1].valid);
   int d = tomorrow ? 1 : 0;
 
   day::Inputs& in = g_inputs;
@@ -306,6 +334,26 @@ void setup() {
 
   static ViewModel vm;           // ~1.4 KB
   vm.valid = spec().evaluate(in, vm.screen, s.locationName, tomorrow);
+
+  // Decide the day once, at the first look from an hour before sunrise, and
+  // hold it: the forecast high wobbling a degree across a line should not
+  // repaint the day under whoever is reading it. Rain and snow (breaks_pin in
+  // the rules) still get through. Tomorrow's evening preview is never pinned.
+  if (vm.valid) {
+    const int sunrise = f.raw.day[0].sunriseMin > 0 ? f.raw.day[0].sunriseMin : day::FALLBACK_START_HOUR * 60;
+    const bool pinnable = !tomorrow && lc.minuteOfDay >= sunrise - 60;
+    day::DayPin pin = loadPin();
+    char show[24], live[24];
+    snprintf(live, sizeof(live), "%s", vm.screen.outcome.id);
+    if (day::resolvePin(spec(), pin, in.epochDay, pinnable, live, show, sizeof(show))) {
+      savePin(pin);
+      Serial.printf("[pin] %s pinned for the day\n", pin.id);
+    }
+    if (strcmp(show, live) != 0) {
+      vm.valid = spec().evaluate(in, vm.screen, s.locationName, tomorrow, show);
+      Serial.printf("[pin] holding %s (the forecast now says %s)\n", show, live);
+    }
+  }
   if (!vm.valid) {
     renderMessage("Rules problem", "The rules file loaded but produced no outcome.", "Check shared/v3/day-outcomes.toml.");
     sleepNow(3600);
@@ -314,8 +362,12 @@ void setup() {
   beach::ParkingInput pin{ (int16_t)lc.minuteOfDay, (int8_t)lc.dow, (int8_t)lc.dom,
                            (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset };
   beach::ParkingAlert pa = beach::evaluateParking(s.parking, s.parkingCount, pin);
-  vm.parkingActive = pa.active;
-  snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", pa.text);
+  // Street cleaning, else the weekly reminder. By the clock, not the forecast:
+  // on trash night the bar stays up after the evening flip to tomorrow.
+  const char* bar = beach::barText(pa, s.reminder, lc.dow);
+  const bool reminding = bar && !pa.active;
+  vm.parkingActive = bar != nullptr;
+  snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", bar ? bar : "");
 
   // "9:40a", matching the stat tiles: the corner is a quiet aside, not a
   // heading. (The OFFLINE stamp slices this at "Updated ", 8 characters.)
@@ -328,7 +380,7 @@ void setup() {
 
   Serial.printf("[beach] local %02d:%02d %s dom %d (offset %ld, %s)%s\n", lc.minuteOfDay / 60, lc.minuteOfDay % 60,
                 day::weekdayName(lc.dow), lc.dom, (long)f.utcOffsetSec, clockOk ? "ntp" : "model time",
-                pa.active ? "  PARKING" : "");
+                pa.active ? "  PARKING" : reminding ? "  REMINDER" : "");
   logScreen(vm.screen, in);
 
   Serial.printf("[beach] free heap %u, stack headroom %u bytes\n",

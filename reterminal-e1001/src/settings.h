@@ -4,6 +4,7 @@
 #pragma once
 #include <cstdint>
 #include "parking.h"
+#include "reminder.h"
 
 struct Settings {
   char   ssid[33]     = "";
@@ -30,6 +31,7 @@ struct Settings {
   uint16_t rulesCheckHours = 24;
   beach::ParkingRule parking[2] = {};
   int    parkingCount = 0;
+  beach::Reminder reminder;   // weekly footer reminder (trash night)
 
   bool configured() const;    // false while ssid is empty or the placeholder
   bool needsGeocode() const;  // a place was typed but never resolved
@@ -46,6 +48,7 @@ struct PortalInput {
   char countryCode[4] = "";
   char label[24] = "";
   beach::ParkingRule parking[2] = {};
+  beach::Reminder reminder;
 };
 bool savePortalInput(const PortalInput& in);
 void saveResolvedLocation(double lat, double lon, const char* shortName);

@@ -17,10 +17,11 @@ icons = [
   "swim_trunks", "towel", "water_bottle", "tshirt", "shorts",
   "sneaker", "sweater", "hoodie", "jacket", "long_pants",
   "raincoat", "rain_boot", "umbrella", "puffy_coat", "beanie",
-  "mittens", "scarf", "sunset",
+  "mittens", "scarf", "sunset", "sandals", "cap", "sunglasses", "gloves",
+  "snow_boot", "snow_pants", "backpack", "snowflake",
 ]
 
-version = "2.3"
+version = "3.0"
 name = "Beach Day Outcomes"
 
 
@@ -108,224 +109,397 @@ nth = 1   # 1st Monday of September
 
 
 # ─── Clothing ────────────────────────────────────────────────────────────
-# The catalogue outcomes pick from. Add a line to add an option; `icon` must
-# be one of the names in [icons] at the bottom.go a
+# The catalogue outcomes pick from. Each item is written as it appears on its
+# tile - "Rain boots" - and an outcome's `wear` lists items by that same name.
+# `icon` must be one of the names in `icons` at the top. A label is one tile, 101px wide: about 12 characters
+# fit at full size, and longer ones shrink to fit - keep everything above
+# 12px, roughly 17 characters, or it gets hard to read across a room.
+#
+# `whimsy` is the sillier take on the same thing. Now and then one tile on
+# the screen swaps to one of them (see [whimsy] below). The rule for adding
+# one: it has to do the original's job. Bellbottoms are still light pants;
+# a duck umbrella still keeps you dry. A parasol is not an umbrella. The
+# tile keeps the original's icon, so the picture stays true either way.
 
 [wear]
-hoodie       = { label = "Hoodie", icon = "hoodie" }
-jacket       = { label = "Jacket", icon = "jacket" }
-long_pants   = { label = "Long pants", icon = "long_pants" }
-long_sleeves = { label = "Long sleeves", icon = "sweater" }
-mittens      = { label = "Mittens", icon = "mittens" }
-puffy_coat   = { label = "Puffy coat", icon = "puffy_coat" }
-rain_boots   = { label = "Rain boots", icon = "rain_boot" }
-raincoat     = { label = "Raincoat", icon = "raincoat" }
-scarf        = { label = "Scarf", icon = "scarf" }
-shorts       = { label = "Shorts", icon = "shorts" }
-sneakers     = { label = "Sneakers", icon = "sneaker" }
-sun_hat      = { label = "Sun hat", icon = "sun_hat" }
-sunscreen    = { label = "Sunscreen", icon = "sunscreen" }
-swimsuit     = { label = "Swimsuit", icon = "swim_trunks" }
-t_shirt      = { label = "T-shirt", icon = "tshirt" }
-towel        = { label = "Towel", icon = "towel" }
-umbrella     = { label = "Umbrella", icon = "umbrella" }
-warm_hat     = { label = "Warm hat", icon = "beanie" }
-warm_layer   = { label = "Warm layer", icon = "sweater" }
-water_bottle = { label = "Water bottle", icon = "water_bottle" }
+# Tops
+"T-shirt"           = { icon = "tshirt",       whimsy = ["Tie-dye tee", "Rocket ship tee"] }
+"Light T-shirt"     = { icon = "tshirt",       whimsy = ["Hawaiian shirt", "Mesh jersey"] }
+"Long sleeves"      = { icon = "sweater",      whimsy = ["Rugby shirt", "Striped long tee"] }
+"Sweater"           = { icon = "sweater",      whimsy = ["Ugly sweater", "Fisherman knit"] }
+"Hoodie"            = { icon = "hoodie",       whimsy = ["Dino hoodie", "Bear-ear hoodie"] }
+"Light hoodie"      = { icon = "hoodie",       whimsy = ["Varsity hoodie", "Retro track top"] }
+# Jackets and coats
+"Light jacket"      = { icon = "jacket",       whimsy = ["Denim jacket", "Bomber jacket"] }
+"Windbreaker"       = { icon = "jacket",       whimsy = ["80s windbreaker", "Neon anorak"] }
+"Rain jacket"       = { icon = "raincoat",     whimsy = ["Duck raincoat", "Fisherman slicker"] }
+"Waterproof coat"   = { icon = "raincoat",   whimsy = ["Captain's slicker", "Sailor slicker"] }
+"Waterproof parka"  = { icon = "puffy_coat", whimsy = ["Storm parka", "Expedition parka"] }
+"Warm coat"         = { icon = "puffy_coat",   whimsy = ["Teddy bear coat", "Sherpa coat"] }
+"Winter coat"       = { icon = "puffy_coat",   whimsy = ["Explorer parka", "Duvet coat"] }
+# Bottoms
+"Shorts"            = { icon = "shorts",       whimsy = ["Board shorts", "Flamingo shorts"] }
+"Light pants"       = { icon = "long_pants",   whimsy = ["Bellbottoms", "Parachute pants"] }
+"Long pants"        = { icon = "long_pants",   whimsy = ["Corduroys", "Overalls"] }
+"Snow pants"        = { icon = "snow_pants",   whimsy = ["Puffy overalls", "Ski bibs"] }
+# Shoes
+"Sandals"           = { icon = "sandals",      whimsy = ["Jelly sandals", "Gladiator sandals"] }
+"Water sandals"     = { icon = "sandals",      whimsy = ["Pool slides", "Reef walkers"] }
+"Sneakers"          = { icon = "sneaker",      whimsy = ["Glow sneakers", "High-tops"] }
+"Rain boots"        = { icon = "rain_boot",    whimsy = ["Frog rain boots", "Wellies"] }
+"Waterproof boots"  = { icon = "rain_boot", whimsy = ["Duck boots", "Galoshes"] }
+"Snow boots"        = { icon = "snow_boot",    whimsy = ["Moon boots", "Yeti boots"] }
+"Warm boots"        = { icon = "snow_boot",    whimsy = ["Fuzzy boots", "Mukluks"] }
+# Hats
+"Cap"               = { icon = "cap",          whimsy = ["Captain's hat", "Retro racing cap"] }
+"Cap with strap"    = { icon = "cap",         whimsy = ["Safari hat", "Lifeguard hat"] }
+"Sun hat"           = { icon = "sun_hat",      whimsy = ["Retro trucker hat", "Straw cowboy hat"] }
+"Warm hat"          = { icon = "beanie",       whimsy = ["Pom-pom beanie", "Gnome hat"] }
+"Hat over ears"     = { icon = "beanie",       whimsy = ["Trapper hat", "Aviator hat"] }
+# Hands, neck, face
+"Gloves"            = { icon = "gloves",       whimsy = ["Monster gloves", "Skeleton gloves"] }
+"Ski gloves"        = { icon = "gloves",   whimsy = ["Snowball gloves", "Astronaut gloves"] }
+"Mittens"           = { icon = "mittens",      whimsy = ["Fox mittens", "Lobster mitts"] }
+"Snow mittens"      = { icon = "mittens",      whimsy = ["Penguin mittens", "Yeti mittens"] }
+"Scarf"             = { icon = "scarf",        whimsy = ["Extra-long scarf", "Rainbow scarf"] }
+"Scarf over face"   = { icon = "scarf",      whimsy = ["Bandit scarf", "Ninja scarf"] }
+# Gear
+"Sunglasses"        = { icon = "sunglasses",   whimsy = ["Heart sunglasses", "Aviators"] }
+"Snow goggles"      = { icon = "sunglasses",   whimsy = ["Mirror goggles", "Glacier glasses"] }
+"Sunscreen"         = { icon = "sunscreen",    whimsy = ["Lifeguard zinc", "Zinc war paint"] }
+"Water bottle"      = { icon = "water_bottle", whimsy = ["Explorer canteen", "Giant water jug"] }
+"Umbrella"          = { icon = "umbrella",     whimsy = ["Duck umbrella", "Bubble umbrella"] }
+"Backpack"          = { icon = "backpack",     whimsy = ["Rocket backpack", "Turtle backpack"] }
+
+# About one day in `one_in`, one tile swaps to a whimsical alternative. Which
+# day, which tile and which alternative are all fixed by the date, so it
+# holds all day and a second look at lunch says the same thing. Delete the
+# table to turn whimsy off.
+[whimsy]
+one_in = 3
 
 
 # ─── Outcomes ────────────────────────────────────────────────────────────
-# Checked top to bottom; the first whose `when` passes wins, so the last one
-# must have no `when` at all. Every condition in the list must pass.
+# Two questions, in this order:
 #
-# A condition is three words: a field, an operator, a number. Listing the same
-# field twice makes a band - "tempMax >= 65", "tempMax < 75".
+#   1. How warm does it get?  tempMax picks the band.
+#        HOT 78°+   WARM 65-77°   COOL 50-64°   COLD 32-49°   FREEZING under 32°
 #
-# A matching outcome then picks one VARIANT for the day - the same one all
-# day, a different one tomorrow. Two ways to write them, and you can mix:
+#   2. What else is going on? Inside a band, the first of these that is true
+#      decides the extras:
+#        snowy      snow >= 1      any daylight hour forecast as snow
+#        rainy      rain >= 50     some hour is 50% or likelier
+#        windy      wind >= 20     the WIND tile's "Gusty"
+#        swingy     swing >= 20    cold now, warm later: 20° between morning and afternoon
+#        very sunny cloud <= 15    near-cloudless all day
+#        clear      none of the above - the band's plain day
 #
-#   names = ["Puddle Day", "Splashy Day"]   just a different name
+# So it is one outcome per square of that grid: 5 bands x 6 conditions,
+# less the three squares too warm to snow, which leaves 27. They are
+# written band by band, top to bottom; within a band, in the order above,
+# because the first `when` that passes wins.
 #
-#   [[outcome.variant]]                     a different day entirely
-#   name = "Umbrella Day"
-#   icon = "umbrella"
-#   wear = [...]
+# The day's outcome is pinned at the first look from an hour before sunrise
+# and held all day, so a forecast high wobbling a degree across a line does
+# not repaint the day under whoever is reading it. Numbers on the tiles keep
+# updating; the outcome and its name do not. Only an outcome marked
+# `breaks_pin = true` - the rain and snow squares - can replace a pinned day,
+# because "take the raincoat after all" is worth interrupting for. The
+# evening preview of tomorrow is never pinned; tomorrow pins in the morning.
 #
-# A variant inherits anything it does not set from the outcome, so put the
-# shared values once at the top and only write what actually differs.
+# Every condition in a `when` must pass. The very last outcome has no `when`
+# at all - it is the catch-all - and since every band above it ends in its
+# own "clear" outcome, the only days left by then are freezing and clear.
+#
+# Colour (the E1002's hero panel) is a three-word vocabulary, so each ink
+# keeps one meaning: yellow is the beach day, blue is wet - rain or snow, take
+# the gear - and red is genuinely cold. Everything else stays black and white.
+#
+# The day's name is one of three kinds, and each has its own place to live:
+#
+#   places = ["Beach"]       somewhere you normally can't go, that today you should
+#   things = ["Kite"]        what you need for something only this weather allows
+#   "*Umbrella" in `wear`    the most important thing you'll wear for the weather
+#
+# Write the bare noun; " Day" is added. A starred wear item names the day
+# after whatever its tile says today, so on a whimsy day the duck umbrella
+# makes it Duck Umbrella Day - and the hero shows that tile's icon. An
+# outcome's own `icon` is what the hero shows for its places and things. All of an outcome's places, things and starred
+# items form its pool, and one is picked per day: the same one all day, a
+# different one tomorrow. Anything written as {field} in `also` is
+# filled in from the forecast - {tempMin}, {tempMax}, {wind} and so on.
+
+# ── HOT · 78° and up ──
 
 [[outcome]]
-id      = "rain_day"
-when    = ["rain >= 50"]
-names   = ["Rain Boots Day", "Puddle Day", "Splashy Day"]
+id      = "hot_rain"
+when    = ["tempMax >= 78", "rain >= 50"]
+things  = ["Paper Boat"]
+tagline = "WARM AND WET"
+icon    = "umbrella"
+color   = "blue"
+breaks_pin = true
+wear    = ["T-shirt", "Shorts", "Water sandals", "*Umbrella"]
+also    = "Also grab: a towel. Warm rain is still rain."
+
+[[outcome]]
+id      = "hot_windy"
+when    = ["tempMax >= 78", "wind >= 20"]
+things  = ["Kite", "Sailboat"]
+tagline = "HOLD ON TO YOUR HAT"
+icon    = "wind"
+wear    = ["T-shirt", "Shorts", "Sneakers", "Cap with strap"]
+also    = "Also grab: the hat with the strap. Gusts up to {wind} mph."
+
+[[outcome]]
+id      = "hot_swing"
+when    = ["tempMax >= 78", "swing >= 20"]
+tagline = "CHILLY NOW, HOT LATER"
+icon    = "backpack"
+wear    = ["T-shirt", "Shorts", "*Light hoodie", "Backpack"]
+also    = "Also grab: hoodie on for the walk, in the backpack by lunch. {tempMin}° to {tempMax}°."
+
+[[outcome]]
+id      = "hot_sunny"
+when    = ["tempMax >= 78", "cloud <= 15"]
+places  = ["Beach", "Pool"]
+tagline = "SUN ALL DAY"
+icon    = "sun_and_waves"
+color   = "yellow"
+is_beach_day = true
+wear    = ["Light T-shirt", "Shorts", "*Sun hat", "Sunscreen"]
+also    = "Also grab: more sunscreen after lunch."
+
+[[outcome]]
+id      = "hot_clear"
+when    = ["tempMax >= 78"]
+places  = ["Splash Pad"]
+things  = ["Sprinkler", "Water Balloon"]
+tagline = "STAY COOL OUT THERE"
+icon    = "sun"
+wear    = ["T-shirt", "Shorts", "Sandals", "Water bottle"]
+also    = "Also grab: a refill. It gets to {tempMax}°."
+
+# ── WARM · 65° to 77° ──
+
+[[outcome]]
+id      = "warm_rain"
+when    = ["tempMax >= 65", "tempMax < 78", "rain >= 50"]
 tagline = "PUDDLES AHEAD"
 icon    = "rain_boot"
 color   = "blue"
-wear    = ["rain_boots", "raincoat", "umbrella", "warm_layer"]
+breaks_pin = true
+wear    = ["T-shirt", "Light pants", "*Rain jacket", "*Rain boots"]
 also    = "Also grab: dry socks for the backpack."
 
-[[outcome.variant]]
-name    = "Umbrella Day"
-icon    = "umbrella"
-tagline = "KEEP IT OVERHEAD"
-wear    = ["umbrella", "raincoat", "rain_boots", "long_pants"]
-also    = "Also grab: somewhere by the door to stand it while it drips."
-
-[[outcome.variant]]
-name    = "Raincoat Day"
-icon    = "raincoat"
-color   = "yellow"
-tagline = "HOOD UP"
-wear    = ["raincoat", "rain_boots", "long_pants", "warm_hat"]
-also    = "Also grab: the hood actually goes up today."
+[[outcome]]
+id      = "warm_windy"
+when    = ["tempMax >= 65", "tempMax < 78", "wind >= 20"]
+things  = ["Pinwheel"]
+tagline = "ZIP IT UP"
+icon    = "wind"
+wear    = ["T-shirt", "Light pants", "*Windbreaker", "Sneakers"]
+also    = "Also grab: zip the jacket. Gusts up to {wind} mph."
 
 [[outcome]]
-id      = "big_coat_day"
-when    = ["tempMax < 52"]
-names   = ["Big Coat Day", "Frosty Day"]
-tagline = "HATS AND MITTENS"
-icon    = "puffy_coat"
-color   = "red"
-wear    = ["puffy_coat", "warm_hat", "mittens", "scarf"]
-also    = "Also grab: warm socks, and tuck a hat in every pocket."
-
-[[outcome.variant]]
-name    = "Mittens Day"
-icon    = "mittens"
-tagline = "FINGERS FIRST"
-wear    = ["mittens", "puffy_coat", "warm_hat", "long_pants"]
-also    = "Also grab: the spare pair, because one always goes missing."
-
-[[outcome.variant]]
-name    = "Scarf Day"
-icon    = "scarf"
-tagline = "WRAP UP WELL"
-wear    = ["scarf", "puffy_coat", "warm_hat", "mittens"]
-also    = "Also grab: something warm to drink on the way."
-
-[[outcome.variant]]
-name    = "Bundle Up Day"
-icon    = "beanie"
-tagline = "EVERY LAYER"
-wear    = ["warm_hat", "puffy_coat", "scarf", "long_pants"]
-also    = "Also grab: patience for the getting-dressed part."
-
-[[outcome]]
-id      = "beach_day"
-when    = [
-  "tempMax >= 78",
-  "rain <= 20",
-  "wind <= 15",
-  "aqi < 100",
-  "cloud <= 35",
-]
-names   = ["Beach Day", "Sandcastle Day", "Seashell Day"]
-tagline = "PACK THE CAR"
-icon    = "sun_and_waves"
-color   = "yellow"
-wear    = ["swimsuit", "sun_hat", "sunscreen", "towel"]
-also    = "Also grab: water bottles and something for shade."
-is_beach_day = true   # the day other outcomes measure themselves against
-
-[[outcome.variant]]
-name    = "Swimsuit Day"
-icon    = "swim_trunks"
-tagline = "DIVE IN"
-wear    = ["swimsuit", "towel", "sunscreen", "water_bottle"]
-also    = "Also grab: a dry set of clothes for the ride home."
-
-[[outcome.variant]]
-name    = "Towel Day"
-icon    = "towel"
-tagline = "FIND A SPOT"
-wear    = ["towel", "swimsuit", "sun_hat", "sunscreen"]
-also    = "Also grab: something to weigh the corners down."
-
-[[outcome]]
-id      = "sun_hat_day"
-when    = ["tempMax >= 78"]
-names   = ["Sun Hat Day", "Shady Day"]
-tagline = "STAY IN THE SHADE"
-icon    = "sun_hat"
-wear    = ["sun_hat", "t_shirt", "sunscreen", "water_bottle"]
-also    = "Hot one today — shade and refills."
-
-[[outcome.variant]]
-name    = "Lemonade Day"
-icon    = "water_bottle"
-tagline = "KEEP SIPPING"
-wear    = ["water_bottle", "sun_hat", "t_shirt", "shorts"]
-also    = "Also grab: more water than you think you need."
-
-[[outcome.variant]]
-name    = "Sunscreen Day"
-icon    = "sunscreen"
-tagline = "REAPPLY AT LUNCH"
-wear    = ["sunscreen", "sun_hat", "t_shirt", "sneakers"]
-also    = "Also grab: the stick one for faces, it is less of a fight."
-
-# Shown instead of `also` when that specific beach-day test is what failed.
-[outcome.also_when_failed]
-wind  = "Too windy at the water today — the shady park is the better pick."
-aqi   = "The air is hazy today — keep it short outside and shady."
-cloud = "Grey overhead but still hot — sunscreen anyway, it burns through."
-rain  = "Hot with a shower possible — shade now, umbrella nearby."
-
-[[outcome]]
-id      = "layers_day"
-when    = ["swing >= 22"]
-names   = ["Layers Day", "Zip Up Day"]
-tagline = "PEEL THEM OFF LATER"
+id      = "warm_swing"
+when    = ["tempMax >= 65", "tempMax < 78", "swing >= 20"]
+tagline = "HOODIE NOW, NOT LATER"
 icon    = "hoodie"
-wear    = ["t_shirt", "hoodie", "long_pants", "sneakers"]
-also    = "It warms up {swing} degrees today — pack somewhere to stash the hoodie."
-
-[[outcome.variant]]
-name    = "Hoodie Day"
-icon    = "hoodie"
-tagline = "ON THEN OFF"
-wear    = ["hoodie", "t_shirt", "long_pants", "sneakers"]
-also    = "Also grab: a bag with room for it by lunchtime."
-
-[[outcome.variant]]
-name    = "Sweater Day"
-icon    = "sweater"
-tagline = "WARMS UP LATER"
-wear    = ["long_sleeves", "t_shirt", "long_pants", "sneakers"]
-also    = "Also grab: short sleeves underneath, it is coming off."
+wear    = ["T-shirt", "Light pants", "*Hoodie", "Sneakers"]
+also    = "Also grab: the hoodie comes off by lunch. {tempMin}° to {tempMax}°."
 
 [[outcome]]
-id      = "tshirt_day"
-when    = ["tempMax >= 68"]
-names   = ["T-Shirt Day", "Park Day"]
+id      = "warm_sunny"
+when    = ["tempMax >= 65", "tempMax < 78", "cloud <= 15"]
+things  = ["Frisbee", "Picnic Blanket"]
+tagline = "BRIGHT ALL DAY"
+icon    = "sunglasses"
+wear    = ["T-shirt", "Shorts", "Sunscreen", "*Sunglasses"]
+also    = "Also grab: sunscreen on the back of the neck."
+also_near_beach        = "{degreesShort}° short of a beach day. Lovely for the park, chilly in the water."
+also_near_beach_within = 5
+
+[[outcome]]
+id      = "warm_clear"
+when    = ["tempMax >= 65", "tempMax < 78"]
+things  = ["Sidewalk Chalk"]
 tagline = "SHORTS WEATHER"
 icon    = "tshirt"
-wear    = ["t_shirt", "shorts", "sneakers", "sun_hat"]
-also    = "Also grab: a light sweater for after dinner."
-also_near_beach        = "{degreesShort} degrees short of a beach day — lovely for the park, chilly in the water."
-also_near_beach_within = 6
+wear    = ["*T-shirt", "*Shorts", "Sneakers", "Cap"]
+also    = "Also grab: light pants instead, if the morning is chilly."
+also_near_beach        = "{degreesShort}° short of a beach day. Lovely for the park, chilly in the water."
+also_near_beach_within = 5
 
-[[outcome.variant]]
-name    = "Shorts Day"
-icon    = "shorts"
-tagline = "LEGS OUT"
-wear    = ["shorts", "t_shirt", "sneakers", "sun_hat"]
-also    = "Also grab: sunscreen on the backs of the knees."
+# ── COOL · 50° to 64° ──
 
 [[outcome]]
-id      = "jacket_day"
-names   = ["Jacket Day"]
+id      = "cool_rain"
+when    = ["tempMax >= 50", "tempMax < 65", "rain >= 50"]
+tagline = "HOOD UP"
+icon    = "raincoat"
+color   = "blue"
+breaks_pin = true
+wear    = ["Long sleeves", "Long pants", "*Rain jacket", "*Rain boots"]
+also    = "Also grab: the hood goes up today. It's a cool rain."
+
+[[outcome]]
+id      = "cool_windy"
+when    = ["tempMax >= 50", "tempMax < 65", "wind >= 20"]
+things  = ["Kite"]
+tagline = "CHILLY GUSTS"
+icon    = "wind"
+wear    = ["Long sleeves", "Long pants", "*Windbreaker", "Sneakers"]
+also    = "Also grab: zip the windbreaker to the top. Gusts up to {wind} mph."
+
+[[outcome]]
+id      = "cool_swing"
+when    = ["tempMax >= 50", "tempMax < 65", "swing >= 20"]
+tagline = "LAYER ON, LAYER OFF"
+icon    = "jacket"
+wear    = ["T-shirt", "*Hoodie", "*Light jacket", "Long pants"]
+also    = "Also grab: hoodie and jacket on top, off one at a time. {tempMin}° to {tempMax}°."
+
+[[outcome]]
+id      = "cool_sunny"
+when    = ["tempMax >= 50", "tempMax < 65", "cloud <= 15"]
+tagline = "COOL BUT BRIGHT"
+icon    = "sun"
+wear    = ["*Long sleeves", "Long pants", "*Sunglasses", "Sunscreen"]
+also    = "Also grab: sunscreen. Cool air still burns."
+
+[[outcome]]
+id      = "cool_clear"
+when    = ["tempMax >= 50", "tempMax < 65"]
 tagline = "GRAB ONE BY THE DOOR"
 icon    = "jacket"
-wear    = ["jacket", "long_sleeves", "long_pants", "sneakers"]
-also    = "Also grab: a hoodie for the ride home — it cools off fast."
+wear    = ["Long sleeves", "*Long pants", "*Light jacket", "Sneakers"]
+also    = "Also grab: a hoodie works too, if it's the one that gets worn."
 
-[[outcome.variant]]
-name    = "Long Sleeves Day"
+# ── COLD · 32° to 49° ──
+
+[[outcome]]
+id      = "cold_snow"
+when    = ["tempMax >= 32", "tempMax < 50", "snow >= 1"]
+places  = ["Sledding Hill"]
+things  = ["Sled"]
+tagline = "BOOTS ON, GLOVES ON"
+icon    = "snowflake"
+color   = "blue"
+breaks_pin = true
+wear    = ["Warm coat", "*Snow boots", "Ski gloves", "Warm hat"]
+also    = "Also grab: a spare pair of gloves. The first pair gets soaked."
+
+[[outcome]]
+id      = "cold_rain"
+when    = ["tempMax >= 32", "tempMax < 50", "rain >= 50"]
+tagline = "WATERPROOF EVERYTHING"
+icon    = "raincoat"
+color   = "blue"
+breaks_pin = true
+wear    = ["Sweater", "*Waterproof coat", "Waterproof boots", "*Gloves"]
+also    = "Also grab: hood up, and a dry sweater for later."
+
+[[outcome]]
+id      = "cold_windy"
+when    = ["tempMax >= 32", "tempMax < 50", "wind >= 20"]
+tagline = "ZIPPED TO THE CHIN"
+icon    = "scarf"
+color   = "red"
+wear    = ["*Warm coat", "Hat over ears", "Gloves", "*Scarf"]
+also    = "Also grab: zip the coat all the way. Gusts up to {wind} mph."
+
+[[outcome]]
+id      = "cold_swing"
+when    = ["tempMax >= 32", "tempMax < 50", "swing >= 20"]
+tagline = "COAT NOW, SWEATER LATER"
 icon    = "sweater"
-tagline = "NOTHING DRAMATIC"
-wear    = ["long_sleeves", "long_pants", "sneakers", "jacket"]
-also    = "Also grab: nothing special. It is just a day."
+color   = "red"
+wear    = ["T-shirt", "*Sweater", "*Warm coat", "Long pants"]
+also    = "Also grab: the coat comes off when it warms up. {tempMin}° to {tempMax}°."
+
+[[outcome]]
+id      = "cold_sunny"
+when    = ["tempMax >= 32", "tempMax < 50", "cloud <= 15"]
+tagline = "COLD BUT SHINY"
+icon    = "sunglasses"
+color   = "red"
+wear    = ["*Warm coat", "Warm hat", "*Gloves", "Sunglasses"]
+also    = "Also grab: sunglasses. Low winter sun is bright."
+
+[[outcome]]
+id      = "cold_clear"
+when    = ["tempMax >= 32", "tempMax < 50"]
+tagline = "BUNDLE UP"
+icon    = "puffy_coat"
+color   = "red"
+wear    = ["Sweater", "Long pants", "*Warm coat", "*Warm hat"]
+also    = "Also grab: mittens in the coat pocket, just in case."
+
+# ── FREEZING · under 32° ──
+
+[[outcome]]
+id      = "freezing_snow"
+when    = ["tempMax < 32", "snow >= 1"]
+places  = ["Sledding Hill"]
+things  = ["Sled"]
+tagline = "FULL SNOW GEAR"
+icon    = "snowflake"
+color   = "blue"
+breaks_pin = true
+wear    = ["Winter coat", "*Snow pants", "Snow boots", "Snow mittens"]
+also    = "Also grab: a warm hat. Snow gear stops at the neck."
+
+[[outcome]]
+id      = "freezing_rain"
+when    = ["tempMax < 32", "rain >= 50"]
+tagline = "SLIPPERY OUT THERE"
+icon    = "raincoat"
+color   = "blue"
+breaks_pin = true
+wear    = ["*Waterproof parka", "Waterproof boots", "*Snow mittens", "Warm hat"]
+also    = "Also grab: slow steps. Freezing rain turns to ice."
+
+[[outcome]]
+id      = "freezing_windy"
+when    = ["tempMax < 32", "wind >= 20"]
+tagline = "COVER YOUR FACE"
+icon    = "scarf"
+color   = "red"
+wear    = ["*Winter coat", "Scarf over face", "Hat over ears", "*Mittens"]
+also    = "Also grab: cover every bit of skin. Gusts up to {wind} mph."
+
+[[outcome]]
+id      = "freezing_swing"
+when    = ["tempMax < 32", "swing >= 20"]
+tagline = "LAYERS UNDER THE COAT"
+icon    = "puffy_coat"
+color   = "red"
+wear    = ["Long sleeves", "*Sweater", "*Winter coat", "Warm hat"]
+also    = "Also grab: layers under the coat, to peel off later. {tempMin}° to {tempMax}°."
+
+[[outcome]]
+id      = "freezing_sunny"
+when    = ["tempMax < 32", "cloud <= 15"]
+places  = ["Ice Rink"]
+things  = ["Ice Skates"]
+tagline = "BRIGHT AND BITTER"
+icon    = "sunglasses"
+color   = "red"
+wear    = ["Winter coat", "Warm hat", "Mittens", "Snow goggles"]
+also    = "Also grab: shades. Snow throws the sun right back up."
+
+# The catch-all: no `when`, so it is what is left - and by here, that is only
+# a freezing day with nothing else going on.
+[[outcome]]
+id      = "freezing_clear"
+places  = ["Ice Rink"]
+tagline = "BUNDLE UP TIGHT"
+icon    = "beanie"
+color   = "red"
+wear    = ["*Winter coat", "Warm hat", "*Mittens", "Warm boots"]
+also    = "Also grab: an extra pair of socks."
+
 
 # ─── Conditions grid (3 × 2) ────────────────────────────────────────────
 # Six cells in a 3×2 grid, each with: icon + label, a big primary value, and a

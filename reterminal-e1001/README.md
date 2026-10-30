@@ -88,16 +88,17 @@ design is deliberately narrow:
 
 **The hero panel takes one flat ink, chosen by the outcome.** It is a third of
 the screen, so the verdict is readable from across the room before a word is.
-Only three outcomes are coloured, which is what keeps each one learnable:
+Only three inks are used, each with one meaning, which is what keeps them
+learnable:
 
 | | | |
 | --- | --- | --- |
-| **yellow** | Beach Day | go to the beach |
-| **blue** | Rain Boots Day | take rain gear |
-| **red** | Big Coat Day | it is genuinely cold |
+| **yellow** | the beach day (`hot_sunny`) | go to the beach |
+| **blue** | every rainy or snowy square | take the wet-weather gear |
+| **red** | every other cold or freezing square | it is genuinely cold |
 
-Everything else stays black or white. Seven coloured outcomes would be
-confetti; three are a vocabulary. Type colour follows automatically — black on
+Everything else — the mild, dry squares — stays black or white. Twenty-seven
+coloured outcomes would be confetti; three meanings are a vocabulary. Type colour follows automatically — black on
 yellow, white on the darker inks.
 
 **The parking bar is red**, because a solid bar already means "act on this" and
@@ -202,7 +203,7 @@ crashed board and a flat battery all look identical. Work down this list:
    ```
    [beach] local 14:22 dow 4 dom 18 (offset -25200, ntp)
    [beach] window today 06:38-18:57  sun 9/13 hrs first 9  |  tomorrow 7/13 hrs first 11
-   [beach] beach_day  temp 78 precip 10 wind 9 aqi 42 code 1  sun[9 AM] temp[1] ... parking[-]
+   [beach] hot_sunny  temp 84 precip 10 wind 9 aqi 42 code 1  sun[9 AM] temp[1] ... parking[-]
    ```
    If those are right, the rules work and anything wrong is layout. `d` reprints
    the same detail for whatever is on screen.
@@ -298,11 +299,32 @@ decision are the ones the device makes. The Arduino shim in
 `tools/preview/shim` exists only because `text.cpp` calls `Serial.printf`; the
 render stack touches nothing else from the framework.
 
-Scenarios are in `tools/preview/preview.cpp`. `beach` is a long midsummer day,
-`winter` a short one, `rain` picks a wet outcome and one of its variants,
-`smoke` gives the AIR tile something to say, and `stress` wraps the also-grab
-to two lines and turns the parking bar on — the case that decides whether the
-right column still fits. Check `stress` after any change to that column.
+Scenarios are in `tools/preview/preview.cpp`. `beach` is a long midsummer day
+(with a 21° swing, so it lands on the hot morning-chill square, not the beach
+square), `winter` a short one, `rain` picks a wet outcome, `smoke` gives the
+AIR tile something to say, `snow` is the freezing full-snow-gear square,
+`whimsy` is the beach day on a date that swaps one tile, and `stress` wraps
+the also-grab to two lines and turns the parking bar on — the case that
+decides whether the right column still fits. Check `stress` after any change
+to that column.
+
+### Seeing how often it would change its mind
+
+```
+tools/replay.sh                 # the last 60 days, Venice Beach
+tools/replay.sh --sensitivity   # and again at 2h and 6h availability lags
+```
+
+Replays archived Open-Meteo forecast *runs* — what the board would actually
+have been served at each wake, not what the weather turned out to be —
+through the real engine, on the firmware's own wake schedule, and prints every
+outcome the screen would have shown, every change, and the threshold that
+caused it. Fetches are cached in `.pio/replay/cache`, so a second run is
+offline, and a rules change can be replayed against the same weather.
+
+The archive keeps runs at 00/06/12/18Z only, so the counts are a floor: the
+live API also blends hourly HRRR updates in between. AQI is held fixed per
+day. Both caveats are at the top of `tools/replay/replay.py`.
 
 ### Colour is a role
 
@@ -337,6 +359,8 @@ tools/
   prep_fonts.py           TTF instance + subset → fontdata.h    (fetch_fonts.sh gets sources)
   pio_prebuild.py         copies the rules to data/ and embeds them
   release.sh              OTA publish
+  preview.sh, preview/    render the layout to PNGs on a Mac
+  replay.sh, replay/      replay real archived forecasts through the engine
 ```
 
 ## Changing the rules
@@ -349,6 +373,18 @@ Edit [shared/v3/day-outcomes.json](../shared/v3/day-outcomes.json), then:
 git push             # every other board picks it up within a day
 ```
 
+**A rules file can need newer firmware.** Rules 3.0 — the what-to-wear grid —
+uses the `snow` field and a catalogue keyed by label, which only firmware
+0.11.0 and later reads. An older board validates the file, rejects it and
+keeps its old rules, which is safe.
+
+The order is **rules first, then firmware**. A board replaces its rules with
+any *valid* file at the rules URL, whatever its version, and 0.11.0 still
+reads the old format — so publishing the firmware while the URL still serves
+old rules would have updated boards download them over the new ones. Push the
+rules, then publish the firmware straight after. 0.11.0 also carries the new
+rules compiled in and installs them on boot.
+
 Adding an outcome means adding an entry with exactly four `wear` items and an
 icon name that exists (see `icons` in the JSON; unknown names draw a crossed
 box). New icon → add a few lines to `tools/gen_icons.py`, rerun it, rebuild.
@@ -358,10 +394,11 @@ box). New icon → add a few lines to `tools/gen_icons.py`, rerun it, rebuild.
 The display only changes at a handful of moments, so the board does not poll
 blindly. Each wake it sleeps until the sooner of:
 
-- the regular interval — `CFG_WAKE_DAY_MINUTES` (default 60) between sunrise−1h
-  and sunset, `CFG_WAKE_NIGHT_MINUTES` (default 240) overnight
-- the next moment the screen would change: sunrise, sunset−1h (night mode
-  flips on), sunset (parking alert can appear), or a parking cutoff time
+- the regular interval — `CFG_WAKE_DAY_MINUTES` (default 60) from one hour
+  before sunrise until sunset, `CFG_WAKE_NIGHT_MINUTES` (default 240) overnight
+- the next moment the screen would change: sunrise, sunset (parking alert can
+  appear), one hour after sunset (the evening flip to tomorrow), or a parking
+  cutoff time
 
 Rough budget at those defaults: ~17 wakes a day at ~12 s each on Wi-Fi, plus
 14 µA asleep. Call it 6–8 mAh/day against a 2000 mAh cell — comfortably in the

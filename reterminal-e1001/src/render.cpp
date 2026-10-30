@@ -295,6 +295,8 @@ void drawRight(const ViewModel& vm) {
     ft.role = paintAlertTextRole();
     int pillW = textWidth(ft, vm.parkingText) + 22;
     if (pillW > COL_W / 2) pillW = COL_W / 2;
+    // A long alert shrinks to fit its bar rather than running past the ends.
+    while (ft.px > 10 && textWidth(ft, vm.parkingText) > pillW - 16) ft.px -= 1;
     rightStartX = COL_X1 - pillW;
     paintAlertBar(rightStartX, footerRuleY + 10, pillW, 30, 7);
     textDrawCentered(ft, rightStartX + pillW / 2, footerRuleY + 30, vm.parkingText);

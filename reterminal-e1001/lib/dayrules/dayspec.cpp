@@ -5,6 +5,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <strings.h>
 
 namespace day {
 
@@ -31,6 +32,7 @@ const FieldDef FIELDS[] = {
   { "humidityMax",    "humidityMaxPct" },
   { "cloud",          "cloudCoverAvgPct" },
   { "sunHours",       "sunRunHours" },
+  { "snow",           "snowHours" },
   { "firstClearHour", "firstClearHour" },
 };
 
@@ -47,6 +49,7 @@ double fieldOf(const Inputs& in, const char* canonical, bool& ok) {
   if (!strcmp(canonical, "humidityMaxPct"))     return in.humidityMaxPct;
   if (!strcmp(canonical, "cloudCoverAvgPct"))   return in.cloudCoverAvgPct;
   if (!strcmp(canonical, "sunRunHours"))        return in.sunRunHours;
+  if (!strcmp(canonical, "snowHours"))          return in.snowHours;
   if (!strcmp(canonical, "firstClearHour")) {
     ok = in.hasFirstClearHour;
     return in.firstClearHour;
@@ -402,9 +405,106 @@ uint32_t hashOf(const char* s) {
   for (; s && *s; s++) { h ^= (uint8_t)*s; h *= 16777619u; }
   return h;
 }
+
+// Scrambles a day number so whimsy lands irregularly. The day-name pick can
+// step through its pool in order; a swap that arrived every third day like
+// clockwork would stop being a surprise by the second week.
+uint32_t scramble(uint32_t x) {
+  x ^= x >> 16; x *= 0x7feb352du;
+  x ^= x >> 15; x *= 0x846ca68bu;
+  x ^= x >> 16;
+  return x;
+}
+
+// Now and then one tile swaps for a sillier take on the same thing:
+// bellbottoms for light pants. The icon stays the original's, because the
+// swap has to do the same job - only the label gets to have fun. Seeded by
+// the date, so it holds all day, and at most one tile a day, so the other
+// three stay plain advice.
+void applyWhimsy(toml_table_t* root, const Inputs& in, char ids[][24], Outcome& oc) {
+  toml_table_t* cfg = toml_table_in(root, "whimsy");
+  double oneIn = 0;
+  if (!cfg || !tNum(cfg, "one_in", oneIn) || oneIn < 1 || oc.wearCount == 0) return;
+  const uint32_t h = scramble((uint32_t)in.epochDay ^ 0x9e3779b9u);
+  if (h % (uint32_t)oneIn != 0) return;
+  toml_table_t* catalog = toml_table_in(root, "wear");
+  // Start at a tile chosen by the date and take the first that has any
+  // alternatives, so a day whose pick lands on a plain item still gets one.
+  const int start = (int)((h >> 8) % (uint32_t)oc.wearCount);
+  for (int k = 0; k < oc.wearCount; k++) {
+    const int i = (start + k) % oc.wearCount;
+    toml_table_t* item = catalog ? toml_table_in(catalog, ids[i]) : nullptr;
+    toml_array_t* alts = item ? toml_array_in(item, "whimsy") : nullptr;
+    const int n = alts ? toml_array_nelem(alts) : 0;
+    if (n == 0) continue;
+    tStrAt(alts, (int)((h >> 16) % (uint32_t)n), oc.wear[i].label, sizeof(oc.wear[i].label));
+    return;
+  }
+}
+
+// A tile's sentence-case label as a day name: "Rain boots" -> "Rain Boots Day",
+// "Cap with strap" -> "Cap with Strap Day", "T-shirt" -> "T-Shirt Day". Short
+// joining words stay small unless they lead.
+void dayNameFrom(const char* label, char* out, size_t n) {
+  static const char* const SMALL[] = { "a", "an", "and", "the", "of", "with", "over", "in", "on", "to", "for", "or" };
+  size_t o = 0;
+  for (const char* p = label; *p && o + 1 < n; ) {
+    if (*p == ' ') { out[o++] = *p++; continue; }
+    const char* e = p;
+    while (*e && *e != ' ') e++;                     // one space-separated word
+    bool small = false;
+    if (p != label) {
+      for (const char* w : SMALL) {
+        size_t wl = strlen(w);
+        if ((size_t)(e - p) == wl && !strncasecmp(p, w, wl)) { small = true; break; }
+      }
+    }
+    bool cap = !small;                               // capitalise at the word start...
+    for (; p < e && o + 1 < n; p++) {
+      out[o++] = cap ? (char)toupper((unsigned char)*p) : *p;
+      cap = (*p == '-');                             // ...and after a hyphen: Light-Up
+    }
+  }
+  snprintf(out + o, n - o, " Day");
+}
 } // namespace
 
-bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow) const {
+static toml_table_t* outcomeById(toml_table_t* root, const char* id) {
+  toml_array_t* a = root ? toml_array_in(root, "outcome") : nullptr;
+  for (int i = 0; a && id && id[0] && i < toml_array_nelem(a); i++) {
+    toml_table_t* o = toml_table_at(a, i);
+    char got[24] = "";
+    if (tStr(o, "id", got, sizeof(got)) && !strcmp(got, id)) return o;
+  }
+  return nullptr;
+}
+
+bool Spec::hasOutcome(const char* id) const { return outcomeById(root_, id) != nullptr; }
+
+bool Spec::breaksPin(const char* id) const {
+  bool b = false;
+  toml_table_t* o = outcomeById(root_, id);
+  return o && tBool(o, "breaks_pin", b) && b;
+}
+
+bool resolvePin(const Spec& spec, DayPin& pin, long epochDay, bool pinnable,
+                const char* liveId, char* showId, size_t n) {
+  if (!pinnable) { cpy(showId, n, liveId); return false; }
+  // A new day, or a pin the rules no longer know (they changed mid-day):
+  // this look decides.
+  if (pin.epochDay != epochDay || !spec.hasOutcome(pin.id) || spec.breaksPin(liveId)) {
+    const bool changed = pin.epochDay != epochDay || strcmp(pin.id, liveId) != 0;
+    pin.epochDay = epochDay;
+    cpy(pin.id, sizeof(pin.id), liveId);
+    cpy(showId, n, liveId);
+    return changed;
+  }
+  cpy(showId, n, pin.id);
+  return false;
+}
+
+bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow,
+                    const char* forceId) const {
   if (!valid_ || !root_) return false;
   out = Screen{};
   out.tomorrow = tomorrow;
@@ -432,8 +532,8 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     break;
   }
 
-  toml_table_t* chosen = nullptr;
-  for (int i = 0; i < toml_array_nelem(outcomes); i++) {
+  toml_table_t* chosen = forceId ? outcomeById(root_, forceId) : nullptr;
+  for (int i = 0; !chosen && i < toml_array_nelem(outcomes); i++) {
     toml_table_t* o = toml_table_at(outcomes, i);
     if (whenPasses(o, in, nullptr, 0)) { chosen = o; break; }
   }
@@ -442,25 +542,43 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
   Outcome& oc = out.outcome;
   tStr(chosen, "id", oc.id, sizeof(oc.id));
 
-  // A condition owns a pool of variants, and one is chosen per day. The pool
-  // is `names` (name-only variants, the quick case) followed by any
-  // [[outcome.variant]] tables, which may override anything the outcome sets.
+  // An outcome owns a pool of day names, and one is chosen per day. Names come
+  // in three kinds: `places` you can't usually go, `things` only this weather
+  // is for (both written as the bare noun; " Day" is added), and the items
+  // starred in the outcome's own wear list, which name the day after whatever
+  // that tile shows - whimsy included. `names` (whole names, verbatim) and
+  // [[outcome.variant]] tables still join the pool, for older files.
   // The pick is seeded by the date and the outcome id, so it holds all day,
   // differs tomorrow, and two outcomes do not rotate in lockstep. The board
   // redraws hourly; anything random would churn under the reader.
   toml_array_t* names = toml_array_in(chosen, "names");
+  toml_array_t* places = toml_array_in(chosen, "places");
+  toml_array_t* things = toml_array_in(chosen, "things");
   toml_array_t* variants = toml_array_in(chosen, "variant");
+  toml_array_t* ownWear = toml_array_in(chosen, "wear");
+  int starTiles[4], nStars = 0;
+  for (int i = 0; ownWear && i < toml_array_nelem(ownWear) && i < 4; i++) {
+    char w[28] = "";
+    if (tStrAt(ownWear, i, w, sizeof(w)) && w[0] == '*') starTiles[nStars++] = i;
+  }
   const int nNames = names ? toml_array_nelem(names) : 0;
+  const int nPlaces = places ? toml_array_nelem(places) : 0;
+  const int nThings = things ? toml_array_nelem(things) : 0;
   const int nVariants = variants ? toml_array_nelem(variants) : 0;
-  const int pool = nNames + nVariants;
+  const int pool = nNames + nPlaces + nThings + nStars + nVariants;
 
   toml_table_t* v = nullptr;    // chosen variant table, if the pick landed on one
+  int namedTile = -1;           // the starred tile the day is named after, if any
   char picked[40] = "";
   if (pool > 0) {
     int idx = (int)(((uint32_t)in.epochDay + hashOf(oc.id)) % (uint32_t)pool);
+    char noun[40] = "";
     if (idx < nNames) tStrAt(names, idx, picked, sizeof(picked));
+    else if ((idx -= nNames) < nPlaces) { tStrAt(places, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); }
+    else if ((idx -= nPlaces) < nThings) { tStrAt(things, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); }
+    else if ((idx -= nThings) < nStars) namedTile = starTiles[idx];   // named once the tiles are known
     else {
-      v = toml_table_at(variants, idx - nNames);
+      v = toml_table_at(variants, idx - nStars);
       tStr(v, "name", picked, sizeof(picked));
     }
   }
@@ -471,16 +589,6 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     if (v && tStr(v, key, out2, n2)) return true;
     return tStr(chosen, key, out2, n2);
   };
-
-  {
-    char holiday[20] = "";
-    if (holidayFor(in, holiday, sizeof(holiday)) && holiday[0]) {
-      cpy(oc.holiday, sizeof(oc.holiday), holiday);
-      snprintf(oc.title, sizeof(oc.title), "%s %s", holiday, picked);
-    } else {
-      cpy(oc.title, sizeof(oc.title), picked);
-    }
-  }
 
   pick("tagline", oc.tagline, sizeof(oc.tagline));
   pick("icon", oc.heroIcon, sizeof(oc.heroIcon));
@@ -493,20 +601,42 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     oc.heroLight = !strcmp(panel, "light");
   }
 
-  // Wear: ids into the [wear] catalogue, so a label and icon are written once.
+  // Wear: names from the [wear] catalogue, where the key is the label and the
+  // entry carries the icon. A leading * marks an item that can name the day.
   {
     toml_table_t* catalog = toml_table_in(root_, "wear");
     toml_array_t* ids = (v ? toml_array_in(v, "wear") : nullptr);
-    if (!ids) ids = toml_array_in(chosen, "wear");
+    if (!ids) ids = ownWear;
+    char wearIds[4][24] = {};
     oc.wearCount = 0;
     for (int i = 0; ids && i < toml_array_nelem(ids) && oc.wearCount < 4; i++) {
-      char id[24] = "";
-      if (!tStrAt(ids, i, id, sizeof(id))) continue;
+      char raw[28] = "";
+      if (!tStrAt(ids, i, raw, sizeof(raw))) continue;
+      const char* id = raw[0] == '*' ? raw + 1 : raw;
       toml_table_t* item = toml_table_in(catalog, id);
       if (!item) continue;
-      tStr(item, "label", oc.wear[oc.wearCount].label, sizeof(oc.wear[0].label));
+      cpy(wearIds[oc.wearCount], sizeof(wearIds[0]), id);
+      if (!tStr(item, "label", oc.wear[oc.wearCount].label, sizeof(oc.wear[0].label)))
+        cpy(oc.wear[oc.wearCount].label, sizeof(oc.wear[0].label), id);
       tStr(item, "icon", oc.wear[oc.wearCount].icon, sizeof(oc.wear[0].icon));
       oc.wearCount++;
+    }
+    applyWhimsy(root_, in, wearIds, oc);
+  }
+
+  // The title last, so a day named after a tile says what the tile says - and
+  // the hero shows that tile's picture, not the outcome's own icon.
+  if (namedTile >= 0 && namedTile < oc.wearCount) {
+    dayNameFrom(oc.wear[namedTile].label, picked, sizeof(picked));
+    cpy(oc.heroIcon, sizeof(oc.heroIcon), oc.wear[namedTile].icon);
+  }
+  {
+    char holiday[20] = "";
+    if (holidayFor(in, holiday, sizeof(holiday)) && holiday[0]) {
+      cpy(oc.holiday, sizeof(oc.holiday), holiday);
+      snprintf(oc.title, sizeof(oc.title), "%s %s", holiday, picked);
+    } else {
+      cpy(oc.title, sizeof(oc.title), picked);
     }
   }
 

@@ -54,7 +54,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <input id="o" name="ssid_other" placeholder="Network name" style="display:none;margin-top:8px">
 <label for="pass">Wi-Fi password</label>
 <input id="pass" name="pass" type="password" autocomplete="off" placeholder="Leave blank for an open network">
-<label for="loc">Where is the beach?</label>
+<label for="loc">Weather forecast location</label>
 <input id="loc" name="loc" required placeholder="ZIP / postal code, or a town" value="%LOC%">
 <small>Examples: <b>90401</b>, <b>Santa Monica</b>, <b>Springfield, IL</b>. The display looks it up once it's online and shows the name it found.</small>
 <div class="row"><div><label for="cc">Country</label>
@@ -65,9 +65,13 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <small style="margin-top:8px">Shows a NO PARKING bar from sunset the night before until the restriction ends.</small>
 %PARKING%
 </details>
+<details><summary>Trash reminder</summary>
+<small style="margin-top:8px">Shows a reminder bar all day on the day you pick. If street cleaning is due too, that shows first.</small>
+%REMINDER%
+</details>
 <button type="submit">Save and restart</button>
 </form>
-<footer>Beach Day firmware %VER% &middot; <a href="/reset" onclick="return confirm('Erase Wi-Fi, location and parking settings from this display?')">Erase all settings</a></footer>
+<footer>Beach Day firmware %VER% &middot; <a href="/reset" onclick="return confirm('Erase Wi-Fi, location and reminder settings from this display?')">Erase all settings</a></footer>
 </main></body></html>)HTML";
 
 String htmlEscape(const char* s) {
@@ -111,6 +115,20 @@ String parkingFieldset(const char* side, const char* title, const beach::Parking
   return h;
 }
 
+String reminderFieldset(const beach::Reminder& r) {
+  String h = "<fieldset>";
+  h += String("<div class=\"chk\"><input type=\"checkbox\" id=\"rmon\" name=\"rmon\"") + (r.enabled ? " checked" : "") +
+       "><label for=\"rmon\">Enabled</label></div>";
+  h += "<label for=\"rmday\">Day</label><select id=\"rmday\" name=\"rmday\">";
+  for (int d = 0; d < 7; d++) {
+    h += "<option value=\"" + String(d) + "\"" + (d == r.dayOfWeek ? " selected" : "") + ">" + DAY_NAMES[d] + "</option>";
+  }
+  h += "</select><label for=\"rmtext\">Reminder</label>";
+  h += "<input id=\"rmtext\" name=\"rmtext\" maxlength=\"39\" value=\"" + htmlEscape(r.text) + "\">";
+  h += "</fieldset>";
+  return h;
+}
+
 void handleRoot() {
   String page = FPSTR(PAGE_HEAD);
   page += networkOptions;
@@ -120,6 +138,7 @@ void handleRoot() {
   mid.replace("%LABEL%", htmlEscape(current.fromPortal ? current.locationName : ""));
   mid.replace("%PARKING%", parkingFieldset("L", "Left side of the street", current.parking[0]) +
                            parkingFieldset("R", "Right side of the street", current.parking[1]));
+  mid.replace("%REMINDER%", reminderFieldset(current.reminder));
   mid.replace("%VER%", FIRMWARE_VERSION);
   page += mid;
   server.sendHeader("Cache-Control", "no-store");
@@ -141,6 +160,15 @@ void readParking(const char* side, beach::ParkingRule& r, const beach::ParkingRu
   r.dayOfWeek = (int8_t)constrain(server.arg(p + "day").toInt(), 0, 6);
   r.startMin  = (int16_t)parseHHMM(server.arg(p + "st"),  dflt.startMin);
   r.endMin    = (int16_t)parseHHMM(server.arg(p + "end"), dflt.endMin);
+}
+
+void readReminder(beach::Reminder& r, const beach::Reminder& current) {
+  r.enabled = server.hasArg("rmon");
+  r.dayOfWeek = (int8_t)constrain(server.arg("rmday").toInt(), 0, 6);
+  String text = server.arg("rmtext"); text.trim();
+  // A cleared box keeps what was there, so switching it off and on again
+  // does not lose the wording.
+  strlcpy(r.text, text.isEmpty() ? current.text : text.c_str(), sizeof(r.text));
 }
 
 void sendSimple(int code, const char* title, const String& body) {
@@ -171,6 +199,7 @@ void handleSave() {
   strlcpy(in.label, label.c_str(), sizeof(in.label));
   readParking("L", in.parking[0], current.parking[0]);
   readParking("R", in.parking[1], current.parking[1]);
+  readReminder(in.reminder, current.reminder);
 
   if (!savePortalInput(in)) { sendSimple(500, "Couldn't save", "<p>Storage error. Try again.</p><p><a href=\"/\">Back</a></p>"); return; }
 

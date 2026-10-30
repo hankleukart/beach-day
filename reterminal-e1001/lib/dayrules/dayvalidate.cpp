@@ -145,11 +145,30 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
     if (!key) break;
     toml_table_t* item = toml_table_in(catalog, key);
     if (!item) return v.fail("wear.%s is not a table", key);
+    // The key is the label ("Rain boots"); an explicit label still wins, for
+    // older files that keyed the catalogue by id.
     char label[40], icon[24];
-    if (!vStr(item, "label", label, sizeof(label))) return v.fail("wear.%s has no label", key);
+    if (strlen(key) >= 24) return v.fail("wear '%s': name too long (max 23)", key);
+    if (!vStr(item, "label", label, sizeof(label))) snprintf(label, sizeof(label), "%s", key);
     if (!v.fits("label", key, label, sizeof(Wear::label))) return false;
     if (!vStr(item, "icon", icon, sizeof(icon))) return v.fail("wear.%s has no icon", key);
     if (!v.knownIcon(key, "icon", icon)) return false;
+    // Whimsical alternatives share the tile, so they share its limits.
+    if (vHas(item, "whimsy")) {
+      toml_array_t* alts = toml_array_in(item, "whimsy");
+      if (!alts || toml_array_nelem(alts) == 0) return v.fail("wear.%s: whimsy must be a list of labels", key);
+      for (int k = 0; k < toml_array_nelem(alts); k++) {
+        char alt[40];
+        if (!vStrAt(alts, k, alt, sizeof(alt))) return v.fail("wear.%s: whimsy %d is not text", key, k);
+        if (!v.fits("whimsy label", key, alt, sizeof(Wear::label))) return false;
+      }
+    }
+  }
+
+  toml_table_t* whimsy = toml_table_in(root, "whimsy");
+  if (whimsy) {
+    double oneIn = 0;
+    if (!vNum(whimsy, "one_in", oneIn) || oneIn < 1) return v.fail("whimsy.one_in must be 1 or more");
   }
 
   const int count = toml_array_nelem(outcomes);
@@ -164,12 +183,32 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
         return v.fail("duplicate outcome id '%s'", id);
     }
 
-    // The pool: `names` (name-only variants) plus any [[outcome.variant]].
+    // The pool: `places` and `things` (bare nouns; " Day" is added), the
+    // starred wear items, and the older `names` and [[outcome.variant]].
     toml_array_t* names = toml_array_in(o, "names");
     toml_array_t* variants = toml_array_in(o, "variant");
     const int nNames = names ? toml_array_nelem(names) : 0;
     const int nVariants = variants ? toml_array_nelem(variants) : 0;
-    if (nNames + nVariants == 0) return v.fail("%s: needs at least one name or variant", id);
+    int nNouns = 0, nStars = 0;
+    static const char* const KINDS[] = { "places", "things" };
+    for (const char* kind : KINDS) {
+      toml_array_t* nouns = toml_array_in(o, kind);
+      for (int k = 0; nouns && k < toml_array_nelem(nouns); k++, nNouns++) {
+        char noun[80];
+        if (!vStrAt(nouns, k, noun, sizeof(noun))) return v.fail("%s: %s %d is not text", id, kind, k);
+        size_t len = strlen(noun);
+        // "Beach", not "Beach Day" - the Day is added, and would come out twice.
+        if (len >= 4 && !strcmp(noun + len - 4, " Day")) return v.fail("%s: %s '%s' should not end in Day", id, kind, noun);
+        if (len + 4 >= sizeof(Outcome::title) - sizeof(Outcome::holiday)) return v.fail("%s: %s '%s' too long", id, kind, noun);
+      }
+    }
+    toml_array_t* ownWear = toml_array_in(o, "wear");
+    for (int k = 0; ownWear && k < toml_array_nelem(ownWear); k++) {
+      char w[40];
+      if (vStrAt(ownWear, k, w, sizeof(w)) && w[0] == '*') nStars++;
+    }
+    if (nNames + nNouns + nStars + nVariants == 0)
+      return v.fail("%s: needs a place, a thing or a starred wear item to name the day", id);
 
     char nm[80];
     for (int k = 0; k < nNames; k++) {
@@ -215,7 +254,8 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
       for (int w2 = 0; w2 < 4; w2++) {
         char wid[40];
         if (!vStrAt(wear, w2, wid, sizeof(wid))) return v.fail("%s: wear %d is not a name", who, w2);
-        if (!toml_table_in(catalog, wid)) return v.fail("%s: no wear called '%s'", who, wid);
+        const char* key = wid[0] == '*' ? wid + 1 : wid;
+        if (!toml_table_in(catalog, key)) return v.fail("%s: no wear called '%s'", who, key);
       }
     }
 
@@ -245,6 +285,8 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
         if (!v.fits("also_when_failed line", id, line, sizeof(Outcome::alsoGrab))) return false;
       }
     }
+    if (vHas(o, "breaks_pin") && !toml_bool_in(o, "breaks_pin").ok)
+      return v.fail("%s: breaks_pin must be true or false", id);
     if (vHas(o, "also_near_beach") != vHas(o, "also_near_beach_within"))
       return v.fail("%s: also_near_beach needs also_near_beach_within", id);
   }

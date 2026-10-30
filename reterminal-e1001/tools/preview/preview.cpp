@@ -38,6 +38,8 @@ struct Scenario {
   int  aqi;
   int  code;                     // WMO
   bool stressCopy;               // force two-line copy to test the fitting
+  bool findWhimsy = false;       // move to the first date that swaps a tile
+  const char* bar = nullptr;     // a footer reminder to show, at its default wording
 };
 
 const Scenario SCENARIOS[] = {
@@ -52,6 +54,13 @@ const Scenario SCENARIOS[] = {
   // Worst-case copy: everything that can wrap to two lines does, which is
   // where the stat band runs out of height.
   { "stress", 5 * 60 + 12, 20 * 60 + 31, 62, 84,  5, 10,  8, 32, 0, true },
+  // Below freezing with snow in the forecast: the full-snow-gear square.
+  { "snow",   7 * 60 + 15, 16 * 60 + 40, 18, 29, 70, 95, 10, 25, 73, false },
+  // The beach day a week later, on a date that swaps one tile for whimsy.
+  { "whimsy", 5 * 60 + 12, 20 * 60 + 31, 62, 84,  5, 10,  8, 32, 0, false, true },
+  // Trash night: the longest default text the footer bar has to carry.
+  { "trash",  6 * 60 + 40, 19 * 60 + 10, 58, 72,  5, 30, 10, 30, 2, false, false,
+    "Take your trash to the street tonight" },
 };
 
 // A plausible day rather than a flat line, so the readings table and the
@@ -82,9 +91,41 @@ void buildRaw(const Scenario& sc, day::Raw& raw) {
   raw.n = n; raw.na = na;
 }
 
-// 2026-06-17, a Wednesday.
-void fillDate(day::Inputs& in) {
-  in.year = 2026; in.month = 6; in.dayOfMonth = 17; in.weekday = 3; in.epochDay = 20621;
+// 2026-06-17, a Wednesday, plus an offset that stays inside June.
+void fillDate(day::Inputs& in, int offset) {
+  in.year = 2026; in.month = 6; in.dayOfMonth = 17 + offset;
+  in.weekday = (3 + offset) % 7; in.epochDay = 20621 + offset;
+}
+
+// The first offset whose tiles differ from the same rules with whimsy off.
+// Searched rather than hardcoded, so retuning [whimsy] one_in cannot quietly
+// turn the scenario into an ordinary day.
+int firstWhimsyOffset(const day::Spec& spec, const std::string& text, day::Inputs in) {
+  std::string plainText = text;
+  // The table header on a line of its own - the comments mention [whimsy] too.
+  size_t at = plainText.find("\n[whimsy]\n");
+  if (at == std::string::npos) return 0;
+  at += 1;
+  size_t end = plainText.find("\n\n", at);
+  plainText.erase(at, (end == std::string::npos ? plainText.size() : end) - at);
+  static day::Spec plain;
+  char err[256] = "";
+  if (!plain.load(plainText.c_str(), plainText.size(), err, sizeof(err))) {
+    std::fprintf(stderr, "whimsy: rules without [whimsy] did not load: %s\n", err);
+    return 0;
+  }
+  for (int off = 0; off < 13; off++) {
+    fillDate(in, off);
+    static day::Screen a, b;
+    if (!spec.evaluate(in, a, nullptr, false) || !plain.evaluate(in, b, nullptr, false)) continue;
+    for (int i = 0; i < a.outcome.wearCount; i++)
+      if (std::strcmp(a.outcome.wear[i].label, b.outcome.wear[i].label)) {
+        std::fprintf(stderr, "whimsy: day +%d swaps \"%s\" for \"%s\"\n", off, b.outcome.wear[i].label, a.outcome.wear[i].label);
+        return off;
+      }
+  }
+  std::fprintf(stderr, "whimsy: no whimsical day in the next 13\n");
+  return 0;
 }
 
 }  // namespace
@@ -115,7 +156,7 @@ int main(int argc, char** argv) {
   buildRaw(*sc, raw);
   day::Inputs in;
   day::derive(raw, 0, 3, in);
-  fillDate(in);
+  fillDate(in, sc->findWhimsy ? firstWhimsyOffset(spec, text, in) : 0);
 
   ViewModel vm;
   if (!spec.evaluate(in, vm.screen, nullptr, false)) {
@@ -126,6 +167,10 @@ int main(int argc, char** argv) {
   vm.batteryPct = 96;
   std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated 9:40a");
 
+  if (sc->bar) {
+    vm.parkingActive = true;
+    std::snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", sc->bar);
+  }
   if (sc->stressCopy) {
     // Long enough to wrap in both places, which is what squeezes the band.
     std::snprintf(vm.screen.outcome.alsoGrab, sizeof(vm.screen.outcome.alsoGrab),

@@ -58,7 +58,7 @@ rule must pass:
 | **Rain chance** | < **20 %** (max hourly probability in the window) |
 | **Max wind** | ≤ **15 mph** (daily max) |
 | **Air quality** | US AQI < **100** (max in the window) |
-| **Time of day** | Between sunrise and sunset − 60 min |
+| **Time of day** | Between sunrise and one hour before sunset |
 
 ---
 

@@ -106,18 +106,19 @@ bool specFetchDue(const Settings& s) {
 bool specFetch(const Settings& s, char* status, size_t n) {
   String body;
   if (!netGet(s.rulesUrl, s.useTls, body)) { snprintf(status, n, "rules: request failed"); return false; }
+  // The attempt counts toward the daily check whatever the file turns out to
+  // be, so a rejected file is not re-fetched on every wake.
+  const time_t now = time(nullptr);
   Preferences p;
-  if (p.begin("beachday", false)) {
-    time_t now = time(nullptr);
-    p.putULong64("rulesLast", (uint64_t)now);
-    p.putUInt("rulesMtime", (uint32_t)now);
-    p.end();
-  }
+  if (p.begin("beachday", false)) { p.putULong64("rulesLast", (uint64_t)now); p.end(); }
 
   // Validate on a scratch instance so a bad file never displaces the live one.
   day::Spec probe;
   char err[96];
   if (!probe.load(body.c_str(), body.length(), err, sizeof(err))) { snprintf(status, n, "rules rejected: %s", err); return false; }
+  // Only a file that was accepted dates the filesystem copy. Dating a rejected
+  // one made newer firmware think its own embedded rules were the older pair.
+  if (p.begin("beachday", false)) { p.putUInt("rulesMtime", (uint32_t)now); p.end(); }
 
   if (mountFs()) {
     String cur;

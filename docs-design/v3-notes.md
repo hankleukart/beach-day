@@ -74,8 +74,10 @@ genuinely fluid, consider generating the render tables too.
   six inks. Icons carry SUN/WATER/LEAF/WARM fills for that day.
 - **800×480 re-layout, not a scale.** The 1200×825 mock is a different aspect
   ratio; proportions were kept (35% hero panel, same vertical rhythm).
-- **Evening flip kept, pre-dawn flip dropped.** After sunset−1h the screen
-  plans tomorrow; at 5 AM it shows today, which v2 got wrong.
+- **Evening flip kept, pre-dawn flip dropped.** An hour after sunset the screen
+  plans tomorrow; at 5 AM it shows today, which v2 got wrong. (The flip was
+  sunset−1h until 2026-10-29 — too early, it hid today while today was still
+  being lived.)
 - **Parking alert kept**, in the footer pill slot.
 - **Hubitat target frozen on v2**, as planned.
 
