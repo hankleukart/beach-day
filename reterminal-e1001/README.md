@@ -459,10 +459,15 @@ firmware cannot fetch, only a cable fixes it.
 
 - On their own within `CFG_OTA_CHECK_HOURS` (default 24). The check is skipped
   unless that long has passed, so it costs one small HTTPS request a day.
-- Immediately if someone **holds Right Nav (KEY2) while the board wakes**.
-  That is the instruction to give a friend: *hold Right Nav, press Green, and
-  keep holding Right Nav until the screen refreshes.* The readings screen
-  (Right Nav alone) shows the version in its footer, to confirm it worked.
+- Immediately on a **long press of Right Nav (KEY2)** — about three seconds,
+  until the LED lights. That is the instruction to give a friend: *hold Right
+  Nav until the light comes on.* The screen says it is checking, and either
+  installs and restarts or says why not. A tap of Right Nav is the readings
+  screen, whose footer shows the version, to confirm it worked.
+- Firmware before 0.11.1 has no long press: there, Right Nav held through a
+  **power-on** (the side switch off and on) forces the check. Holding it
+  while pressing Green does not work on any version — Right Nav wakes the
+  board by itself, and a Right Nav wake is the readings screen.
 
 The check runs **after** the screen has been drawn, so a failed or interrupted
 update never leaves a viewer looking at a stale or blank panel.
@@ -558,8 +563,8 @@ derived figures along the bottom. The header names the window. Row pitch
 closes up on long summer days so the whole window stays on one screen. Any
 button returns to the forecast on the next wake.
 
-Holding Right Nav (KEY2) while waking with Green (KEY0) still forces an
-update check. The readings screen's footer shows the firmware version.
+A long press of Right Nav (KEY2), about three seconds, forces an update
+check instead of showing the readings. The readings screen's footer shows the firmware version.
 
 ### Why geocoding happens after the portal, not in it
 

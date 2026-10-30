@@ -54,8 +54,12 @@ Three buttons, one press each:
 | **Left Nav** | Open the setup portal (Wi-Fi, place, parking, trash reminder) |
 | **Right Nav** | Show the hourly readings behind the dashboard |
 
-**To force a firmware and rules update:** hold Right Nav, then press Green,
-and keep holding Right Nav until the screen starts to refresh.
+**To force a firmware and rules update:** press and hold Right Nav for about
+three seconds, until the LED lights, then let go. The screen says it is
+checking; a new firmware installs and the board restarts in about a minute,
+and otherwise it says why not (already up to date, battery under 30%, no
+Wi-Fi) before going back to the forecast. A quick tap of Right Nav is still
+the readings screen, whose footer shows the firmware version.
 
 The readings screen is the "why did it decide that?" answer: every hourly row
 inside the daylight window with the derived figures along the bottom. Its

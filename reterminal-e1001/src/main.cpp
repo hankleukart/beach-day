@@ -185,7 +185,23 @@ void setup() {
   const WakeButton woke = wakeButton();
   bool wantSetup  = (digitalRead(PIN_KEY1) == LOW) || woke == WakeButton::LeftNav;
   bool wantHourly = (woke == WakeButton::RightNav);
-  bool forceOta   = !wantHourly && (digitalRead(PIN_KEY2) == LOW);
+  // Right Nav is a wake button itself, so "hold it while the board wakes" can
+  // only ever arrive as a Right Nav wake - which used to mean readings, every
+  // time. A long press tells them apart: a tap is the readings, still held
+  // after two more seconds (about three from the press) is "update now". The
+  // LED lights once the long press counts, so you know when to let go.
+  bool forceOta = false;
+  if (wantHourly) {
+    const uint32_t t0 = millis();
+    while (digitalRead(PIN_KEY2) == LOW && millis() - t0 < 2000) delay(20);
+    if (digitalRead(PIN_KEY2) == LOW) {
+      forceOta = true;
+      wantHourly = false;
+      pinMode(PIN_LED, OUTPUT); digitalWrite(PIN_LED, LOW);    // on
+    }
+  } else {
+    forceOta = digitalRead(PIN_KEY2) == LOW;   // held through a power-on
+  }
 
   if (wantSetup || !s.configured()) {
     Serial.printf("[beach] firmware %s, entering setup portal (%s)\n", FIRMWARE_VERSION,
@@ -253,12 +269,30 @@ void setup() {
   bool online = netConnect(s, 20000);
   bool clockOk = online && netSyncTime(6000);
 
+  if (forceOta) {
+    digitalWrite(PIN_LED, HIGH);   // off: the long press has been taken
+    // Say what is happening: a working update is otherwise a silent minute.
+    renderMessage("Checking for updates", "Running firmware " FIRMWARE_VERSION ".",
+                  "If there is a new one, it installs and restarts in about a minute.");
+  }
   if (online && forceOta) {
     char st[96] = "";
-    otaCheck(s, true, st, sizeof(st));
-    if (specFetch(s, st, sizeof(st))) {
-      Serial.printf("[beach] %s\n", st);
+    const OtaResult r = otaCheck(s, true, st, sizeof(st));   // restarts if it updated
+    Serial.printf("[beach] ota: %s\n", st);
+    char rules[96] = "";
+    if (specFetch(s, rules, sizeof(rules))) Serial.printf("[beach] %s\n", rules);
+    if (r != OtaResult::Updated) {
+      // Up to date, or refused (battery, download): say which, then carry on.
+      char why[120];
+      if (r == OtaResult::UpToDate) snprintf(why, sizeof(why), "Firmware %s is the newest published.", FIRMWARE_VERSION);
+      else snprintf(why, sizeof(why), "Firmware %s stays: %s.", FIRMWARE_VERSION, st);
+      renderMessage(r == OtaResult::UpToDate ? "Already up to date" : "No firmware update", why,
+                    "Showing the forecast in a moment.");
+      delay(4000);
     }
+  } else if (forceOta) {
+    renderMessage("Can't check for updates", "The display isn't online.", "Check Wi-Fi with Left Nav.");
+    delay(4000);
   }
 
   if (online && s.needsGeocode()) {
