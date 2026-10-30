@@ -1,8 +1,7 @@
 // reTerminal E1002: 7.3" 6-colour ACeP, GDEP073E01 panel, ED2208 controller.
 // Black, white, red, green, blue, yellow - and deliberately no orange: the
 // driver would silently map it to the nearest ink and render the wrong colour.
-#ifdef PANEL_COLOR
-#include "panel.h"
+#include "panel_ops.h"
 #include <Arduino.h>
 #include <SPI.h>
 #include <GxEPD2_7C.h>
@@ -19,9 +18,8 @@ SPIClass hspi(HSPI);
          ? EPD::HEIGHT : (MAX_DISPLAY_BUFFER_SIZE) / (EPD::WIDTH / 2))
 GxEPD2_7C<GxEPD2_730c_GDEP073E01, MAX_HEIGHT(GxEPD2_730c_GDEP073E01)>
     display(GxEPD2_730c_GDEP073E01(PIN_EPD_CS, PIN_EPD_DC, PIN_EPD_RST, PIN_EPD_BUSY));
-}
 
-void panelBegin() {
+void begin() {
   pinMode(PIN_EPD_RST, OUTPUT);
   pinMode(PIN_EPD_DC, OUTPUT);
   pinMode(PIN_EPD_CS, OUTPUT);
@@ -32,19 +30,13 @@ void panelBegin() {
   display.setFullWindow();
   Serial.println(F("[panel] E1002 6-colour 800x480 (GDEP073E01)"));
 }
-
-void panelFirstPage() { display.setFullWindow(); display.firstPage(); }
-bool panelNextPage()  { return display.nextPage(); }
-void panelHibernate() { display.hibernate(); }
-void panelFill(uint16_t c) { display.fillScreen(c); }
-void panelPixel(int x, int y, uint16_t c) { display.drawPixel(x, y, c); }
-void panelHSpan(int x0, int x1, int y, uint16_t c) { display.drawFastHLine(x0, y, x1 - x0 + 1, c); }
-
-bool panelIsColor() { return true; }
-uint16_t panelInk()     { return GxEPD_BLACK; }
-uint16_t panelPaper()   { return GxEPD_WHITE; }
-uint16_t panelCaption() { return GxEPD_BLACK; }   // no grey ink; black reads best
-uint16_t panelAccent(int role) {
+void firstPage() { display.setFullWindow(); display.firstPage(); }
+bool nextPage()  { return display.nextPage(); }
+void hibernate() { display.hibernate(); }
+void fill(uint16_t c) { display.fillScreen(c); }
+void pixel(int x, int y, uint16_t c) { display.drawPixel(x, y, c); }
+void hspan(int x0, int x1, int y, uint16_t c) { display.drawFastHLine(x0, y, x1 - x0 + 1, c); }
+uint16_t accent(int role) {
   switch (role) {
     case 2:  return GxEPD_YELLOW;   // Sun
     case 3:  return GxEPD_BLUE;     // Water
@@ -52,4 +44,9 @@ uint16_t panelAccent(int role) {
     default: return GxEPD_RED;      // Warm
   }
 }
-#endif
+}  // namespace
+
+const PanelOps PANEL_E1002 = {
+  "E1002", begin, firstPage, nextPage, hibernate, fill, pixel, hspan,
+  /*isColor=*/true, GxEPD_BLACK, GxEPD_WHITE, /*caption: no grey ink*/ GxEPD_BLACK, accent,
+};

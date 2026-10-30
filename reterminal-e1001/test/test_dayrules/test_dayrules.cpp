@@ -211,6 +211,59 @@ void test_day_named_after_places_and_things() {
   TEST_ASSERT_TRUE(beach && kite);
 }
 
+// A place or thing shows its own icon from [day_icon]; one without an entry
+// keeps the outcome's own.
+void test_place_and_thing_icons() {
+  day::Spec sp; day::Screen sc; char err[200];
+  std::string t = specWith("names = [\"Only Day\"]", "places = [\"Beach\"]\nthings = [\"Kite\"]") +
+                  "\n[day_icon]\n\"Beach\" = \"sun\"\n";
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  bool beach = false, kite = false;
+  for (int d = 0; d < 6; d++) {
+    auto in = base(); in.epochDay = 20621 + d;
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    if (!strcmp(sc.outcome.title, "Beach Day")) { beach = true; TEST_ASSERT_EQUAL_STRING("sun", sc.outcome.heroIcon); }
+    if (!strcmp(sc.outcome.title, "Kite Day"))  { kite = true;  TEST_ASSERT_EQUAL_STRING("tshirt", sc.outcome.heroIcon); }
+  }
+  TEST_ASSERT_TRUE(beach && kite);
+  rejects("day icon that does not exist", specWith("", "") + "\n[day_icon]\n\"Beach\" = \"sombrero\"\n");
+}
+
+// In the real rules, whatever names the day is what the hero shows: across a
+// year of dates on every square, a place or thing shows its own icon and a
+// clothing name shows its tile's.
+void test_real_rules_hero_matches_the_name() {
+  const double temps[] = { 90, 72, 57, 40, 20 };
+  int checked = 0;
+  for (int b = 0; b < 5; b++) for (int c = 0; c < 6; c++) for (int d = 0; d < 12; d++) {
+    auto in = quiet(temps[b]); in.epochDay = 20621 + d;
+    if (c == 0) in.snowHours = 3;
+    if (c == 1) in.precipChanceMaxPct = 70;
+    if (c == 2) in.windMaxMph = 24;
+    if (c == 3) { in.tempMinF = temps[b] - 24; in.tempSwingF = 24; }
+    if (c == 4) in.cloudCoverAvgPct = 5;
+    static day::Screen sc;
+    TEST_ASSERT_TRUE(spec.evaluate(in, sc, nullptr, false));
+    bool fromTile = false;
+    for (int i = 0; i < sc.outcome.wearCount; i++) {
+      if (!strcmp(sc.outcome.wear[i].icon, sc.outcome.heroIcon)) fromTile = true;
+    }
+    static const char* const NOUN_ICONS[][2] = {
+      { "Beach Day", "beach" }, { "Pool Day", "pool" }, { "Splash Pad Day", "splash_pad" },
+      { "Sledding Hill Day", "sledding_hill" }, { "Ice Rink Day", "ice_rink" }, { "Paper Boat Day", "paper_boat" },
+      { "Kite Day", "kite" }, { "Sailboat Day", "sailboat" }, { "Sprinkler Day", "sprinkler" },
+      { "Water Balloon Day", "water_balloon" }, { "Pinwheel Day", "pinwheel" }, { "Frisbee Day", "frisbee" },
+      { "Picnic Blanket Day", "picnic_blanket" }, { "Sidewalk Chalk Day", "sidewalk_chalk" },
+      { "Sled Day", "sled" }, { "Ice Skates Day", "ice_skate" },
+    };
+    bool noun = false;
+    for (auto& ni : NOUN_ICONS) if (!strcmp(sc.outcome.title, ni[0])) { noun = true; TEST_ASSERT_EQUAL_STRING_MESSAGE(ni[1], sc.outcome.heroIcon, ni[0]); }
+    if (!noun) TEST_ASSERT_TRUE_MESSAGE(fromTile, sc.outcome.title);   // clothing: the tile's icon
+    checked++;
+  }
+  TEST_ASSERT_TRUE(checked > 300);
+}
+
 void test_rejects_bad_day_names() {
   rejects("Day written twice", specWith("names = [\"Only Day\"]", "places = [\"Beach Day\"]"));
   rejects("star on an item not in the catalogue", namedByWear("", "[\"*Kilt\", \"a\", \"a\", \"a\"]"));
@@ -825,6 +878,8 @@ int main(int, char**) {
   RUN_TEST(test_day_name_follows_whimsy);
   RUN_TEST(test_day_name_title_case);
   RUN_TEST(test_day_named_after_places_and_things);
+  RUN_TEST(test_place_and_thing_icons);
+  RUN_TEST(test_real_rules_hero_matches_the_name);
   RUN_TEST(test_rejects_bad_day_names);
   RUN_TEST(test_beach_day);
   RUN_TEST(test_band_condition);

@@ -317,6 +317,111 @@ def i_snowflake(c):
             b = a + side * math.radians(42)
             c.line([(px, py), (px + 6 * math.cos(b), py + 6 * math.sin(b))])
 
+# --- places and things: what a day can be named after -----------------------
+
+def rot(pts, cx, cy, deg):
+    a = math.radians(deg)
+    return [(cx + (x - cx) * math.cos(a) - (y - cy) * math.sin(a),
+             cy + (x - cx) * math.sin(a) + (y - cy) * math.cos(a)) for x, y in pts]
+
+def i_beach(c):
+    c.pie(24, 22, 17, 180, 360, WARM); c.arc(24, 22, 17, 180, 360); c.line([(7, 22), (41, 22)])
+    c.line([(24, 5), (17, 22)]); c.line([(24, 5), (31, 22)])
+    c.line([(24, 22), (24, 40)])
+    c.arc(24, 62, 23, 235, 305, SUN); c.arc(24, 62, 23, 235, 305)
+def i_pool(c):
+    for x in (13, 27):
+        c.line([(x, 32), (x, 13)]); c.arc(x + 4, 13, 4, 180, 360); c.line([(x + 8, 13), (x + 8, 17)])
+    c.line([(13, 20), (27, 20)]); c.line([(13, 27), (27, 27)])
+    wave(c, 36, role=WATER); wave(c, 43, role=WATER); wave(c, 36); wave(c, 43)
+def i_splash_pad(c):
+    c.ellipse(10, 37, 38, 44, WATER, fill=True); c.ellipse(10, 37, 38, 44)
+    c.line([(24, 39), (24, 14)])
+    c.arc(16, 16, 8, 180, 360); c.arc(32, 16, 8, 180, 360)
+    for x, y in ((8, 25), (40, 25), (9, 32), (39, 32)): c.disc(x, y, 1.9)
+def i_sledding_hill(c):
+    # a snowy slope with the sled icon riding down it
+    c.poly([(3, 43), (45, 43), (45, 15)], WATER, fill=True)
+    c.line([(3, 43), (45, 15)]); c.line([(3, 43), (45, 43)])
+    ang = math.degrees(math.atan2(15 - 43, 45 - 3))
+    ox, oy = 3 + 42 * 0.40, 43 - 28 * 0.40
+    def S(pts): return [(ox + x, oy + y) for x, y in rot(pts, 0, 0, ang)]
+    deck = S([(2, -9), (17, -9), (17, -5), (2, -5)])
+    c.poly(deck, WARM, fill=True); c.poly(deck)
+    c.line(S([(5, -5), (5, -1)])); c.line(S([(14, -5), (14, -1)]))
+    c.line(S([(-3, -4), (0, -1), (19, -1)]))
+    for x, y in ((8, 9), (16, 4), (24, 12)): c.disc(x, y, 1.9)
+def i_ice_rink(c):
+    c.rrect(4, 11, 44, 39, 12, WATER, fill=True); c.rrect(4, 11, 44, 39, 12)
+    c.line([(24, 11), (24, 39)]); c.circle(24, 25, 5.5, PAPER); c.circle(24, 25, 5.5)
+def i_paper_boat(c):
+    c.poly([(14, 29), (24, 7), (34, 29)], SUN, fill=True); c.poly([(14, 29), (24, 7), (34, 29)])
+    c.line([(24, 7), (24, 29)])
+    c.poly([(5, 29), (43, 29), (35, 38), (13, 38)])
+    wave(c, 43, role=WATER); wave(c, 43)
+def i_kite(c):
+    k = [(24, 3), (36, 17), (24, 33), (12, 17)]
+    c.poly(k, WARM, fill=True); c.poly(k); c.line([(24, 3), (24, 33)]); c.line([(12, 17), (36, 17)])
+    c.line([(24, 33), (18, 39), (26, 44)])
+    for x, y in ((21, 36), (22, 41.5)):
+        c.poly([(x - 4, y - 2.5), (x, y), (x - 4, y + 2.5)], SUN, fill=True); c.poly([(x - 4, y - 2.5), (x, y), (x - 4, y + 2.5)])
+def i_sailboat(c):
+    c.poly([(24, 6), (24, 29), (9, 29)], SUN, fill=True); c.poly([(24, 6), (24, 29), (9, 29)])
+    c.poly([(27, 11), (27, 29), (38, 29)])
+    c.poly([(6, 32), (42, 32), (35, 39), (13, 39)], WARM, fill=True); c.poly([(6, 32), (42, 32), (35, 39), (13, 39)])
+    wave(c, 44, role=WATER); wave(c, 44)
+def i_sprinkler(c):
+    c.line([(8, 43), (40, 43)]); c.rrect(19, 36, 29, 43, 2); c.line([(24, 36), (24, 28)]); c.disc(24, 26.5, 3)
+    for r in (11, 18):
+        for a in range(205, 340, 27):
+            c.disc(24 + r * math.cos(math.radians(a)), 28 + r * math.sin(math.radians(a)), 1.9, WATER)
+            c.circle(24 + r * math.cos(math.radians(a)), 28 + r * math.sin(math.radians(a)), 1.9)
+def i_water_balloon(c):
+    c.ellipse(12, 5, 36, 33, WATER, fill=True); c.ellipse(12, 5, 36, 33)
+    c.arc(19, 15, 5, 190, 260, PAPER)
+    c.poly([(21, 33), (27, 33), (24, 37)], fill=True)
+    c.line([(24, 37), (21, 41), (25, 44), (22, 47)])
+def i_pinwheel(c):
+    c.line([(24, 24), (24, 46)])
+    blade = [(24, 24), (24, 5), (35, 13)]
+    for i, role in enumerate((WARM, SUN, WARM, SUN)):
+        b = rot(blade, 24, 24, i * 90)
+        c.poly(b, role, fill=True); c.poly(b)
+    c.disc(24, 24, 2.6)
+def i_frisbee(c):
+    c.ellipse(14, 15, 46, 31, LEAF, fill=True); c.ellipse(14, 15, 46, 31); c.ellipse(20, 19, 40, 27)
+    c.line([(2, 18), (10, 18)]); c.line([(4, 23), (11, 23)]); c.line([(2, 28), (10, 28)])
+def i_picnic_blanket(c):
+    T, B, y0, y1 = (10, 38), (3, 45), 13, 41
+    def at(u, v):
+        xl = T[0] + (B[0] - T[0]) * v; xr = T[1] + (B[1] - T[1]) * v
+        return (xl + (xr - xl) * u, y0 + (y1 - y0) * v)
+    n, m = 4, 3
+    for i in range(n):
+        for j in range(m):
+            if (i + j) % 2 == 0:
+                c.poly([at(i / n, j / m), at((i + 1) / n, j / m), at((i + 1) / n, (j + 1) / m), at(i / n, (j + 1) / m)], WARM, fill=True)
+    c.poly([at(0, 0), at(1, 0), at(1, 1), at(0, 1)])
+    for i in range(1, n): c.line([at(i / n, 0), at(i / n, 1)])
+    for j in range(1, m): c.line([at(0, j / m), at(1, j / m)])
+def i_sidewalk_chalk(c):
+    star = [(16 + (11 if k % 2 == 0 else 4.5) * math.cos(math.radians(-90 + k * 36)),
+             17 + (11 if k % 2 == 0 else 4.5) * math.sin(math.radians(-90 + k * 36))) for k in range(10)]
+    c.poly(star, SUN, fill=True); c.poly(star)
+    stick = rot([(24, 33), (44, 33), (44, 40), (24, 40)], 34, 36.5, -30)
+    c.poly(stick, LEAF, fill=True); c.poly(stick)
+def i_sled(c):
+    c.rrect(7, 18, 35, 25, 2.5, WARM, fill=True); c.rrect(7, 18, 35, 25, 2.5)
+    c.line([(12, 25), (12, 34)]); c.line([(30, 25), (30, 34)])
+    c.line([(5, 34), (37, 34)]); c.arc(37, 29, 5, -90, 90)
+    c.line([(35, 21), (44, 13)])
+def i_ice_skate(c):
+    boot = [(13, 5), (25, 5), (25, 20), (35, 24), (38, 28), (38, 32), (11, 32), (11, 5)]
+    c.poly(boot, WATER, fill=True); c.poly(boot)
+    c.line([(17, 11), (23, 11)]); c.line([(17, 16), (23, 16)])
+    c.line([(15, 32), (15, 39)]); c.line([(33, 32), (33, 39)])
+    c.line([(6, 39), (39, 39)]); c.arc(39, 36, 3, -90, 90)
+
 ICONS = {
     "sun": i_sun, "sun_and_waves": i_sun_and_waves, "cloud": i_cloud, "rain_cloud": i_rain_cloud,
     "raindrop": i_raindrop, "wind": i_wind, "leaf": i_leaf, "thermometer": i_thermometer,
@@ -327,6 +432,10 @@ ICONS = {
     "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf, "sunset": i_sunset,
     "sandals": i_sandals, "cap": i_cap, "sunglasses": i_sunglasses, "gloves": i_gloves,
     "snow_boot": i_snow_boot, "snow_pants": i_snow_pants, "backpack": i_backpack, "snowflake": i_snowflake,
+    "beach": i_beach, "pool": i_pool, "splash_pad": i_splash_pad, "sledding_hill": i_sledding_hill,
+    "ice_rink": i_ice_rink, "paper_boat": i_paper_boat, "kite": i_kite, "sailboat": i_sailboat,
+    "sprinkler": i_sprinkler, "water_balloon": i_water_balloon, "pinwheel": i_pinwheel, "frisbee": i_frisbee,
+    "picnic_blanket": i_picnic_blanket, "sidewalk_chalk": i_sidewalk_chalk, "sled": i_sled, "ice_skate": i_ice_skate,
 }
 
 

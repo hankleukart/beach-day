@@ -19,6 +19,9 @@ icons = [
   "raincoat", "rain_boot", "umbrella", "puffy_coat", "beanie",
   "mittens", "scarf", "sunset", "sandals", "cap", "sunglasses", "gloves",
   "snow_boot", "snow_pants", "backpack", "snowflake",
+  "beach", "pool", "splash_pad", "sledding_hill", "ice_rink", "paper_boat",
+  "kite", "sailboat", "sprinkler", "water_balloon", "pinwheel", "frisbee",
+  "picnic_blanket", "sidewalk_chalk", "sled", "ice_skate",
 ]
 
 version = "3.0"
@@ -171,6 +174,27 @@ nth = 1   # 1st Monday of September
 "Umbrella"          = { icon = "umbrella",     whimsy = ["Duck umbrella", "Bubble umbrella"] }
 "Backpack"          = { icon = "backpack",     whimsy = ["Rocket backpack", "Turtle backpack"] }
 
+# The picture each place and thing shows in the hero when it names the day.
+# A starred wear item shows its own tile's icon; a name with no entry here
+# shows the outcome's own `icon`.
+[day_icon]
+"Beach"          = "beach"
+"Pool"           = "pool"
+"Splash Pad"     = "splash_pad"
+"Sledding Hill"  = "sledding_hill"
+"Ice Rink"       = "ice_rink"
+"Paper Boat"     = "paper_boat"
+"Kite"           = "kite"
+"Sailboat"       = "sailboat"
+"Sprinkler"      = "sprinkler"
+"Water Balloon"  = "water_balloon"
+"Pinwheel"       = "pinwheel"
+"Frisbee"        = "frisbee"
+"Picnic Blanket" = "picnic_blanket"
+"Sidewalk Chalk" = "sidewalk_chalk"
+"Sled"           = "sled"
+"Ice Skates"     = "ice_skate"
+
 # About one day in `one_in`, one tile swaps to a whimsical alternative. Which
 # day, which tile and which alternative are all fixed by the date, so it
 # holds all day and a second look at lunch says the same thing. Delete the
@@ -223,8 +247,9 @@ one_in = 3
 #
 # Write the bare noun; " Day" is added. A starred wear item names the day
 # after whatever its tile says today, so on a whimsy day the duck umbrella
-# makes it Duck Umbrella Day - and the hero shows that tile's icon. An
-# outcome's own `icon` is what the hero shows for its places and things. All of an outcome's places, things and starred
+# makes it Duck Umbrella Day - and the hero shows that tile's icon. A place
+# or thing shows its own icon from [day_icon] below; the outcome's own `icon`
+# is the fallback for a name with no picture. All of an outcome's places, things and starred
 # items form its pool, and one is picked per day: the same one all day, a
 # different one tomorrow. Anything written as {field} in `also` is
 # filled in from the forecast - {tempMin}, {tempMax}, {wind} and so on.

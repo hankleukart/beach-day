@@ -33,7 +33,7 @@ if [ ! -x "$BUILD/preview" ] || [ -n "$(find "${SRC[@]}" src/*.h lib -newer "$BU
 fi
 
 scenarios=("${1:-all}")
-[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain winter smoke stress snow whimsy trash)
+[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain winter smoke stress snow whimsy trash kite)
 panels=("${2:-all}")
 [ "${panels[0]}" = "all" ] && panels=(mono color)
 

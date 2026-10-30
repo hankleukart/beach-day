@@ -74,11 +74,25 @@ who receives it enters their own Wi-Fi and town.
 | Panel | 7.5" mono, GDEY075T7 (UC8179) | 7.3" 6-colour ACeP, GDEP073E01 (ED2208) |
 | Inks | black, white | black, white, red, green, blue, yellow — **no orange** |
 | Resolution / pins | 800×480, SCK 7 MOSI 9 CS 10 DC 11 RST 12 BUSY 13 | identical |
-| Build env | `reterminal_e1001`, `dev` | `reterminal_e1002`, `dev_e1002` |
+| USB build env | `reterminal_e1001`, `dev`, `gift_e1001` | `reterminal_e1002`, `dev_e1002`, `gift_e1002` |
 
 Because both are 800×480 on the same pins, **the layout, fonts and icons are
-shared verbatim**. Only two files differ: `src/panel_e1002.cpp` (the driver)
-and the role table it feeds.
+shared verbatim**, and since 0.11.3 so is the firmware: every build carries
+both drivers (`src/panel_e1001.cpp`, `src/panel_e1002.cpp`) and picks one at
+boot from the panel model the board remembers in NVS (`src/panelmodel.h`).
+
+- **Unset means E1001**, so every board flashed before this keeps working.
+- **USB sets it.** The per-panel envs above write their panel on boot, so
+  `./flash.sh release e1002` provisions the board as it flashes it.
+- **OTA never changes it.** `tools/release.sh` publishes one binary, built from
+  the `reterminal` env, which names no panel.
+- **It survives "Erase all settings"**, which clears Wi-Fi and location but
+  not the `device` namespace the model lives in.
+- **To fix a board set wrong** (its screen stays blank), press Left Nav: the
+  setup page opens on a phone and has a "Display panel" section.
+
+The cost is 32 KB more RAM (both frame buffers exist; still under half used)
+and 13 KB more flash.
 
 ### How colour is used
 
@@ -101,8 +115,9 @@ Everything else — the mild, dry squares — stays black or white. Twenty-seven
 coloured outcomes would be confetti; three meanings are a vocabulary. Type colour follows automatically — black on
 yellow, white on the darker inks.
 
-**The parking bar is red**, because a solid bar already means "act on this" and
-red says it in one glance.
+**The footer bar is red for street cleaning and yellow for the weekly
+reminder**, because a solid bar already means "act on this" and the colour says
+which in one glance. Yellow takes black text; white vanishes on it.
 
 **Stat icons keep their own inks** — yellow sun, blue raindrop, green leaf, red
 thermometer — because there the colour *is* the data.
@@ -132,11 +147,9 @@ no grey ink at all. An outline stood in for a while, but once the band moved
 up under the weekday the rule above it was already doing the separating, and
 four evenly spaced columns group themselves. So the stats sit on bare paper.
 
-The binaries are **not** interchangeable — an E1001 image on an E1002 runs
-perfectly and never touches the screen, because it is talking to a controller
-that isn't there. Each panel gets its own OTA tag (`PANEL=e1002
-tools/release.sh --publish`) and each board's `CFG_OTA_MANIFEST_URL` must point
-at its own.
+One binary serves both panels. Before 0.11.3 they were separate and **not**
+interchangeable — an E1001 image on an E1002 runs and never touches the
+screen — which is why a board's panel is now a setting rather than a build.
 
 ## Testing on the bench
 

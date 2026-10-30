@@ -3,10 +3,11 @@
 #
 #   tools/release.sh                      build, write the manifest, print steps
 #   tools/release.sh --publish            also create the GitHub release (gh)
-#   PANEL=e1002 tools/release.sh --publish   the colour panel
 #
-# Each panel gets its own tag and asset, because the binaries are not
-# interchangeable - CFG_OTA_MANIFEST_URL must point a board at its own.
+# One binary for both panels: it carries both drivers and each board picks
+# its own from the panel model in NVS (src/panelmodel.h). Built from the
+# `reterminal` env, which sets no panel, so an update never changes what a
+# board thinks it is. Before 0.11.3 there was one release per panel.
 #
 # Bump FIRMWARE_VERSION in src/version.h first. Devices compare that string
 # against the manifest's "version" and update when they differ, so publishing
@@ -17,23 +18,19 @@ cd "$(dirname "$0")/.."
 PIO=.venv/bin/pio
 [ -x "$PIO" ] || { echo "Missing .venv - see README"; exit 1; }
 
-PANEL="${PANEL:-e1001}"
-case "$PANEL" in
-  e1001) BUILD_ENV=reterminal_e1001 ;;
-  e1002) BUILD_ENV=reterminal_e1002 ;;
-  *) echo "PANEL must be e1001 or e1002"; exit 1 ;;
-esac
+[ -z "${PANEL:-}" ] || { echo "PANEL is gone: one release now serves both panels."; exit 1; }
+BUILD_ENV=reterminal
 
 VERSION=$(sed -n 's/.*FIRMWARE_VERSION[[:space:]]*"\([^"]*\)".*/\1/p' src/version.h)
 [ -n "$VERSION" ] || { echo "Could not read FIRMWARE_VERSION from src/version.h"; exit 1; }
 
 REPO=$(git config --get remote.origin.url | sed -E 's#.*github\.com[:/]([^/]+/[^/.]+)(\.git)?#\1#')
-TAG="fw-$PANEL-v$VERSION"
-ASSET="beachday-reterminal-$PANEL-$VERSION.bin"
+TAG="fw-v$VERSION"
+ASSET="beachday-reterminal-$VERSION.bin"
 OUT=dist
 BIN=.pio/build/$BUILD_ENV/firmware.bin
 
-echo "==> Version $VERSION  panel $PANEL  (repo $REPO, tag $TAG)"
+echo "==> Version $VERSION, both panels  (repo $REPO, tag $TAG)"
 
 # Refuse to ship firmware whose logic has not been checked.
 echo "==> Running the rules tests"

@@ -10,6 +10,7 @@
 #include "power.h"
 #include "pins.h"
 #include "version.h"
+#include "panelmodel.h"
 
 namespace {
 
@@ -64,6 +65,10 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <details><summary>Street-cleaning parking reminders</summary>
 <small style="margin-top:8px">Shows a NO PARKING bar from sunset the night before until the restriction ends.</small>
 %PARKING%
+</details>
+<details><summary>Display panel</summary>
+<small style="margin-top:8px">Which reTerminal this is. Set when it was flashed; change it only if the screen stays blank.</small>
+<select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
 </details>
 <details><summary>Trash reminder</summary>
 <small style="margin-top:8px">Shows a reminder bar all day on the day you pick. If street cleaning is due too, that shows first.</small>
@@ -139,6 +144,14 @@ void handleRoot() {
   mid.replace("%PARKING%", parkingFieldset("L", "Left side of the street", current.parking[0]) +
                            parkingFieldset("R", "Right side of the street", current.parking[1]));
   mid.replace("%REMINDER%", reminderFieldset(current.reminder));
+  {
+    String opts;
+    for (PanelModel m : { PanelModel::E1001, PanelModel::E1002 }) {
+      opts += String("<option value=\"") + panelModelId(m) + "\"" + (m == panelModel() ? " selected" : "") + ">" +
+              htmlEscape(panelModelLabel(m)) + "</option>";
+    }
+    mid.replace("%PANEL%", opts);
+  }
   mid.replace("%VER%", FIRMWARE_VERSION);
   page += mid;
   server.sendHeader("Cache-Control", "no-store");
@@ -200,6 +213,13 @@ void handleSave() {
   readParking("L", in.parking[0], current.parking[0]);
   readParking("R", in.parking[1], current.parking[1]);
   readReminder(in.reminder, current.reminder);
+  // Kept apart from the other settings (its own NVS namespace), so it is
+  // saved directly rather than through PortalInput.
+  if (server.hasArg("panel")) {
+    const PanelModel want = server.arg("panel") == "e1002" ? PanelModel::E1002 : PanelModel::E1001;
+    if (want != panelModel()) Serial.printf("[portal] panel -> %s\n", panelModelId(want));
+    panelSetModel(want);
+  }
 
   if (!savePortalInput(in)) { sendSimple(500, "Couldn't save", "<p>Storage error. Try again.</p><p><a href=\"/\">Back</a></p>"); return; }
 

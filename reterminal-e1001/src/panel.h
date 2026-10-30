@@ -1,8 +1,7 @@
-// The only file that knows which physical panel this build drives.
-//
-// Both reTerminal panels are 800x480 and share a pin map, so the layout above
-// is identical; what differs is the controller and whether colour exists.
-// One panel_*.cpp is compiled per build environment.
+// The drawing surface. Both reTerminal panels are 800x480 and share a pin map,
+// so the layout above is identical; what differs is the controller and whether
+// colour exists. Every build carries both drivers (panel_e1001.cpp,
+// panel_e1002.cpp) and panel.cpp picks one at boot from panelmodel.h.
 #pragma once
 #include <cstdint>
 

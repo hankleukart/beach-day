@@ -292,13 +292,13 @@ void drawRight(const ViewModel& vm) {
   int rightStartX = COL_X1;
   if (vm.parkingActive) {
     TextStyle ft = T_FOOTER;
-    ft.role = paintAlertTextRole();
+    ft.role = paintAlertTextRole(vm.barIsReminder);
     int pillW = textWidth(ft, vm.parkingText) + 22;
     if (pillW > COL_W / 2) pillW = COL_W / 2;
     // A long alert shrinks to fit its bar rather than running past the ends.
     while (ft.px > 10 && textWidth(ft, vm.parkingText) > pillW - 16) ft.px -= 1;
     rightStartX = COL_X1 - pillW;
-    paintAlertBar(rightStartX, footerRuleY + 10, pillW, 30, 7);
+    paintAlertBar(rightStartX, footerRuleY + 10, pillW, 30, 7, vm.barIsReminder);
     textDrawCentered(ft, rightStartX + pillW / 2, footerRuleY + 30, vm.parkingText);
   } else if (s.footer[0]) {
     int fw = textWidth(T_FOOTER, s.footer);

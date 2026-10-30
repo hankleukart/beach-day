@@ -569,13 +569,14 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
 
   toml_table_t* v = nullptr;    // chosen variant table, if the pick landed on one
   int namedTile = -1;           // the starred tile the day is named after, if any
+  char namedNoun[40] = "";      // the place or thing the day is named after, if any
   char picked[40] = "";
   if (pool > 0) {
     int idx = (int)(((uint32_t)in.epochDay + hashOf(oc.id)) % (uint32_t)pool);
     char noun[40] = "";
     if (idx < nNames) tStrAt(names, idx, picked, sizeof(picked));
-    else if ((idx -= nNames) < nPlaces) { tStrAt(places, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); }
-    else if ((idx -= nPlaces) < nThings) { tStrAt(things, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); }
+    else if ((idx -= nNames) < nPlaces) { tStrAt(places, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); cpy(namedNoun, sizeof(namedNoun), noun); }
+    else if ((idx -= nPlaces) < nThings) { tStrAt(things, idx, noun, sizeof(noun)); snprintf(picked, sizeof(picked), "%s Day", noun); cpy(namedNoun, sizeof(namedNoun), noun); }
     else if ((idx -= nThings) < nStars) namedTile = starTiles[idx];   // named once the tiles are known
     else {
       v = toml_table_at(variants, idx - nStars);
@@ -630,6 +631,9 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, 
     dayNameFrom(oc.wear[namedTile].label, picked, sizeof(picked));
     cpy(oc.heroIcon, sizeof(oc.heroIcon), oc.wear[namedTile].icon);
   }
+  // A place or thing shows its own picture from [day_icon] - Kite Day shows a
+  // kite - and keeps the outcome's own icon when it has none.
+  if (namedNoun[0]) tStr(toml_table_in(root_, "day_icon"), namedNoun, oc.heroIcon, sizeof(oc.heroIcon));
   {
     char holiday[20] = "";
     if (holidayFor(in, holiday, sizeof(holiday)) && holiday[0]) {

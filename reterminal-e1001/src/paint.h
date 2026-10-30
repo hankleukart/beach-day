@@ -32,8 +32,10 @@ struct HeroSurface {
 HeroSurface paintHeroSurface(Tint tint, bool preferLight);
 
 // A solid bar that means "act on this". Red where red exists.
-void paintAlertBar(int x, int y, int w, int h, int rad);
-Role paintAlertTextRole();
+// The footer bar. Street cleaning is red, the weekly reminder yellow; both
+// are black on the mono panel, which has no colour to tell them apart by.
+void paintAlertBar(int x, int y, int w, int h, int rad, bool reminder);
+Role paintAlertTextRole(bool reminder);
 
 // The stat strip's backing. On a 1-bit panel a dot field behind type destroys
 // it, so this is an outline here; a colour panel fills it with the band tone.

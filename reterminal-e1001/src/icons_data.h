@@ -310,6 +310,197 @@ static const IcCmd IC_snowflake[] PROGMEM = {
   { IC_LINE, 0, 4, IC_snowflake_v + 67 },
   { IC_LINE, 0, 4, IC_snowflake_v + 71 },
 };
+static const int16_t IC_beach_v[] PROGMEM = { 48, 44, 34, 180, 360, 48, 44, 34, 180, 360, 14, 44, 82, 44, 48, 10, 34, 44, 48, 10, 62, 44, 48, 44, 48, 80, 48, 124, 46, 235, 305, 48, 124, 46, 235, 305 };
+static const IcCmd IC_beach[] PROGMEM = {
+  { IC_PIE, 5, 5, IC_beach_v + 0 },
+  { IC_ARC, 0, 5, IC_beach_v + 5 },
+  { IC_LINE, 0, 4, IC_beach_v + 10 },
+  { IC_LINE, 0, 4, IC_beach_v + 14 },
+  { IC_LINE, 0, 4, IC_beach_v + 18 },
+  { IC_LINE, 0, 4, IC_beach_v + 22 },
+  { IC_ARC, 2, 5, IC_beach_v + 26 },
+  { IC_ARC, 0, 5, IC_beach_v + 31 },
+};
+static const int16_t IC_pool_v[] PROGMEM = { 26, 64, 26, 26, 34, 26, 8, 180, 360, 42, 26, 42, 34, 54, 64, 54, 26, 62, 26, 8, 180, 360, 70, 26, 70, 34, 26, 40, 54, 40, 26, 54, 54, 54, 16, 72, 19, 74, 21, 76, 24, 77, 27, 77, 29, 77, 32, 76, 35, 74, 37, 72, 40, 70, 43, 68, 45, 67, 48, 67, 51, 67, 53, 68, 56, 70, 59, 72, 61, 74, 64, 76, 67, 77, 69, 77, 72, 77, 75, 76, 77, 74, 80, 72, 16, 86, 19, 88, 21, 90, 24, 91, 27, 91, 29, 91, 32, 90, 35, 88, 37, 86, 40, 84, 43, 82, 45, 81, 48, 81, 51, 81, 53, 82, 56, 84, 59, 86, 61, 88, 64, 90, 67, 91, 69, 91, 72, 91, 75, 90, 77, 88, 80, 86, 16, 72, 19, 74, 21, 76, 24, 77, 27, 77, 29, 77, 32, 76, 35, 74, 37, 72, 40, 70, 43, 68, 45, 67, 48, 67, 51, 67, 53, 68, 56, 70, 59, 72, 61, 74, 64, 76, 67, 77, 69, 77, 72, 77, 75, 76, 77, 74, 80, 72, 16, 86, 19, 88, 21, 90, 24, 91, 27, 91, 29, 91, 32, 90, 35, 88, 37, 86, 40, 84, 43, 82, 45, 81, 48, 81, 51, 81, 53, 82, 56, 84, 59, 86, 61, 88, 64, 90, 67, 91, 69, 91, 72, 91, 75, 90, 77, 88, 80, 86 };
+static const IcCmd IC_pool[] PROGMEM = {
+  { IC_LINE, 0, 4, IC_pool_v + 0 },
+  { IC_ARC, 0, 5, IC_pool_v + 4 },
+  { IC_LINE, 0, 4, IC_pool_v + 9 },
+  { IC_LINE, 0, 4, IC_pool_v + 13 },
+  { IC_ARC, 0, 5, IC_pool_v + 17 },
+  { IC_LINE, 0, 4, IC_pool_v + 22 },
+  { IC_LINE, 0, 4, IC_pool_v + 26 },
+  { IC_LINE, 0, 4, IC_pool_v + 30 },
+  { IC_LINE, 3, 50, IC_pool_v + 34 },
+  { IC_LINE, 3, 50, IC_pool_v + 84 },
+  { IC_LINE, 0, 50, IC_pool_v + 134 },
+  { IC_LINE, 0, 50, IC_pool_v + 184 },
+};
+static const int16_t IC_splash_pad_v[] PROGMEM = { 20, 74, 76, 88, 20, 74, 76, 88, 48, 78, 48, 28, 32, 32, 16, 180, 360, 64, 32, 16, 180, 360, 16, 50, 4, 80, 50, 4, 18, 64, 4, 78, 64, 4 };
+static const IcCmd IC_splash_pad[] PROGMEM = {
+  { IC_ELLIPSE_FILL, 3, 4, IC_splash_pad_v + 0 },
+  { IC_ELLIPSE, 0, 4, IC_splash_pad_v + 4 },
+  { IC_LINE, 0, 4, IC_splash_pad_v + 8 },
+  { IC_ARC, 0, 5, IC_splash_pad_v + 12 },
+  { IC_ARC, 0, 5, IC_splash_pad_v + 17 },
+  { IC_DISC, 0, 3, IC_splash_pad_v + 22 },
+  { IC_DISC, 0, 3, IC_splash_pad_v + 25 },
+  { IC_DISC, 0, 3, IC_splash_pad_v + 28 },
+  { IC_DISC, 0, 3, IC_splash_pad_v + 31 },
+};
+static const int16_t IC_sledding_hill_v[] PROGMEM = { 6, 86, 90, 86, 90, 30, 6, 86, 90, 30, 6, 86, 90, 86, 33, 46, 58, 30, 62, 36, 37, 53, 33, 46, 58, 30, 62, 36, 37, 53, 42, 50, 47, 56, 57, 40, 62, 46, 30, 60, 38, 62, 70, 41, 16, 18, 4, 32, 8, 4, 48, 24, 4 };
+static const IcCmd IC_sledding_hill[] PROGMEM = {
+  { IC_POLY_FILL, 3, 6, IC_sledding_hill_v + 0 },
+  { IC_LINE, 0, 4, IC_sledding_hill_v + 6 },
+  { IC_LINE, 0, 4, IC_sledding_hill_v + 10 },
+  { IC_POLY_FILL, 5, 8, IC_sledding_hill_v + 14 },
+  { IC_POLY, 0, 8, IC_sledding_hill_v + 22 },
+  { IC_LINE, 0, 4, IC_sledding_hill_v + 30 },
+  { IC_LINE, 0, 4, IC_sledding_hill_v + 34 },
+  { IC_LINE, 0, 6, IC_sledding_hill_v + 38 },
+  { IC_DISC, 0, 3, IC_sledding_hill_v + 44 },
+  { IC_DISC, 0, 3, IC_sledding_hill_v + 47 },
+  { IC_DISC, 0, 3, IC_sledding_hill_v + 50 },
+};
+static const int16_t IC_ice_rink_v[] PROGMEM = { 8, 22, 88, 78, 24, 8, 22, 88, 78, 24, 48, 22, 48, 78, 48, 50, 11, 48, 50, 11 };
+static const IcCmd IC_ice_rink[] PROGMEM = {
+  { IC_RRECT_FILL, 3, 5, IC_ice_rink_v + 0 },
+  { IC_RRECT, 0, 5, IC_ice_rink_v + 5 },
+  { IC_LINE, 0, 4, IC_ice_rink_v + 10 },
+  { IC_CIRCLE, 1, 3, IC_ice_rink_v + 14 },
+  { IC_CIRCLE, 0, 3, IC_ice_rink_v + 17 },
+};
+static const int16_t IC_paper_boat_v[] PROGMEM = { 28, 58, 48, 14, 68, 58, 28, 58, 48, 14, 68, 58, 48, 14, 48, 58, 10, 58, 86, 58, 70, 76, 26, 76, 16, 86, 19, 88, 21, 90, 24, 91, 27, 91, 29, 91, 32, 90, 35, 88, 37, 86, 40, 84, 43, 82, 45, 81, 48, 81, 51, 81, 53, 82, 56, 84, 59, 86, 61, 88, 64, 90, 67, 91, 69, 91, 72, 91, 75, 90, 77, 88, 80, 86, 16, 86, 19, 88, 21, 90, 24, 91, 27, 91, 29, 91, 32, 90, 35, 88, 37, 86, 40, 84, 43, 82, 45, 81, 48, 81, 51, 81, 53, 82, 56, 84, 59, 86, 61, 88, 64, 90, 67, 91, 69, 91, 72, 91, 75, 90, 77, 88, 80, 86 };
+static const IcCmd IC_paper_boat[] PROGMEM = {
+  { IC_POLY_FILL, 2, 6, IC_paper_boat_v + 0 },
+  { IC_POLY, 0, 6, IC_paper_boat_v + 6 },
+  { IC_LINE, 0, 4, IC_paper_boat_v + 12 },
+  { IC_POLY, 0, 8, IC_paper_boat_v + 16 },
+  { IC_LINE, 3, 50, IC_paper_boat_v + 24 },
+  { IC_LINE, 0, 50, IC_paper_boat_v + 74 },
+};
+static const int16_t IC_kite_v[] PROGMEM = { 48, 6, 72, 34, 48, 66, 24, 34, 48, 6, 72, 34, 48, 66, 24, 34, 48, 6, 48, 66, 24, 34, 72, 34, 48, 66, 36, 78, 52, 88, 34, 67, 42, 72, 34, 77, 34, 67, 42, 72, 34, 77, 36, 78, 44, 83, 36, 88, 36, 78, 44, 83, 36, 88 };
+static const IcCmd IC_kite[] PROGMEM = {
+  { IC_POLY_FILL, 5, 8, IC_kite_v + 0 },
+  { IC_POLY, 0, 8, IC_kite_v + 8 },
+  { IC_LINE, 0, 4, IC_kite_v + 16 },
+  { IC_LINE, 0, 4, IC_kite_v + 20 },
+  { IC_LINE, 0, 6, IC_kite_v + 24 },
+  { IC_POLY_FILL, 2, 6, IC_kite_v + 30 },
+  { IC_POLY, 0, 6, IC_kite_v + 36 },
+  { IC_POLY_FILL, 2, 6, IC_kite_v + 42 },
+  { IC_POLY, 0, 6, IC_kite_v + 48 },
+};
+static const int16_t IC_sailboat_v[] PROGMEM = { 48, 12, 48, 58, 18, 58, 48, 12, 48, 58, 18, 58, 54, 22, 54, 58, 76, 58, 12, 64, 84, 64, 70, 78, 26, 78, 12, 64, 84, 64, 70, 78, 26, 78, 16, 88, 19, 90, 21, 92, 24, 93, 27, 93, 29, 93, 32, 92, 35, 90, 37, 88, 40, 86, 43, 84, 45, 83, 48, 83, 51, 83, 53, 84, 56, 86, 59, 88, 61, 90, 64, 92, 67, 93, 69, 93, 72, 93, 75, 92, 77, 90, 80, 88, 16, 88, 19, 90, 21, 92, 24, 93, 27, 93, 29, 93, 32, 92, 35, 90, 37, 88, 40, 86, 43, 84, 45, 83, 48, 83, 51, 83, 53, 84, 56, 86, 59, 88, 61, 90, 64, 92, 67, 93, 69, 93, 72, 93, 75, 92, 77, 90, 80, 88 };
+static const IcCmd IC_sailboat[] PROGMEM = {
+  { IC_POLY_FILL, 2, 6, IC_sailboat_v + 0 },
+  { IC_POLY, 0, 6, IC_sailboat_v + 6 },
+  { IC_POLY, 0, 6, IC_sailboat_v + 12 },
+  { IC_POLY_FILL, 5, 8, IC_sailboat_v + 18 },
+  { IC_POLY, 0, 8, IC_sailboat_v + 26 },
+  { IC_LINE, 3, 50, IC_sailboat_v + 34 },
+  { IC_LINE, 0, 50, IC_sailboat_v + 84 },
+};
+static const int16_t IC_sprinkler_v[] PROGMEM = { 16, 86, 80, 86, 38, 72, 58, 86, 4, 48, 72, 48, 56, 48, 53, 6, 28, 47, 4, 28, 47, 4, 34, 39, 4, 34, 39, 4, 44, 34, 4, 44, 34, 4, 54, 35, 4, 54, 35, 4, 63, 40, 4, 63, 40, 4, 15, 41, 4, 15, 41, 4, 26, 28, 4, 26, 28, 4, 41, 21, 4, 41, 21, 4, 58, 21, 4, 58, 21, 4, 73, 30, 4, 73, 30, 4 };
+static const IcCmd IC_sprinkler[] PROGMEM = {
+  { IC_LINE, 0, 4, IC_sprinkler_v + 0 },
+  { IC_RRECT, 0, 5, IC_sprinkler_v + 4 },
+  { IC_LINE, 0, 4, IC_sprinkler_v + 9 },
+  { IC_DISC, 0, 3, IC_sprinkler_v + 13 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 16 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 19 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 22 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 25 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 28 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 31 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 34 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 37 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 40 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 43 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 46 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 49 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 52 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 55 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 58 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 61 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 64 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 67 },
+  { IC_DISC, 3, 3, IC_sprinkler_v + 70 },
+  { IC_CIRCLE, 0, 3, IC_sprinkler_v + 73 },
+};
+static const int16_t IC_water_balloon_v[] PROGMEM = { 24, 10, 72, 66, 24, 10, 72, 66, 38, 30, 10, 190, 260, 42, 66, 54, 66, 48, 74, 48, 74, 42, 82, 50, 88, 44, 94 };
+static const IcCmd IC_water_balloon[] PROGMEM = {
+  { IC_ELLIPSE_FILL, 3, 4, IC_water_balloon_v + 0 },
+  { IC_ELLIPSE, 0, 4, IC_water_balloon_v + 4 },
+  { IC_ARC, 1, 5, IC_water_balloon_v + 8 },
+  { IC_POLY_FILL, 0, 6, IC_water_balloon_v + 13 },
+  { IC_LINE, 0, 8, IC_water_balloon_v + 19 },
+};
+static const int16_t IC_pinwheel_v[] PROGMEM = { 48, 48, 48, 92, 48, 48, 48, 10, 70, 26, 48, 48, 48, 10, 70, 26, 48, 48, 86, 48, 70, 70, 48, 48, 86, 48, 70, 70, 48, 48, 48, 86, 26, 70, 48, 48, 48, 86, 26, 70, 48, 48, 10, 48, 26, 26, 48, 48, 10, 48, 26, 26, 48, 48, 5 };
+static const IcCmd IC_pinwheel[] PROGMEM = {
+  { IC_LINE, 0, 4, IC_pinwheel_v + 0 },
+  { IC_POLY_FILL, 5, 6, IC_pinwheel_v + 4 },
+  { IC_POLY, 0, 6, IC_pinwheel_v + 10 },
+  { IC_POLY_FILL, 2, 6, IC_pinwheel_v + 16 },
+  { IC_POLY, 0, 6, IC_pinwheel_v + 22 },
+  { IC_POLY_FILL, 5, 6, IC_pinwheel_v + 28 },
+  { IC_POLY, 0, 6, IC_pinwheel_v + 34 },
+  { IC_POLY_FILL, 2, 6, IC_pinwheel_v + 40 },
+  { IC_POLY, 0, 6, IC_pinwheel_v + 46 },
+  { IC_DISC, 0, 3, IC_pinwheel_v + 52 },
+};
+static const int16_t IC_frisbee_v[] PROGMEM = { 28, 30, 92, 62, 28, 30, 92, 62, 40, 38, 80, 54, 4, 36, 20, 36, 8, 46, 22, 46, 4, 56, 20, 56 };
+static const IcCmd IC_frisbee[] PROGMEM = {
+  { IC_ELLIPSE_FILL, 4, 4, IC_frisbee_v + 0 },
+  { IC_ELLIPSE, 0, 4, IC_frisbee_v + 4 },
+  { IC_ELLIPSE, 0, 4, IC_frisbee_v + 8 },
+  { IC_LINE, 0, 4, IC_frisbee_v + 12 },
+  { IC_LINE, 0, 4, IC_frisbee_v + 16 },
+  { IC_LINE, 0, 4, IC_frisbee_v + 20 },
+};
+static const int16_t IC_picnic_blanket_v[] PROGMEM = { 20, 26, 34, 26, 32, 45, 15, 45, 11, 63, 29, 63, 27, 82, 6, 82, 32, 45, 48, 45, 48, 63, 29, 63, 48, 26, 62, 26, 64, 45, 48, 45, 48, 63, 67, 63, 69, 82, 48, 82, 64, 45, 81, 45, 85, 63, 67, 63, 20, 26, 76, 26, 90, 82, 6, 82, 34, 26, 27, 82, 48, 26, 48, 82, 62, 26, 69, 82, 15, 45, 81, 45, 11, 63, 85, 63 };
+static const IcCmd IC_picnic_blanket[] PROGMEM = {
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 0 },
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 8 },
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 16 },
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 24 },
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 32 },
+  { IC_POLY_FILL, 5, 8, IC_picnic_blanket_v + 40 },
+  { IC_POLY, 0, 8, IC_picnic_blanket_v + 48 },
+  { IC_LINE, 0, 4, IC_picnic_blanket_v + 56 },
+  { IC_LINE, 0, 4, IC_picnic_blanket_v + 60 },
+  { IC_LINE, 0, 4, IC_picnic_blanket_v + 64 },
+  { IC_LINE, 0, 4, IC_picnic_blanket_v + 68 },
+  { IC_LINE, 0, 4, IC_picnic_blanket_v + 72 },
+};
+static const int16_t IC_sidewalk_chalk_v[] PROGMEM = { 32, 12, 37, 27, 53, 27, 41, 37, 45, 52, 32, 43, 19, 52, 23, 37, 11, 27, 27, 27, 32, 12, 37, 27, 53, 27, 41, 37, 45, 52, 32, 43, 19, 52, 23, 37, 11, 27, 27, 27, 47, 77, 82, 57, 89, 69, 54, 89, 47, 77, 82, 57, 89, 69, 54, 89 };
+static const IcCmd IC_sidewalk_chalk[] PROGMEM = {
+  { IC_POLY_FILL, 2, 20, IC_sidewalk_chalk_v + 0 },
+  { IC_POLY, 0, 20, IC_sidewalk_chalk_v + 20 },
+  { IC_POLY_FILL, 4, 8, IC_sidewalk_chalk_v + 40 },
+  { IC_POLY, 0, 8, IC_sidewalk_chalk_v + 48 },
+};
+static const int16_t IC_sled_v[] PROGMEM = { 14, 36, 70, 50, 5, 14, 36, 70, 50, 5, 24, 50, 24, 68, 60, 50, 60, 68, 10, 68, 74, 68, 74, 58, 10, -90, 90, 70, 42, 88, 26 };
+static const IcCmd IC_sled[] PROGMEM = {
+  { IC_RRECT_FILL, 5, 5, IC_sled_v + 0 },
+  { IC_RRECT, 0, 5, IC_sled_v + 5 },
+  { IC_LINE, 0, 4, IC_sled_v + 10 },
+  { IC_LINE, 0, 4, IC_sled_v + 14 },
+  { IC_LINE, 0, 4, IC_sled_v + 18 },
+  { IC_ARC, 0, 5, IC_sled_v + 22 },
+  { IC_LINE, 0, 4, IC_sled_v + 27 },
+};
+static const int16_t IC_ice_skate_v[] PROGMEM = { 26, 10, 50, 10, 50, 40, 70, 48, 76, 56, 76, 64, 22, 64, 22, 10, 26, 10, 50, 10, 50, 40, 70, 48, 76, 56, 76, 64, 22, 64, 22, 10, 34, 22, 46, 22, 34, 32, 46, 32, 30, 64, 30, 78, 66, 64, 66, 78, 12, 78, 78, 78, 78, 72, 6, -90, 90 };
+static const IcCmd IC_ice_skate[] PROGMEM = {
+  { IC_POLY_FILL, 3, 16, IC_ice_skate_v + 0 },
+  { IC_POLY, 0, 16, IC_ice_skate_v + 16 },
+  { IC_LINE, 0, 4, IC_ice_skate_v + 32 },
+  { IC_LINE, 0, 4, IC_ice_skate_v + 36 },
+  { IC_LINE, 0, 4, IC_ice_skate_v + 40 },
+  { IC_LINE, 0, 4, IC_ice_skate_v + 44 },
+  { IC_LINE, 0, 4, IC_ice_skate_v + 48 },
+  { IC_ARC, 0, 5, IC_ice_skate_v + 52 },
+};
 
 static const IconDef ICON_DEFS[] PROGMEM = {
   { "sun", IC_sun, 10 },
@@ -348,5 +539,21 @@ static const IconDef ICON_DEFS[] PROGMEM = {
   { "snow_pants", IC_snow_pants, 5 },
   { "backpack", IC_backpack, 4 },
   { "snowflake", IC_snowflake, 19 },
+  { "beach", IC_beach, 8 },
+  { "pool", IC_pool, 12 },
+  { "splash_pad", IC_splash_pad, 9 },
+  { "sledding_hill", IC_sledding_hill, 11 },
+  { "ice_rink", IC_ice_rink, 5 },
+  { "paper_boat", IC_paper_boat, 6 },
+  { "kite", IC_kite, 9 },
+  { "sailboat", IC_sailboat, 7 },
+  { "sprinkler", IC_sprinkler, 24 },
+  { "water_balloon", IC_water_balloon, 5 },
+  { "pinwheel", IC_pinwheel, 10 },
+  { "frisbee", IC_frisbee, 6 },
+  { "picnic_blanket", IC_picnic_blanket, 12 },
+  { "sidewalk_chalk", IC_sidewalk_chalk, 4 },
+  { "sled", IC_sled, 7 },
+  { "ice_skate", IC_ice_skate, 8 },
 };
 static const int ICON_DEF_COUNT = sizeof(ICON_DEFS) / sizeof(ICON_DEFS[0]);

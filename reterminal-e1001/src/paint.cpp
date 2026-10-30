@@ -125,10 +125,11 @@ HeroSurface paintHeroSurface(Tint tint, bool preferLight) {
   return h;
 }
 
-void paintAlertBar(int x, int y, int w, int h, int rad) {
-  paintRoundRect(x, y, w, h, rad, panelIsColor() ? Role::Warm : Role::Ink);
+void paintAlertBar(int x, int y, int w, int h, int rad, bool reminder) {
+  paintRoundRect(x, y, w, h, rad, !panelIsColor() ? Role::Ink : reminder ? Role::Sun : Role::Warm);
 }
-Role paintAlertTextRole() { return Role::Paper; }
+// White reads on red and black; on yellow it vanishes, so that one is black.
+Role paintAlertTextRole(bool reminder) { return panelIsColor() && reminder ? Role::Ink : Role::Paper; }
 
 bool paintAccentsLegibleAt(int featurePx) {
   // Real ink reads at any size; a 25% dot pattern inside a 22px icon is noise.

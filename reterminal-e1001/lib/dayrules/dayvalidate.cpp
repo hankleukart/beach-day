@@ -165,6 +165,17 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
     }
   }
 
+  // [day_icon]: a place or thing -> the icon its day shows. Optional per
+  // noun (the outcome's own icon stands in), but every one given must exist.
+  toml_table_t* dayIcons = toml_table_in(root, "day_icon");
+  for (int i = 0; dayIcons; i++) {
+    const char* noun = toml_key_in(dayIcons, i);
+    if (!noun) break;
+    char icon[24];
+    if (!vStr(dayIcons, noun, icon, sizeof(icon))) return v.fail("day_icon.%s must be an icon name", noun);
+    if (!v.knownIcon(noun, "day icon", icon)) return false;
+  }
+
   toml_table_t* whimsy = toml_table_in(root, "whimsy");
   if (whimsy) {
     double oneIn = 0;

@@ -59,6 +59,9 @@ const Scenario SCENARIOS[] = {
   { "snow",   7 * 60 + 15, 16 * 60 + 40, 18, 29, 70, 95, 10, 25, 73, false },
   // The beach day a week later, on a date that swaps one tile for whimsy.
   { "whimsy", 5 * 60 + 12, 20 * 60 + 31, 62, 84,  5, 10,  8, 32, 0, false, true },
+  // Hot and gusty: a square named after things (Kite, Sailboat), to check the
+  // hero shows the thing's own icon rather than the outcome's.
+  { "kite",   5 * 60 + 40, 19 * 60 + 50, 66, 86,  5, 20, 21, 30, 1, false },
   // Trash night: the longest default text the footer bar has to carry.
   { "trash",  6 * 60 + 40, 19 * 60 + 10, 58, 72,  5, 30, 10, 30, 2, false, false,
     "Take your trash to the street tonight" },
@@ -170,6 +173,7 @@ int main(int argc, char** argv) {
 
   if (sc->bar) {
     vm.parkingActive = true;
+    vm.barIsReminder = true;
     std::snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", sc->bar);
   }
   if (sc->stressCopy) {

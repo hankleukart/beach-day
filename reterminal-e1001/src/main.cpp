@@ -19,6 +19,7 @@
 #include "geocode.h"
 #include "specstore.h"
 #include "version.h"
+#include "panelmodel.h"
 #include "derive.h"
 #include "parking.h"
 #include "devmode.h"
@@ -224,6 +225,7 @@ void setup() {
   Serial.printf("[beach] firmware %s, boot %u, %s, reset: %s%s\n", FIRMWARE_VERSION, (unsigned)bootCount,
                 wokeByButton() ? "button wake" : "timer/power wake", resetReasonText(),
                 safeMode ? ", SAFE MODE" : "");
+  Serial.printf("[beach] panel %s (%s)\n", panelModelId(panelModel()), panelModelLabel(panelModel()));
   if (failures) Serial.printf("[beach] %d consecutive crash%s\n", failures, failures == 1 ? "" : "es");
   Serial.printf("[beach] wi-fi '%s' %s\n", s.ssid,
                 s.configWon  ? "(from beachday_config.h, overriding the saved network - dev build)" :
@@ -401,6 +403,7 @@ void setup() {
   const char* bar = beach::barText(pa, s.reminder, lc.dow);
   const bool reminding = bar && !pa.active;
   vm.parkingActive = bar != nullptr;
+  vm.barIsReminder = reminding;
   snprintf(vm.parkingText, sizeof(vm.parkingText), "%s", bar ? bar : "");
 
   // "9:40a", matching the stat tiles: the corner is a quiet aside, not a

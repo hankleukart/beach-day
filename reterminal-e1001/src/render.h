@@ -15,6 +15,7 @@ struct ViewModel {
   day::Screen screen;
   bool        parkingActive = false;
   char        parkingText[40] = "";
+  bool        barIsReminder = false;   // the weekly reminder, not street cleaning: yellow, not red
   char        updatedText[28] = "";    // "Updated 2:05 PM" / "OFFLINE since 2:05 PM"
   int8_t      batteryPct = -1;
   bool        stale = false;

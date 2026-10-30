@@ -44,7 +44,9 @@ The left panel is the verdict: a day name, an icon and a tagline. The right
 column is the detail — the weekday, four stat tiles, four things to wear, and
 one closing tip. A bar across the bottom means act on something today: street
 cleaning, or the weekly reminder — by default, "Take your trash to the street
-tonight" all day Wednesday. Street cleaning gets the bar first.
+tonight" all day Wednesday. Street cleaning gets the bar first. On the colour
+panel street cleaning is red and the reminder yellow; on the black-and-white
+one both are black.
 
 Three buttons, one press each:
 
@@ -151,7 +153,9 @@ written at all: you star the item in the outcome's own wear list, and the day
 is named after **whatever that tile says today**. So the name and the tiles
 can never disagree — and on a whimsy day when the starred tile is the one that
 swaps, the day becomes `Duck Umbrella Day`. The hero panel shows that tile's
-icon too; the outcome's own `icon` is used for its places and things.
+icon too. A place or thing shows its own picture — Kite Day shows a kite —
+from the `[day_icon]` table in the rules, and one with no entry there shows
+the outcome's own `icon`.
 
 One is chosen per day:
 
