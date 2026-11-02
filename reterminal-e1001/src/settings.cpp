@@ -66,6 +66,9 @@ static const char* NVS_NS = "beachday";
 #ifndef CFG_REMINDER_DAY
 #define CFG_REMINDER_DAY 3        // Wednesday
 #endif
+#ifndef CFG_REMINDER_AT_NIGHT
+#define CFG_REMINDER_AT_NIGHT true    // from nightfall, not in the morning
+#endif
 #ifndef CFG_REMINDER_TEXT
 #define CFG_REMINDER_TEXT "Take your trash to the street tonight"
 #endif
@@ -73,12 +76,14 @@ static const char* NVS_NS = "beachday";
 static void loadReminder(Preferences& p, beach::Reminder& r) {
   if (p.isKey("rmOn"))   r.enabled = p.getBool("rmOn", r.enabled);
   if (p.isKey("rmDay"))  r.dayOfWeek = (int8_t)p.getChar("rmDay", r.dayOfWeek);
+  if (p.isKey("rmNight")) r.atNight = p.getBool("rmNight", r.atNight);
   if (p.isKey("rmText")) p.getString("rmText", r.text, sizeof(r.text));
 }
 
 static void storeReminder(Preferences& p, const beach::Reminder& r) {
   p.putBool("rmOn", r.enabled);
   p.putChar("rmDay", r.dayOfWeek);
+  p.putBool("rmNight", r.atNight);
   p.putString("rmText", r.text);
 }
 
@@ -147,6 +152,7 @@ const Settings& loadSettings() {
   g.parkingCount = 2;
   g.reminder.enabled = CFG_REMINDER_ENABLED;
   g.reminder.dayOfWeek = CFG_REMINDER_DAY;
+  g.reminder.atNight = CFG_REMINDER_AT_NIGHT;
   copyStr(g.reminder.text, sizeof(g.reminder.text), CFG_REMINDER_TEXT);
 
   // 2. NVS overrides written by the setup portal. If the portal has ever

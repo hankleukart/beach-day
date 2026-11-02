@@ -18,8 +18,9 @@ What it reproduces, and what it can't:
 - Each wake sees, for every hour of the day, the newest usable run that had
   started by that hour: earlier hours come from earlier runs, the way the
   live API stitches the day's past hours.
-- Wakes follow the firmware's schedule (main.cpp secondsToNextWake), with the
-  evening flip at sunset + 1h. Parking cutoffs are ignored.
+- Wakes follow the firmware's schedule (main.cpp secondsToNextWake): day from
+  sunrise - 1h, night from sunset + 30m. Only day wakes are replayed - the
+  night is its own outcome, on its own pin. Parking cutoffs are ignored.
 - AQI is the air-quality archive's single series, the same on every wake, so
   AQI never causes a flip here.
 - The morning pin runs through the engine's own resolvePin, as on the board.
@@ -166,8 +167,8 @@ class World:
         self.zeroed = 0      # rows where weather.cpp's missing->0 quirk kicked in
 
     def flip(self, d):
-        # main.cpp eveningFlipMinute(): an hour after sunset, clamped to the day.
-        return min(self.days[d][1] + 60, 1439)
+        # main.cpp nightStartMinute(): half an hour after sunset, clamped to the day.
+        return min(self.days[d][1] + 30, 1439)
 
     def hours_of(self, d):
         for h in range(24):
@@ -207,11 +208,11 @@ class World:
                 break
             mod = lt.hour * 60 + lt.minute
             sr, ss, _ = self.days[today]
-            tomorrow = ss > 0 and mod >= self.flip(today)
-            yield T, (today + timedelta(days=1) if tomorrow else today)
-            day_period = mod >= sr - 60 and mod < ss
-            nxt = mod + (WAKE_DAY_MIN if day_period else WAKE_NIGHT_MIN)
-            for b in (sr, ss, self.flip(today), sr + 1440):
+            # main.cpp isNight(): no sun times, no night.
+            night = sr > 0 and ss > 0 and (mod >= self.flip(today) or mod < sr - 60)
+            yield T, (None if night else today)
+            nxt = mod + (WAKE_NIGHT_MIN if night else WAKE_DAY_MIN)
+            for b in (sr - 60, self.flip(today), sr - 60 + 1440):
                 if mod < b and b + 1 < nxt:
                     nxt = b + 1
             T += max((nxt - mod) * 60 - lt.second, 120)
@@ -242,7 +243,8 @@ def run_engine(binary, spec, records):
 # ─── the rules, for explaining a flip ──────────────────────────────────────
 
 OPS = {">=": lambda a, b: a >= b, "<=": lambda a, b: a <= b, ">": lambda a, b: a > b,
-       "<": lambda a, b: a < b, "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
+       "<": lambda a, b: a < b, "==": lambda a, b: a == b, "=": lambda a, b: a == b,
+       "!=": lambda a, b: a != b}
 
 
 def parse_rules(spec_path):
@@ -252,10 +254,18 @@ def parse_rules(spec_path):
         conds = []
         for expr in o.get("when", []):
             f, op, v = expr.split()
+            if f == "night":
+                # Only day wakes are replayed, and there night is 0: the
+                # condition either always holds or rules the outcome out.
+                if not OPS[op](0, float(v)):
+                    conds = None
+                    break
+                continue
             if f not in FIELDS:
                 sys.exit(f"replay: {o['id']} uses {f}, which the replay does not print")
             conds.append((expr, f, op, float(v)))
-        outcomes.append((o["id"], conds))
+        if conds is not None:
+            outcomes.append((o["id"], conds))
     return outcomes
 
 
@@ -290,11 +300,12 @@ def simulate(world, binary, spec, first, last, pin=True):
     end_T = int(datetime(*last.timetuple()[:3], tzinfo=world.tz).timestamp()) + world.flip(last) * 60
     recs, wakes = [], []
     for T, d in world.wakes(start_T, end_T):
-        if not (first <= d <= last):
+        if d is None or not (first <= d <= last):
             continue
         key = f"{d.isoformat()}@{T}"
         sr, ss, code = world.days[d]
-        # main.cpp: today, from an hour before sunrise; never tomorrow's preview.
+        # main.cpp: a day wake is always the day's own; the hour guard only
+        # matters without sun times.
         lt = datetime.fromtimestamp(T, world.tz)
         pinnable = pin and d == lt.date() and lt.hour * 60 + lt.minute >= (sr if sr > 0 else 360) - 60
         recs.append(record(key, d, sr, ss, code, world.rows_at(T, d), world.aqi_rows(d), pinnable))
@@ -334,11 +345,11 @@ def analyse(world, per_day, actual):
         midnight = int(datetime(d.year, d.month, d.day, tzinfo=world.tz).timestamp())
         wake_T = midnight + WAKING_FROM * 60
         # What the screen showed at 6 AM is the last wake at or before 6 AM;
-        # from there, every wake up to the flip is something you could see.
+        # from there, every wake up to nightfall is something you could see.
         before = [s for s in seq if s[0] <= wake_T]
         at6 = before[-1] if before else seq[0]
         waking = [at6] + [s for s in seq if s[0] > wake_T]
-        rows.append(dict(day=d, seq=seq, evening=seq[0], at6=at6, end=seq[-1], actual=actual[d],
+        rows.append(dict(day=d, seq=seq, at6=at6, end=seq[-1], actual=actual[d],
                          all=changes(seq), waking=changes(waking),
                          distinct_waking=len({s[1] for s in waking})))
     return rows
@@ -387,7 +398,7 @@ def main():
     P(f"Beach Day replay — {len(rows)} days, {first} to {last}")
     P(f"{args.model} at {args.lat}, {args.lon} · runs every 6h, usable {args.lag:g}h after nominal · "
       f"{len(runs)} runs, {len(missing)} missing")
-    P(f"rules: {args.spec} · flip at sunset+1h · morning pin {'off' if args.no_pin else 'on'} · "
+    P(f"rules: {args.spec} · day from sunrise-1h to sunset+30m · morning pin {'off' if args.no_pin else 'on'} · "
       f"{sum(len(r['seq']) for r in rows)} wakes evaluated")
     if disagree:
         P(f"!! {len(disagree)} evaluations where the explanation disagrees with the engine: {disagree[:5]}")
@@ -397,8 +408,8 @@ def main():
         P(f"missing runs: {', '.join(missing)}")
     P()
 
-    P("Per day: what the screen said, in order. The first entry is the evening preview,")
-    P("the night before. ▸ marks what was on screen at 6 AM.")
+    P("Per day: what the screen said, in order, from an hour before sunrise.")
+    P("▸ marks what was on screen at 6 AM.")
     P()
     for r in rows:
         d = r["day"]
@@ -421,17 +432,15 @@ def main():
     P("── Summary ─────────────────────────────────────────────")
     P(f"Days the outcome held all day from 6 AM:   {stable}/{n}")
     P(f"Changes after 6 AM, days by count:         {dist('waking')}")
-    P(f"Changes incl. the evening preview:         {dist('all')}")
+    P(f"Changes from the first look of the day:    {dist('all')}")
     P(f"Days showing 3+ different outcomes after 6 AM: {sum(1 for r in rows if r['distinct_waking'] >= 3)}")
     P(f"Total changes after 6 AM:                  {sum(len(r['waking']) for r in rows)}")
-    P(f"Evening preview differed from 6 AM:        {sum(1 for r in rows if r['evening'][1] != r['at6'][1])}/{n}")
     P(f"Flip-backs (A → B → A after 6 AM):         "
       f"{sum(1 for r in rows for (a, _), (_, e) in zip(r['waking'], r['waking'][1:]) if a[1] == e[1])}")
     P()
     P("How good was the 6 AM call?  (actual = the engine on the archived, stitched day)")
     P(f"  6 AM outcome == actual:        {sum(1 for r in rows if r['at6'][1] == r['actual'][0])}/{n}")
     P(f"  end-of-day outcome == actual:  {sum(1 for r in rows if r['end'][1] == r['actual'][0])}/{n}")
-    P(f"  evening preview == actual:     {sum(1 for r in rows if r['evening'][1] == r['actual'][0])}/{n}")
     P()
 
     pairs, causes = Counter(), Counter()

@@ -19,11 +19,21 @@ void formatClock12(int minutes, char* out, size_t n) {
 // drizzle (56-57, 66-67) are left out: they want a raincoat, not snow boots.
 static bool isSnowCode(int c) { return (c >= 71 && c <= 77) || c == 85 || c == 86; }
 
-static int modeCode(const Raw& raw, int d, int h0, int h1, int fallback) {
+// Hours are counted from midnight at the start of day 0, so a night that
+// crosses midnight is one unbroken run.
+static int absHour(const HourRow& r) { return r.day * 24 + r.hour; }
+
+static const HourRow* rowAt(const Raw& raw, int a) {
+  for (int i = 0; i < raw.n; i++) if (absHour(raw.hours[i]) == a) return &raw.hours[i];
+  return nullptr;
+}
+
+static int modeCode(const Raw& raw, const Span& sp, int fallback) {
   int codes[MAX_ROWS], counts[MAX_ROWS], k = 0;
   for (int i = 0; i < raw.n; i++) {
     const HourRow& r = raw.hours[i];
-    if (r.day != d || r.hour < h0 || r.hour > h1 || r.code < 0) continue;
+    const int a = absHour(r);
+    if (a < sp.a0 || a > sp.a1 || r.code < 0) continue;
     int j = 0; while (j < k && codes[j] != r.code) j++;
     if (j == k) { codes[k] = r.code; counts[k] = 0; k++; }
     counts[j]++;
@@ -42,11 +52,27 @@ void daylightHours(const Raw& raw, int d, int& h0, int& h1) {
   if (m.sunriseMin > 0 && m.sunsetMin > 0) { h0 = m.sunriseMin / 60; h1 = m.sunsetMin / 60; }
 }
 
-void derive(const Raw& raw, int d, int weekday, Inputs& out) {
-  out = Inputs{};
-  const DayMeta& m = raw.day[d];
+Span daySpan(const Raw& raw, int d) {
   int h0, h1;
   daylightHours(raw, d, h0, h1);
+  return Span{ d * 24 + h0, d * 24 + h1 };
+}
+
+Span nightSpan(const Raw& raw, int nowMinute) {
+  // After noon the next sunrise is tomorrow's; before it, it is today's.
+  const int d = nowMinute >= 12 * 60 ? 1 : 0;
+  const int rise = raw.day[d].sunriseMin > 0 ? raw.day[d].sunriseMin / 60 : FALLBACK_START_HOUR;
+  return Span{ nowMinute / 60, d * 24 + rise };
+}
+
+void derive(const Raw& raw, int d, int weekday, Inputs& out) {
+  derive(raw, daySpan(raw, d), weekday, out);
+}
+
+void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
+  out = Inputs{};
+  const int d0 = sp.a0 / 24 < 2 ? sp.a0 / 24 : 1;
+  const int d1 = sp.a1 / 24 < 2 ? sp.a1 / 24 : 1;
 
   double tMin = 1e9, tMax = -1e9, wMax = -1e9;
   int pMax = -1, hMin = 1 << 14, hMax = -1;
@@ -55,7 +81,8 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   bool any = false;
   for (int i = 0; i < raw.n; i++) {
     const HourRow& r = raw.hours[i];
-    if (r.day != d || r.hour < h0 || r.hour > h1) continue;
+    const int a = absHour(r);
+    if (a < sp.a0 || a > sp.a1) continue;
     any = true;
     if (r.tempF < tMin) tMin = r.tempF;
     if (r.tempF > tMax) tMax = r.tempF;
@@ -67,36 +94,30 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   }
   // Walk the window in hour order: first clear hour, and the longest unbroken
   // run of them. A missing cloud reading breaks a run rather than extending it.
+  // The hours handed on are clock hours (0-23): they are only ever shown.
   int runStart = -1, bestStart = -1, bestEnd = -1, bestLen = 0;
-  for (int h = h0; h <= h1; h++) {
-    bool clear = false;
-    for (int i = 0; i < raw.n; i++) {
-      const HourRow& r = raw.hours[i];
-      if (r.day == d && r.hour == h) { clear = (r.cloud >= 0 && r.cloud <= CLEAR_CLOUD_MAX_PCT); break; }
-    }
+  for (int a = sp.a0; a <= sp.a1; a++) {
+    const HourRow* r = rowAt(raw, a);
+    const bool clear = r && r->cloud >= 0 && r->cloud <= CLEAR_CLOUD_MAX_PCT;
     if (clear) {
-      if (!out.hasFirstClearHour) { out.hasFirstClearHour = true; out.firstClearHour = h; }
-      if (runStart < 0) runStart = h;
-      int len = h - runStart + 1;
-      if (len > bestLen) { bestLen = len; bestStart = runStart; bestEnd = h; }
+      if (!out.hasFirstClearHour) { out.hasFirstClearHour = true; out.firstClearHour = a % 24; }
+      if (runStart < 0) runStart = a;
+      int len = a - runStart + 1;
+      if (len > bestLen) { bestLen = len; bestStart = runStart; bestEnd = a; }
     } else {
       runStart = -1;
     }
   }
   out.sunRunHours = bestLen;
-  out.sunRunStartHour = bestStart;
-  out.sunRunEndHour = bestEnd;
+  out.sunRunStartHour = bestStart < 0 ? -1 : bestStart % 24;
+  out.sunRunEndHour = bestEnd < 0 ? -1 : bestEnd % 24;
 
   // Wet window: first and last hour over the threshold, gaps included.
-  for (int h = h0; h <= h1; h++) {
-    for (int i = 0; i < raw.n; i++) {
-      const HourRow& r = raw.hours[i];
-      if (r.day != d || r.hour != h) continue;
-      if (r.precipProb > RAIN_WINDOW_MIN_PCT) {
-        if (out.rainStartHour < 0) out.rainStartHour = h;
-        out.rainEndHour = h;
-      }
-      break;
+  for (int a = sp.a0; a <= sp.a1; a++) {
+    const HourRow* r = rowAt(raw, a);
+    if (r && r->precipProb > RAIN_WINDOW_MIN_PCT) {
+      if (out.rainStartHour < 0) out.rainStartHour = a % 24;
+      out.rainEndHour = a % 24;
     }
   }
   if (any) {
@@ -114,15 +135,19 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
   int aMin = 1 << 20, aMax = -1;
   for (int i = 0; i < raw.na; i++) {
     const AqiRow& r = raw.aqi[i];
-    if (r.day != d || r.aqi < 0 || r.hour < h0 || r.hour > h1) continue;
+    const int a = r.day * 24 + r.hour;
+    if (r.aqi < 0 || a < sp.a0 || a > sp.a1) continue;
     if (r.aqi < aMin) aMin = r.aqi;
     if (r.aqi > aMax) aMax = r.aqi;
   }
   out.aqiMax = aMax < 0 ? 0 : aMax;
   out.aqiMin = aMax < 0 ? 0 : aMin;
 
-  snprintf(out.conditionSummary, sizeof(out.conditionSummary), "%s", beach::wmoDescription(modeCode(raw, d, h0, h1, m.dailyCode)));
-  if (m.sunsetMin > 0) formatClock12(m.sunsetMin, out.sunsetLocal, sizeof(out.sunsetLocal));
+  snprintf(out.conditionSummary, sizeof(out.conditionSummary), "%s", beach::wmoDescription(modeCode(raw, sp, raw.day[d0].dailyCode)));
+  // The sunset that opened the window, and the sunrise that closes it. For a
+  // day they are the same day's; for a night, the evening's and the morning's.
+  if (raw.day[d0].sunsetMin > 0) formatClock12(raw.day[d0].sunsetMin, out.sunsetLocal, sizeof(out.sunsetLocal));
+  if (raw.day[d1].sunriseMin > 0) formatClock12(raw.day[d1].sunriseMin, out.sunriseLocal, sizeof(out.sunriseLocal));
   snprintf(out.weekdayName, sizeof(out.weekdayName), "%s", weekdayName(weekday));
 }
 

@@ -26,9 +26,9 @@ void renderScreen(const ViewModel& vm);
 void renderMessage(const char* title, const char* line1, const char* line2);
 void renderSetup(const char* apName, const char* ip);
 
-// The numbers behind the dashboard: every hourly row inside the daylight
-// window, and the figures derived from them. Press the left button to see
-// what the display is actually reading.
-void renderHourly(const day::Raw& raw, int dayIndex, const day::Inputs& in,
+// The numbers behind the dashboard: every hourly row inside the window the
+// rules read - the day's daylight, or the night until sunrise - and the
+// figures derived from them. Right Nav shows what the display is reading.
+void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs& in,
                   const char* heading, const char* footer);
 void renderEnd();

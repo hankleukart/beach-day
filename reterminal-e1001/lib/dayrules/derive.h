@@ -1,4 +1,5 @@
-// Open-Meteo hourly rows -> day::Inputs, over that day's sunrise..sunset hours.
+// Open-Meteo hourly rows -> day::Inputs, over a day's sunrise..sunset hours
+// or a night's hours from now until sunrise.
 // Pure C++ so the host tests pin the semantics.
 #pragma once
 #include <cstdint>
@@ -34,11 +35,21 @@ struct Raw {
 // The hours the rules aggregate over: the whole hour containing sunrise
 // through the whole hour containing sunset, both ends included. Falls back to
 // FALLBACK_START_HOUR..FALLBACK_END_HOUR when the day has no sun times.
-// Shared with the readings screen, whose job is to show these exact rows.
 void daylightHours(const Raw& raw, int d, int& h0, int& h1);
 
-// weekday: 0 = Sunday. Fills every Inputs field.
+// A run of hours counted from local midnight at the start of day 0, both ends
+// included, so a night can cross midnight: 21..30 is 9 PM to 6 AM tomorrow.
+// Shared with the readings screen, whose job is to show these exact rows.
+struct Span { int a0 = 0, a1 = -1; };
+Span daySpan(const Raw& raw, int d);
+// From the hour holding `nowMinute` (local, day 0) to the hour holding the
+// next sunrise: tomorrow's after noon, today's before it.
+Span nightSpan(const Raw& raw, int nowMinute);
+
+// weekday: 0 = Sunday. Fills every Inputs field but `night`, which is the
+// caller's to say.
 void derive(const Raw& raw, int d, int weekday, Inputs& out);
+void derive(const Raw& raw, const Span& span, int weekday, Inputs& out);
 void formatClock12(int minutes, char* out, size_t n);      // 1148 -> "7:08 PM"
 const char* weekdayName(int weekday);
 

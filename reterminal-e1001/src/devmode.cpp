@@ -73,7 +73,7 @@ void banner() {
 void dump(const ViewModel& vm, const char* which) {
   const day::Screen& s = vm.screen;
   Serial.printf("[dev] --- %s ---\n", which);
-  Serial.printf("  outcome   %s%s\n", s.outcome.id, s.tomorrow ? " (tomorrow)" : "");
+  Serial.printf("  outcome   %s%s\n", s.outcome.id, s.night ? " (night)" : "");
   Serial.printf("  hero      %s | %s | %s\n", s.eyebrow, s.outcome.title, s.outcome.tagline);
   Serial.printf("  header    %s\n", s.weekday);
   Serial.printf("  subline   %s\n", s.subline);
@@ -114,7 +114,7 @@ void devLoop(const ViewModel& liveView, bool liveValid) {
     if (key1.pressed() || cmd == 'n') {
       demoIdx = (demoIdx + 1) % PRESET_COUNT;
       demo = ViewModel{};
-      demo.valid = spec().evaluate(PRESETS[demoIdx].in, demo.screen, s.locationName, false);
+      demo.valid = spec().evaluate(PRESETS[demoIdx].in, demo.screen, s.locationName);
       demo.parkingActive = parking;
       snprintf(demo.parkingText, sizeof(demo.parkingText), "NO PARKING LEFT SIDE: 8-10AM");
       snprintf(demo.updatedText, sizeof(demo.updatedText), "Demo %d/%d", demoIdx + 1, PRESET_COUNT);

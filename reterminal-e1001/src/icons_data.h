@@ -232,6 +232,23 @@ static const IcCmd IC_sunset[] PROGMEM = {
   { IC_LINE, 0, 4, IC_sunset_v + 17 },
   { IC_LINE, 0, 4, IC_sunset_v + 21 },
 };
+static const int16_t IC_sunrise_v[] PROGMEM = { 48, 68, 20, 180, 360, 8, 68, 88, 68, 20, 84, 76, 84, 48, 12, 48, 36, 39, 21, 48, 12, 57, 21, 18, 38, 26, 46, 78, 38, 70, 46 };
+static const IcCmd IC_sunrise[] PROGMEM = {
+  { IC_ARC, 0, 5, IC_sunrise_v + 0 },
+  { IC_LINE, 0, 4, IC_sunrise_v + 5 },
+  { IC_LINE, 0, 4, IC_sunrise_v + 9 },
+  { IC_LINE, 0, 4, IC_sunrise_v + 13 },
+  { IC_LINE, 0, 6, IC_sunrise_v + 17 },
+  { IC_LINE, 0, 4, IC_sunrise_v + 23 },
+  { IC_LINE, 0, 4, IC_sunrise_v + 27 },
+};
+static const int16_t IC_moon_v[] PROGMEM = { 75, 59, 73, 64, 70, 69, 66, 73, 61, 77, 56, 80, 50, 81, 44, 82, 38, 82, 33, 80, 27, 77, 23, 74, 19, 70, 16, 65, 13, 59, 12, 53, 12, 48, 13, 42, 15, 36, 18, 31, 22, 27, 27, 23, 32, 20, 37, 19, 43, 18, 43, 18, 41, 20, 40, 23, 38, 26, 37, 29, 36, 32, 36, 35, 36, 38, 36, 41, 37, 44, 38, 47, 40, 49, 41, 52, 44, 54, 46, 56, 48, 58, 51, 60, 54, 61, 57, 61, 60, 62, 63, 62, 66, 62, 69, 61, 72, 60, 75, 59, 75, 59, 73, 64, 70, 69, 66, 73, 61, 77, 56, 80, 50, 81, 44, 82, 38, 82, 33, 80, 27, 77, 23, 74, 19, 70, 16, 65, 13, 59, 12, 53, 12, 48, 13, 42, 15, 36, 18, 31, 22, 27, 27, 23, 32, 20, 37, 19, 43, 18, 43, 18, 41, 20, 40, 23, 38, 26, 37, 29, 36, 32, 36, 35, 36, 38, 36, 41, 37, 44, 38, 47, 40, 49, 41, 52, 44, 54, 46, 56, 48, 58, 51, 60, 54, 61, 57, 61, 60, 62, 63, 62, 66, 62, 69, 61, 72, 60, 75, 59, 78, 22, 4, 84, 54, 3 };
+static const IcCmd IC_moon[] PROGMEM = {
+  { IC_POLY_FILL, 2, 100, IC_moon_v + 0 },
+  { IC_POLY, 0, 100, IC_moon_v + 100 },
+  { IC_DISC, 0, 3, IC_moon_v + 200 },
+  { IC_DISC, 0, 3, IC_moon_v + 203 },
+};
 static const int16_t IC_sandals_v[] PROGMEM = { 28, 10, 68, 88, 28, 10, 68, 88, 48, 26, 33, 54, 48, 26, 63, 54, 48, 26, 4 };
 static const IcCmd IC_sandals[] PROGMEM = {
   { IC_ELLIPSE_FILL, 2, 4, IC_sandals_v + 0 },
@@ -531,6 +548,8 @@ static const IconDef ICON_DEFS[] PROGMEM = {
   { "mittens", IC_mittens, 3 },
   { "scarf", IC_scarf, 10 },
   { "sunset", IC_sunset, 6 },
+  { "sunrise", IC_sunrise, 7 },
+  { "moon", IC_moon, 4 },
   { "sandals", IC_sandals, 5 },
   { "cap", IC_cap, 5 },
   { "sunglasses", IC_sunglasses, 5 },

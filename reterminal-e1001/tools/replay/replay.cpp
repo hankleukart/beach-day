@@ -70,12 +70,12 @@ int main(int argc, char** argv) {
 
     static day::Screen screen;
     screen = day::Screen();
-    if (!spec.evaluate(in, screen, nullptr, false)) { printf("%s ERROR ERROR 0 0 0 0 0 0 0 0 0 | -\n", key); continue; }
+    if (!spec.evaluate(in, screen, nullptr)) { printf("%s ERROR ERROR 0 0 0 0 0 0 0 0 0 | -\n", key); continue; }
     static day::DayPin pin;
     char live[24], show[24];
     snprintf(live, sizeof(live), "%s", screen.outcome.id);
     day::resolvePin(spec, pin, epochDay, pinnable != 0, live, show, sizeof(show));
-    if (strcmp(show, live) != 0) spec.evaluate(in, screen, nullptr, false, show);
+    if (strcmp(show, live) != 0) spec.evaluate(in, screen, nullptr, show);
     printf("%s %s %s %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f %.4f | %s\n", key, screen.outcome.id, live,
            in.tempMaxF, in.tempMinF, in.tempSwingF, in.precipChanceMaxPct, in.windMaxMph,
            in.cloudCoverAvgPct, in.aqiMax, in.sunRunHours, in.snowHours, screen.outcome.title);

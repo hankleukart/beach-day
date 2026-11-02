@@ -273,6 +273,31 @@ def i_sunset(c):
     c.line([(24, 8), (24, 16)])
     c.line([(9.2, 19.2), (12.8, 22.8)])
     c.line([(38.8, 19.2), (35.2, 22.8)])
+def i_sunrise(c):
+    # the sunset's half sun and horizon, with the top ray turned into an
+    # arrow going up
+    c.arc(24, 34, 10, 180, 360)
+    c.line([(4, 34), (44, 34)])
+    c.line([(10, 42), (38, 42)])
+    c.line([(24, 6), (24, 18)])
+    c.line([(19.5, 10.5), (24, 6), (28.5, 10.5)])
+    c.line([(9.2, 19.2), (12.8, 22.8)])
+    c.line([(38.8, 19.2), (35.2, 22.8)])
+def crescent(cx, cy, r, ox, oy, r2, n=24):
+    """Points round a crescent: disc (cx,cy,r) less disc (cx+ox,cy+oy,r2)."""
+    import cmath
+    a, b = complex(cx, cy), complex(cx + ox, cy + oy)
+    d = abs(b - a); base = cmath.phase(b - a)
+    t = math.acos((d * d + r * r - r2 * r2) / (2 * d * r))      # half-angle at a
+    u = math.acos((d * d + r2 * r2 - r * r) / (2 * d * r2))     # half-angle at b
+    outer = [a + r * cmath.exp(1j * (base + t + (2 * math.pi - 2 * t) * i / n)) for i in range(n + 1)]
+    inner = [b + r2 * cmath.exp(1j * (base + math.pi + u - 2 * u * i / n)) for i in range(n + 1)]
+    return [(p.real, p.imag) for p in outer + inner]
+def i_moon(c):
+    pts = crescent(22, 25, 16, 9, -7, 13)
+    c.poly(pts, SUN, fill=True)
+    c.poly(pts)
+    c.disc(39, 11, 1.8); c.disc(42, 27, 1.4)    # two stars
 def i_sandals(c):
     # a flip-flop from above: the sole and its Y strap
     c.ellipse(14, 5, 34, 44, SUN, fill=True); c.ellipse(14, 5, 34, 44)
@@ -429,7 +454,7 @@ ICONS = {
     "water_bottle": i_water_bottle, "tshirt": i_tshirt, "shorts": i_shorts, "sneaker": i_sneaker,
     "sweater": i_sweater, "hoodie": i_hoodie, "jacket": i_jacket, "long_pants": i_long_pants,
     "raincoat": i_raincoat, "rain_boot": i_rain_boot, "umbrella": i_umbrella, "puffy_coat": i_puffy_coat,
-    "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf, "sunset": i_sunset,
+    "beanie": i_beanie, "mittens": i_mittens, "scarf": i_scarf, "sunset": i_sunset, "sunrise": i_sunrise, "moon": i_moon,
     "sandals": i_sandals, "cap": i_cap, "sunglasses": i_sunglasses, "gloves": i_gloves,
     "snow_boot": i_snow_boot, "snow_pants": i_snow_pants, "backpack": i_backpack, "snowflake": i_snowflake,
     "beach": i_beach, "pool": i_pool, "splash_pad": i_splash_pad, "sledding_hill": i_sledding_hill,

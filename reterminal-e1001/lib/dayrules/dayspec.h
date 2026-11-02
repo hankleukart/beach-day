@@ -20,13 +20,19 @@ struct Inputs {
   bool   hasFirstClearHour = false;
   int    firstClearHour = -1;
   double sunRunHours = 0;
-  double snowHours = 0;           // daylight hours whose weather code is snow
+  double snowHours = 0;           // hours in the window whose weather code is snow
   int    sunRunStartHour = -1, sunRunEndHour = -1;
   int    rainStartHour = -1, rainEndHour = -1;
   char   conditionSummary[40] = "";
   char   sunsetLocal[12] = "";
+  char   sunriseLocal[12] = "";
   char   weekdayName[12] = "";
+  // Night: the window runs from now until sunrise, rather than sunrise to
+  // sunset. The rules can test it as `night` (1 or 0), and the file's
+  // `night` tables take over its wording.
+  bool   night = false;
   // Calendar, for holidays and for picking a day name that is stable all day.
+  // At night, the date of the evening it began on.
   int    year = 0, month = 0, dayOfMonth = 0, weekday = 0;   // weekday 0 = Sunday
   long   epochDay = 0;
 };
@@ -64,10 +70,10 @@ struct Screen {
   Stat    stats[6];
   int     statCount = 0;
   char    eyebrow[24] = "";
-  char    weekday[12] = "";
+  char    weekday[20] = "";      // "Thursday", or "Thursday night"
   char    subline[110] = "";
   char    footer[110] = "";
-  bool    tomorrow = false;
+  bool    night = false;
 };
 
 // Lets the firmware check icon names against the art it can actually draw.
@@ -75,7 +81,16 @@ using IconChecker = bool (*)(const char* name);
 void setIconChecker(IconChecker fn);
 IconChecker g_iconCheckerAccessor();   // internal: for the validator
 
-// The day's outcome, held from the first morning look.
+// A stat's `night` table replaces whole parts of it after dark - the label,
+// the icon, the value, the sub line, the word - so a night value never runs
+// on a day band. Returns the table a part comes from: `night` if it names
+// any of that part's keys, else the stat itself. Internal, shared with the
+// validator so both read a stat the same way.
+enum StatPart { SP_LABEL, SP_ICON, SP_VALUE, SP_SUB, SP_WORD, SP_COUNT };
+toml_table_t* statPart(toml_table_t* st, toml_table_t* night, int part);
+
+// The day's outcome, held from the first morning look - or the night's, from
+// the first look after dark.
 struct DayPin { long epochDay = -1; char id[24] = ""; };
 
 class Spec;
@@ -83,9 +98,8 @@ class Spec;
 // Which outcome to show, given what the forecast says right now (`liveId`).
 // The first `pinnable` look of a day pins it, and later looks keep it - unless
 // the forecast turns to an outcome marked breaks_pin (rain, snow), which then
-// takes over the pin. A look that is not pinnable - the evening preview of
-// tomorrow, or before dawn - shows the forecast as it is and leaves the pin
-// alone. Returns true when the pin changed and wants saving.
+// takes over the pin. A look that is not pinnable shows the forecast as it is
+// and leaves the pin alone. Returns true when the pin changed and wants saving.
 bool resolvePin(const Spec& spec, DayPin& pin, long epochDay, bool pinnable,
                 const char* liveId, char* showId, size_t n);
 
@@ -106,8 +120,9 @@ class Spec {
   const char* outcomeId(int i) const;
 
   // `forceId` shows that outcome rather than matching `when` - how a pinned
-  // day is drawn. An id the file does not have is ignored.
-  bool evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride, bool tomorrow,
+  // day is drawn. An id the file does not have is ignored. `in.night` picks
+  // the night wording.
+  bool evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
                 const char* forceId = nullptr) const;
   bool hasOutcome(const char* id) const;
   bool breaksPin(const char* id) const;   // `breaks_pin = true`: may replace a pinned day
@@ -119,12 +134,12 @@ class Spec {
   bool valid_ = false;
 
   bool validate(toml_table_t* root, char* err, size_t errLen) const;
-  void resolveStat(toml_table_t* st, const Inputs& in, Stat& out) const;
+  void resolveStat(toml_table_t* st, toml_table_t* night, const Inputs& in, Stat& out) const;
   bool holidayFor(const Inputs& in, char* out, size_t n) const;
 };
 
 // {token} interpolation. Tokens are input names (short or canonical) plus
-// value, degreesShort, sunWindow, rainWindow, footerSuffix.
+// value, degreesShort, sunWindow, rainWindow, sunriseLocal, footerSuffix.
 void interpolate(const char* tmpl, const Inputs& in, double value, int degreesShort,
                  char* out, size_t n, const char* footerSuffix = nullptr);
 bool fieldValue(const Inputs& in, const char* field, double& v);

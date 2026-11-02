@@ -36,9 +36,9 @@
 
 // ---- Wake schedule ----------------------------------------------------------
 // The board deep-sleeps between updates. It always wakes for the moments that
-// change the display (sunrise, sunset-1h, sunset, parking cutoff) regardless
-// of these intervals.
-#define CFG_WAKE_DAY_MINUTES    60     // between sunrise-1h and sunset
+// change the display (sunrise-1h, sunset+30m, parking cutoff)
+// regardless of these intervals.
+#define CFG_WAKE_DAY_MINUTES    60     // between sunrise-1h and sunset+30m
 #define CFG_WAKE_NIGHT_MINUTES  240    // overnight
 #define CFG_RETRY_MINUTES       10     // after a failed fetch
 
@@ -57,10 +57,12 @@
 #define CFG_PARKING_RIGHT_END      (10 * 60)
 
 // ---- Weekly reminder --------------------------------------------------------
-// The footer bar, all day on its day - trash night by default. Street cleaning
-// takes the bar first when both are due. The setup portal can change all three.
+// The footer bar, for one night or one day a week - Wednesday night, from
+// half an hour after sunset, by default. Street cleaning takes the bar first
+// when both are due. The setup portal can change all of these.
 #define CFG_REMINDER_ENABLED       true
 #define CFG_REMINDER_DAY           3        // Wednesday
+#define CFG_REMINDER_AT_NIGHT      true     // false: that day, from an hour before sunrise
 #define CFG_REMINDER_TEXT          "Take your trash to the street tonight"
 
 // ---- Dev build only ---------------------------------------------------------

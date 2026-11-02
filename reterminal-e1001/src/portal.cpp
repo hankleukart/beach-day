@@ -63,7 +63,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <div><label for="label">Label on screen</label>
 <input id="label" name="label" maxlength="22" placeholder="(uses the town name)" value="%LABEL%"></div></div>
 <details><summary>Street-cleaning parking reminders</summary>
-<small style="margin-top:8px">Shows a NO PARKING bar from sunset the night before until the restriction ends.</small>
+<small style="margin-top:8px">Shows a NO PARKING bar from half an hour after sunset the night before until the restriction ends.</small>
 %PARKING%
 </details>
 <details><summary>Display panel</summary>
@@ -71,7 +71,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
 </details>
 <details><summary>Trash reminder</summary>
-<small style="margin-top:8px">Shows a reminder bar all day on the day you pick. If street cleaning is due too, that shows first.</small>
+<small style="margin-top:8px">Shows a reminder bar on the night or the day you pick. Night runs from half an hour after sunset until an hour before sunrise; day is the rest. If street cleaning is due too, that shows first.</small>
 %REMINDER%
 </details>
 <button type="submit">Save and restart</button>
@@ -128,6 +128,9 @@ String reminderFieldset(const beach::Reminder& r) {
   for (int d = 0; d < 7; d++) {
     h += "<option value=\"" + String(d) + "\"" + (d == r.dayOfWeek ? " selected" : "") + ">" + DAY_NAMES[d] + "</option>";
   }
+  h += "</select><label for=\"rmwhen\">When</label><select id=\"rmwhen\" name=\"rmwhen\">";
+  h += String("<option value=\"night\"") + (r.atNight ? " selected" : "") + ">That night, from half an hour after sunset</option>";
+  h += String("<option value=\"day\"") + (r.atNight ? "" : " selected") + ">That morning, from an hour before sunrise</option>";
   h += "</select><label for=\"rmtext\">Reminder</label>";
   h += "<input id=\"rmtext\" name=\"rmtext\" maxlength=\"39\" value=\"" + htmlEscape(r.text) + "\">";
   h += "</fieldset>";
@@ -178,6 +181,7 @@ void readParking(const char* side, beach::ParkingRule& r, const beach::ParkingRu
 void readReminder(beach::Reminder& r, const beach::Reminder& current) {
   r.enabled = server.hasArg("rmon");
   r.dayOfWeek = (int8_t)constrain(server.arg("rmday").toInt(), 0, 6);
+  r.atNight = server.arg("rmwhen") != "day";
   String text = server.arg("rmtext"); text.trim();
   // A cleared box keeps what was there, so switching it off and on again
   // does not lose the wording.

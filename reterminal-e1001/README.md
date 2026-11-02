@@ -318,7 +318,8 @@ Scenarios are in `tools/preview/preview.cpp`. `beach` is a long midsummer day
 (with a 21° swing, so it lands on the hot morning-chill square, not the beach
 square), `winter` a short one, `rain` picks a wet outcome, `smoke` gives the
 AIR tile something to say, `snow` is the freezing full-snow-gear square,
-`whimsy` is the beach day on a date that swaps one tile, and `stress` wraps
+`whimsy` is the beach day on a date that swaps one tile, `night` and
+`nightrain` are the night screen (the second with rain after midnight), and `stress` wraps
 the also-grab to two lines and turns the parking bar on — the case that
 decides whether the right column still fits. Check `stress` after any change
 to that column.
@@ -410,10 +411,11 @@ The display only changes at a handful of moments, so the board does not poll
 blindly. Each wake it sleeps until the sooner of:
 
 - the regular interval — `CFG_WAKE_DAY_MINUTES` (default 60) from one hour
-  before sunrise until sunset, `CFG_WAKE_NIGHT_MINUTES` (default 240) overnight
-- the next moment the screen would change: sunrise, sunset (parking alert can
-  appear), one hour after sunset (the evening flip to tomorrow), or a parking
-  cutoff time
+  before sunrise until half an hour after sunset, `CFG_WAKE_NIGHT_MINUTES`
+  (default 240) overnight
+- the next moment the screen would change: an hour before sunrise (the day
+  starts), half an hour after sunset (the night screen starts, and a parking
+  alert for the next morning can appear), or a parking cutoff time
 
 Rough budget at those defaults: ~17 wakes a day at ~12 s each on Wi-Fi, plus
 14 µA asleep. Call it 6–8 mAh/day against a 2000 mAh cell — comfortably in the
@@ -569,10 +571,11 @@ pulled low, so the board knows which one it was:
 | **Right Nav** (KEY2) | Show the hourly readings behind the dashboard |
 
 The readings screen answers "why did it decide that?". It lists one row per
-hour of the daylight window — the whole hour containing sunrise through the
-whole hour containing sunset, which is exactly the span the rules aggregate
-over — with hour, temperature, rain chance, cloud, wind, AQI and sky, and the
-derived figures along the bottom. The header names the window. Row pitch
+hour of the window the rules aggregate over — by day, the whole hour
+containing sunrise through the whole hour containing sunset; at night
+("Tonight's readings"), the current hour through the hour containing the next
+sunrise — with hour, temperature, rain chance, cloud, wind, AQI and sky, and
+the derived figures along the bottom. The header names the window. Row pitch
 closes up on long summer days so the whole window stays on one screen. Any
 button returns to the forecast on the next wake.
 

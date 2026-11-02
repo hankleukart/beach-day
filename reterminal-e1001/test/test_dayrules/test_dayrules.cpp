@@ -36,9 +36,11 @@ static day::Inputs base() {
   return in;
 }
 
-static const day::Screen& run(const day::Inputs& in, bool tomorrow = false, const char* eyebrow = nullptr) {
+static const day::Screen& run(const day::Inputs& in0, bool night = false, const char* eyebrow = nullptr) {
   static day::Screen s;
-  TEST_ASSERT_TRUE_MESSAGE(spec.evaluate(in, s, eyebrow, tomorrow), "evaluate failed");
+  day::Inputs in = in0;
+  in.night = night;
+  TEST_ASSERT_TRUE_MESSAGE(spec.evaluate(in, s, eyebrow), "evaluate failed");
   return s;
 }
 
@@ -160,7 +162,7 @@ void test_day_named_after_starred_wear() {
   day::Spec sp; day::Screen sc; char err[200];
   std::string t = namedByWear("\"Rain boots\" = { icon = \"sun\" }", "[\"*Rain boots\", \"a\", \"a\", \"a\"]");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-  TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("Rain Boots Day", sc.outcome.title);
   TEST_ASSERT_EQUAL_STRING("sun", sc.outcome.heroIcon);               // the tile's picture, not the outcome's
   TEST_ASSERT_EQUAL_STRING("Rain boots", sc.outcome.wear[0].label);    // the key is the label
@@ -174,7 +176,7 @@ void test_day_name_follows_whimsy() {
   std::string t = namedByWear("\"Umbrella\" = { icon = \"tshirt\", whimsy = [\"Duck umbrella\"] }",
                               "[\"*Umbrella\", \"a\", \"a\", \"a\"]") + "\n[whimsy]\none_in = 1\n";
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-  TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("Duck umbrella", sc.outcome.wear[0].label);
   TEST_ASSERT_EQUAL_STRING("Duck Umbrella Day", sc.outcome.title);
 }
@@ -190,7 +192,7 @@ void test_day_name_title_case() {
     std::string q = std::string("\"") + c[0] + "\"";
     std::string t = namedByWear(q + " = { icon = \"tshirt\" }", "[\"*" + std::string(c[0]) + "\", \"a\", \"a\", \"a\"]");
     TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-    TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(base(), sc, nullptr));
     TEST_ASSERT_EQUAL_STRING(c[1], sc.outcome.title);
   }
 }
@@ -202,7 +204,7 @@ void test_day_named_after_places_and_things() {
   bool beach = false, kite = false;
   for (int d = 0; d < 6; d++) {
     auto in = base(); in.epochDay = 20621 + d;
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     if (!strcmp(sc.outcome.title, "Beach Day")) beach = true;
     else if (!strcmp(sc.outcome.title, "Kite Day")) kite = true;
     else TEST_FAIL_MESSAGE(sc.outcome.title);
@@ -221,7 +223,7 @@ void test_place_and_thing_icons() {
   bool beach = false, kite = false;
   for (int d = 0; d < 6; d++) {
     auto in = base(); in.epochDay = 20621 + d;
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     if (!strcmp(sc.outcome.title, "Beach Day")) { beach = true; TEST_ASSERT_EQUAL_STRING("sun", sc.outcome.heroIcon); }
     if (!strcmp(sc.outcome.title, "Kite Day"))  { kite = true;  TEST_ASSERT_EQUAL_STRING("tshirt", sc.outcome.heroIcon); }
   }
@@ -243,7 +245,7 @@ void test_real_rules_hero_matches_the_name() {
     if (c == 3) { in.tempMinF = temps[b] - 24; in.tempSwingF = 24; }
     if (c == 4) in.cloudCoverAvgPct = 5;
     static day::Screen sc;
-    TEST_ASSERT_TRUE(spec.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(spec.evaluate(in, sc, nullptr));
     bool fromTile = false;
     for (int i = 0; i < sc.outcome.wearCount; i++) {
       if (!strcmp(sc.outcome.wear[i].icon, sc.outcome.heroIcon)) fromTile = true;
@@ -310,13 +312,13 @@ when = ["tempMax >= 65", "tempMax < 75"]
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   auto in = base();
   in.tempMaxF = 70;
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("band", sc.outcome.id);
   in.tempMaxF = 75;                       // above the band
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
   in.tempMaxF = 64;                       // below it
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
 }
 
@@ -408,7 +410,7 @@ void test_also_when_failed() {
                               "wear = [\"a\", \"a\", \"a\", \"a\"]\nalso = \"grab\"\n\n[[outcome]]");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   auto in = base(); in.windMaxMph = 20;
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
   TEST_ASSERT_EQUAL_STRING("wind", sc.outcome.failedTest);
   TEST_ASSERT_EQUAL_STRING("Too windy at the water.", sc.outcome.alsoGrab);
@@ -517,7 +519,7 @@ void test_full_variant_overrides_and_inherits() {
   bool sawInherited = false, sawOverridden = false;
   for (int d = 0; d < 10; d++) {
     auto in = base(); in.epochDay = 20621 + d;
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     TEST_ASSERT_EQUAL_STRING("blue", sc.outcome.heroColor);         // inherited either way
     if (!strcmp(sc.outcome.title, "Only Day")) {
       sawInherited = true;
@@ -545,7 +547,7 @@ void test_whimsy_swaps_one_tile() {
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   for (int d = 0; d < 20; d++) {
     auto in = base(); in.epochDay = 20621 + d;
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     int silly = 0;
     for (int i = 0; i < 4; i++) {
       TEST_ASSERT_EQUAL_STRING("tshirt", sc.outcome.wear[i].icon);   // the picture stays true
@@ -562,7 +564,7 @@ void test_whimsy_leaves_plain_items_alone() {
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   for (int d = 0; d < 10; d++) {
     auto in = base(); in.epochDay = 20621 + d;
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     for (int i = 0; i < 4; i++) TEST_ASSERT_EQUAL_STRING("A", sc.outcome.wear[i].label);
   }
 }
@@ -586,9 +588,9 @@ void test_whimsy_in_the_real_rules() {
   for (int d = 0; d < days; d++) {
     auto in = base(); in.epochDay = 20000 + d;
     static day::Screen a, b, p;
-    TEST_ASSERT_TRUE(spec.evaluate(in, a, nullptr, false));
-    TEST_ASSERT_TRUE(spec.evaluate(in, b, nullptr, false));
-    TEST_ASSERT_TRUE(plain.evaluate(in, p, nullptr, false));
+    TEST_ASSERT_TRUE(spec.evaluate(in, a, nullptr));
+    TEST_ASSERT_TRUE(spec.evaluate(in, b, nullptr));
+    TEST_ASSERT_TRUE(plain.evaluate(in, p, nullptr));
     int changed = 0;
     for (int i = 0; i < 4; i++) {
       TEST_ASSERT_EQUAL_STRING(a.outcome.wear[i].label, b.outcome.wear[i].label);   // holds all day
@@ -675,11 +677,11 @@ void test_forced_outcome_is_drawn() {
   static day::Spec sp; pinSpec(sp);
   day::Screen sc;
   auto in = quiet(60);                                   // matches only the catch-all
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false, "warm"));
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, "warm"));
   TEST_ASSERT_EQUAL_STRING("warm", sc.outcome.id);
   TEST_ASSERT_EQUAL_STRING("Warm Day", sc.outcome.title);
   TEST_ASSERT_EQUAL_STRING("60", sc.stats[0].value);    // the fixture's one tile: numbers stay live
-  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false, "no_such"));   // unknown: matched as usual
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, "no_such"));   // unknown: matched as usual
   TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
 }
 
@@ -698,12 +700,18 @@ void test_reminder_shows_on_its_day() {
   beach::Reminder r;
   r.enabled = true; r.dayOfWeek = 3;
   snprintf(r.text, sizeof(r.text), "Take your trash to the street tonight");
-  TEST_ASSERT_TRUE(beach::reminderActive(r, 3));        // Wednesday
-  TEST_ASSERT_FALSE(beach::reminderActive(r, 4));
+  TEST_ASSERT_TRUE_MESSAGE(r.atNight, "Wednesday night by default");
+  TEST_ASSERT_TRUE(beach::reminderActive(r, 3, true));          // Wednesday night
+  TEST_ASSERT_FALSE_MESSAGE(beach::reminderActive(r, 3, false), "not Wednesday's day");
+  TEST_ASSERT_FALSE(beach::reminderActive(r, 4, true));         // Thursday night
+  r.atNight = false;                                            // the morning instead
+  TEST_ASSERT_TRUE(beach::reminderActive(r, 3, false));
+  TEST_ASSERT_FALSE(beach::reminderActive(r, 3, true));
+  r.atNight = true;
   r.enabled = false;
-  TEST_ASSERT_FALSE(beach::reminderActive(r, 3));
+  TEST_ASSERT_FALSE(beach::reminderActive(r, 3, true));
   r.enabled = true; r.text[0] = '\0';
-  TEST_ASSERT_FALSE_MESSAGE(beach::reminderActive(r, 3), "no words, no bar");
+  TEST_ASSERT_FALSE_MESSAGE(beach::reminderActive(r, 3, true), "no words, no bar");
 }
 
 void test_street_cleaning_takes_the_bar_first() {
@@ -711,11 +719,31 @@ void test_street_cleaning_takes_the_bar_first() {
   r.enabled = true; r.dayOfWeek = 3;
   snprintf(r.text, sizeof(r.text), "Trash tonight");
   beach::ParkingAlert pa;
-  TEST_ASSERT_EQUAL_STRING("Trash tonight", beach::barText(pa, r, 3));
+  TEST_ASSERT_EQUAL_STRING("Trash tonight", beach::barText(pa, r, 3, true));
   pa.active = true; snprintf(pa.text, sizeof(pa.text), "NO PARKING LEFT SIDE: 8-10AM");
-  TEST_ASSERT_EQUAL_STRING("NO PARKING LEFT SIDE: 8-10AM", beach::barText(pa, r, 3));
+  TEST_ASSERT_EQUAL_STRING("NO PARKING LEFT SIDE: 8-10AM", beach::barText(pa, r, 3, true));
   pa.active = false;
-  TEST_ASSERT_NULL(beach::barText(pa, r, 4));
+  TEST_ASSERT_NULL(beach::barText(pa, r, 4, true));
+  TEST_ASSERT_NULL(beach::barText(pa, r, 3, false));
+}
+
+// Street cleaning on a Thursday morning goes up Wednesday at nightfall - half
+// an hour after sunset, the same moment the screen turns to night - not at
+// sunset itself.
+void test_street_cleaning_starts_at_nightfall() {
+  const beach::ParkingRule rule{ true, "LEFT", beach::weeks({ 1, 2, 3, 4, 5 }), 4, 8 * 60, 10 * 60 };
+  beach::ParkingInput in{ 0, 3, 17, 4, 18, 19 * 60 + 8 };   // Wednesday, sunset 7:08 PM
+  in.nowMinutes = 19 * 60 + 8;
+  TEST_ASSERT_FALSE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "not at sunset");
+  in.nowMinutes = 19 * 60 + 37;
+  TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
+  in.nowMinutes = 19 * 60 + 38;
+  TEST_ASSERT_TRUE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "at sunset + 30");
+  in.sunsetMinutes = 0;                                       // no sun times: the 7:30 fallback, + 30
+  in.nowMinutes = 19 * 60 + 59;
+  TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
+  in.nowMinutes = 20 * 60;
+  TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
 }
 
 // --- holidays ---------------------------------------------------------------
@@ -756,7 +784,7 @@ void test_hero_panel_and_colour() {
   day::Spec sp; char err[200]; day::Screen sc; day::Inputs in = base();
   auto load = [&](const std::string& t) {
     TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr, false));
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   };
   load(specWith("tagline = \"T\"", "tagline = \"T\"\npanel = \"light\"\ncolor = \"yellow\""));
   TEST_ASSERT_TRUE(sc.outcome.heroLight);
@@ -768,10 +796,132 @@ void test_hero_panel_and_colour() {
   TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.hero_panel_default");
 }
 
-void test_eyebrow_and_tomorrow() {
-  auto s = run(base(), true, "Cambridge");
-  TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", s.eyebrow);
-  TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 62\xC2\xB0 in the morning, 84\xC2\xB0 in the afternoon", s.subline);
+void test_eyebrow_and_night() {
+  auto in = base();
+  snprintf(in.sunriseLocal, sizeof(in.sunriseLocal), "6:40 AM");
+  const day::Screen& d = run(in, false, "Cambridge");
+  TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", d.eyebrow);
+  TEST_ASSERT_EQUAL_STRING("Wednesday", d.weekday);
+  TEST_ASSERT_EQUAL_STRING("Sunset 7:08 PM", d.footer);
+  TEST_ASSERT_FALSE(d.night);
+  const day::Screen& n = run(in, true);
+  TEST_ASSERT_TRUE(n.night);
+  TEST_ASSERT_EQUAL_STRING("Wednesday night", n.weekday);
+  TEST_ASSERT_EQUAL_STRING("Sunrise 6:40 AM", n.footer);
+  TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 down to 62\xC2\xB0 by sunrise", n.subline);
+}
+
+// A night is named after what you wear. Places and things are for daylight,
+// and stand in only when an outcome has nothing starred.
+void test_night_names() {
+  day::Spec sp; day::Screen sc; char err[200];
+  std::string t = also(namedByWear("\"Rain boots\" = { icon = \"sun\" }", "[\"*Rain boots\", \"a\", \"a\", \"a\"]"),
+                       "tagline = \"T\"", "tagline = \"T\"\nplaces = [\"Beach\"]\nthings = [\"Kite\"]");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  bool sawPlace = false;
+  for (int d = 0; d < 8; d++) {
+    auto in = base(); in.epochDay = 20621 + d;
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+    if (strcmp(sc.outcome.title, "Rain Boots Day")) sawPlace = true;
+    in.night = true;
+    TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+    TEST_ASSERT_EQUAL_STRING("Rain Boots Night", sc.outcome.title);
+    TEST_ASSERT_EQUAL_STRING("sun", sc.outcome.heroIcon);
+  }
+  TEST_ASSERT_TRUE_MESSAGE(sawPlace, "days still use places and things");
+
+  // Nothing starred: the place or thing names the night after all.
+  t = specWith("names = [\"Only Day\"]", "places = [\"Beach\"]");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  auto in = base(); in.night = true;
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("Beach Night", sc.outcome.title);
+
+  // A whole name written out says Night too.
+  t = specWith("", "");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("Only Night", sc.outcome.title);
+}
+
+// `night` tables reword after dark and fall back to the day for anything
+// they leave out; `night` is a field the conditions can test.
+void test_night_wording() {
+  day::Spec sp; day::Screen sc; char err[200];
+  std::string t = also(specWith("also = \"grab\"", "also = \"grab\"\nnight = { also = \"night grab\" }"),
+                       "word_bands = [ { max = 200, text = \"w\" } ]",
+                       "word_bands = [ { max = 200, text = \"w\" } ]\n\n[stat.night]\nlabel = \"N\"\n"
+                       "word_field = \"tempMin\"\nword_bands = [ { max = 200, text = \"nw\" } ]\n");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  auto in = base();
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("grab", sc.outcome.alsoGrab);
+  TEST_ASSERT_EQUAL_STRING("S", sc.stats[0].label);
+  TEST_ASSERT_EQUAL_STRING("w", sc.stats[0].word);
+  in.night = true;
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("night grab", sc.outcome.alsoGrab);
+  TEST_ASSERT_EQUAL_STRING("T", sc.outcome.tagline);                  // not in the night table: the day's
+  TEST_ASSERT_EQUAL_STRING("N", sc.stats[0].label);
+  TEST_ASSERT_EQUAL_STRING("nw", sc.stats[0].word);
+  TEST_ASSERT_EQUAL_STRING("84", sc.stats[0].value);                  // value part untouched
+
+  // A day-only outcome steps aside at night.
+  t = specWith("[[outcome]]\nid = \"only\"",
+               "[[outcome]]\nid = \"sunny\"\nwhen = [\"night = 0\"]\nnames = [\"Sunny Day\"]\ntagline = \"T\"\n"
+               "icon = \"sun\"\nwear = [\"a\", \"a\", \"a\", \"a\"]\n\n[[outcome]]\nid = \"only\"");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
+  in.night = false;
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("sunny", sc.outcome.id);
+  in.night = true;
+  TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
+  TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
+
+  rejects("night table rewording the wear", specWith("also = \"grab\"", "also = \"grab\"\nnight = { wear = [\"a\"] }"));
+  rejects("night tagline too long", specWith("also = \"grab\"", "also = \"grab\"\nnight = { tagline = \"" + std::string(40, 'X') + "\" }"));
+  rejects("stat night with a stray key",
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.night]\nlabl = \"N\"\n"));
+  rejects("stat night with an unknown field",
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]",
+                   "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.night]\nword_field = \"moonlight\"\nword_bands = [ { max = 1, text = \"x\" } ]\n"));
+  rejects("screen night with a stray key", specWith("", "") + "\n[screen.night]\neyebrow = \"X\"\n");
+}
+
+// The real rules after dark: every square named for the night, nothing for
+// the sun on a clear one, and the sky in place of the sun tile.
+void test_real_rules_at_night() {
+  for (double t : { 85.0, 70.0, 57.0, 40.0, 20.0 }) {
+    for (int cond = 0; cond < 6; cond++) {
+      auto in = quiet(t);
+      in.night = true;
+      if (cond == 0) in.snowHours = 2;
+      if (cond == 1) in.precipChanceMaxPct = 80;
+      if (cond == 2) in.windMaxMph = 25;
+      if (cond == 3) { in.tempMinF = t - 25; in.tempSwingF = 25; }
+      if (cond == 4) in.cloudCoverAvgPct = 5;
+      for (int d = 0; d < 14; d++) {
+        in.epochDay = 20621 + d;
+        const day::Screen& sc = run(in, true);
+        const char* title = sc.outcome.title;
+        size_t len = strlen(title);
+        TEST_ASSERT_TRUE_MESSAGE(len > 6 && !strcmp(title + len - 6, " Night"), title);
+        TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.id, "sunny"), sc.outcome.id);
+        for (int w = 0; w < sc.outcome.wearCount; w++) {
+          TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.wear[w].label, "Sunscreen"), sc.outcome.id);
+          TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.wear[w].label, "Sunglasses"), sc.outcome.id);
+        }
+        TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.alsoGrab, "lunch"), sc.outcome.id);
+        TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.alsoGrab, "beach day"), sc.outcome.id);
+        TEST_ASSERT_EQUAL_STRING("SKY", sc.stats[0].label);
+      }
+    }
+  }
+  auto in = quiet(57); in.cloudCoverAvgPct = 5;
+  TEST_ASSERT_EQUAL_STRING("cool_sunny", run(in).outcome.id);              // the day still has its sunny square
+  TEST_ASSERT_EQUAL_STRING("cool_clear", run(in, true).outcome.id);
+  TEST_ASSERT_EQUAL_STRING("moon", run(in, true).stats[0].icon);
+  TEST_ASSERT_EQUAL_STRING("Starry", run(in, true).stats[0].word);
 }
 
 void test_derive() {
@@ -824,6 +974,48 @@ void test_daylight_hours() {
   day::daylightHours(raw, 1, h0, h1);
   TEST_ASSERT_EQUAL_INT(day::FALLBACK_START_HOUR, h0);
   TEST_ASSERT_EQUAL_INT(day::FALLBACK_END_HOUR, h1);
+}
+
+// A night is one run of hours across midnight: now until sunrise.
+void test_night_span() {
+  day::Raw raw;
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8;
+  raw.day[1].valid = true; raw.day[1].sunriseMin = 6 * 60 + 40; raw.day[1].sunsetMin = 19 * 60 + 6;
+  int n = 0;
+  auto add = [&](int d, int h, double t, int pp, int cloud) {
+    raw.hours[n++] = day::HourRow{ (int8_t)d, (int8_t)h, t, 5, 70, (int16_t)pp, (int16_t)cloud, 0 };
+  };
+  add(0, 14, 90, 0, 0);       // the afternoon: not tonight
+  add(0, 20, 68, 0, 80);
+  add(0, 21, 66, 0, 80);
+  add(0, 23, 60, 40, 10);
+  add(1, 1, 55, 50, 10);
+  add(1, 6, 50, 0, 80);
+  add(1, 7, 49, 0, 80);       // after sunrise: not tonight
+  raw.n = n;
+
+  day::Span sp = day::nightSpan(raw, 21 * 60 + 10);
+  TEST_ASSERT_EQUAL_INT(21, sp.a0);
+  TEST_ASSERT_EQUAL_INT(30, sp.a1);                                   // 6 AM tomorrow
+  day::Inputs in;
+  day::derive(raw, sp, 4, in);
+  TEST_ASSERT_EQUAL_INT(50, (int)in.tempMinF);
+  TEST_ASSERT_EQUAL_INT(66, (int)in.tempMaxF);
+  TEST_ASSERT_EQUAL_INT(23, in.rainStartHour);                        // clock hours, across midnight
+  TEST_ASSERT_EQUAL_INT(1, in.rainEndHour);
+  TEST_ASSERT_EQUAL_INT(1, (int)in.sunRunHours);                      // no midnight row: the run breaks
+  TEST_ASSERT_EQUAL_STRING("6:40 AM", in.sunriseLocal);              // tomorrow's
+  TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);               // tonight's
+
+  // Before dawn: the rest of the night is today's, up to today's sunrise.
+  sp = day::nightSpan(raw, 2 * 60 + 5);
+  TEST_ASSERT_EQUAL_INT(2, sp.a0);
+  TEST_ASSERT_EQUAL_INT(6, sp.a1);
+
+  // The day's span is the daylight window.
+  sp = day::daySpan(raw, 0);
+  TEST_ASSERT_EQUAL_INT(6, sp.a0);
+  TEST_ASSERT_EQUAL_INT(19, sp.a1);
 }
 
 // Snow is counted from the weather code, inside daylight only. Freezing rain
@@ -906,11 +1098,16 @@ int main(int, char**) {
   RUN_TEST(test_real_rules_break_pins_for_rain_and_snow_only);
   RUN_TEST(test_reminder_shows_on_its_day);
   RUN_TEST(test_street_cleaning_takes_the_bar_first);
+  RUN_TEST(test_street_cleaning_starts_at_nightfall);
   RUN_TEST(test_holiday_fixed_date);
   RUN_TEST(test_holiday_nth_weekday);
   RUN_TEST(test_holiday_last_weekday);
   RUN_TEST(test_hero_panel_and_colour);
-  RUN_TEST(test_eyebrow_and_tomorrow);
+  RUN_TEST(test_eyebrow_and_night);
+  RUN_TEST(test_night_names);
+  RUN_TEST(test_night_wording);
+  RUN_TEST(test_real_rules_at_night);
+  RUN_TEST(test_night_span);
   RUN_TEST(test_derive);
   RUN_TEST(test_derive_snow);
   RUN_TEST(test_derive_windows);

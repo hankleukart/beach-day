@@ -5,7 +5,7 @@
 #
 #   what:  dev      stays awake, buttons cycle the outcomes   (default)
 #          release  renders once, then deep-sleeps
-#          rules    push only shared/v3/day-outcomes.json to the board
+#          rules    push only shared/v3/day-outcomes.toml to the board
 #          erase    wipe saved settings (Wi-Fi, location, parking) and reflash
 #          gift     a board for someone else: erases it, flashes with no Wi-Fi
 #                   or location compiled in, and exits without the monitor so
@@ -18,7 +18,7 @@
 #   e.g.  ./flash.sh dev e1002      ./flash.sh release e1002
 #
 # Firmware uploads also upload the LittleFS image, which carries the rules
-# JSON; the firmware falls back to a built-in copy if the image is missing.
+# file; the firmware falls back to a built-in copy if the image is missing.
 #
 # If the upload can't find the board, press Green (Refresh, KEY0) to wake it
 # and run this again.

@@ -44,7 +44,10 @@ The left panel is the verdict: a day name, an icon and a tagline. The right
 column is the detail — the weekday, four stat tiles, four things to wear, and
 one closing tip. A bar across the bottom means act on something today: street
 cleaning, or the weekly reminder — by default, "Take your trash to the street
-tonight" all day Wednesday. Street cleaning gets the bar first. On the colour
+tonight" on Wednesday night, from half an hour after sunset until an hour
+before sunrise. The setup portal can move it to a morning instead. Street
+cleaning shows from that same nightfall the night before until its window
+ends. Street cleaning gets the bar first. On the colour
 panel street cleaning is red and the reminder yellow; on the black-and-white
 one both are black.
 
@@ -184,7 +187,7 @@ If a `[[holiday]]` entry matches the date, its label is prefixed:
 
 ### 5. Now and then, whimsy
 
-About one day in three, one of the four tiles swaps for a sillier take on the
+About one day in ten, one of the four tiles swaps for a sillier take on the
 same thing: **Bellbottoms** for light pants, a **Retro trucker hat** for the
 sun hat, **Frog rain boots** for rain boots. Every item in the catalogue has
 two.
@@ -196,7 +199,7 @@ either way, and only one tile swaps, so the other three stay plain advice. If
 the tile that swaps is the one naming the day, the name follows it.
 
 Like the name, it is seeded by the date — which day, which tile, which
-alternative — so it holds all day. `[whimsy] one_in = 3` sets the rate;
+alternative — so it holds all day. `[whimsy] one_in = 10` sets the rate;
 delete the table to turn it off.
 
 ---
@@ -211,12 +214,13 @@ day's pinned outcome; see below.
 
 | Period | Interval |
 | --- | --- |
-| From one hour before sunrise until sunset | every **60 min** |
-| Overnight | every **240 min** |
+| Day: from one hour before sunrise until half an hour after sunset | every **60 min** |
+| Night: the rest | every **240 min** |
 
-**Extra wakes at the moments the screen would change anyway:** sunrise, sunset,
-one hour after sunset, the next sunrise, and the end of any enabled
-street-cleaning window.
+**Extra wakes at the moments the screen would change anyway:** the start of
+the day (an hour before sunrise), the start of the night (half an hour after
+sunset, which is also when a street-cleaning alert for the next morning goes
+up), and the end of any enabled street-cleaning window.
 
 **On failure:** it retries after **10 min**, and after six consecutive failures
 backs off to 60 min. The last good screen stays up, restamped `OFFLINE since
@@ -252,9 +256,9 @@ reaches them, because "take the raincoat after all" is worth interrupting
 for. Once broken, the pin is the wet outcome: drying out later does not
 un-say it.
 
-**Before the pin, the screen is live.** The evening preview of tomorrow and
-the small hours of the night are never pinned; tomorrow decides itself in the
-morning, on the freshest forecast.
+**The night has its own pin.** Its first look after dark decides the night
+the same way, and only rain or snow can break it. It is kept apart from the
+day's, so the night never overwrites the day it follows.
 
 Measured on 60 days of real archived forecasts (`tools/replay.sh` in
 [reterminal-e1001/](reterminal-e1001/), with `--no-pin` for the comparison):
@@ -275,18 +279,31 @@ the pool belongs to the outcome, so if an afternoon rain moves the day from
 `warm_clear` to `warm_rain`, the name changes with it. Whimsy works the same way: pinned for
 the day, but it rides on whichever four items the outcome picked.
 
-**One hour after sunset, the screen flips to tomorrow.** It evaluates tomorrow's
-daylight window instead of today's, and the heading reads `WHAT TO WEAR
-TOMORROW`. The date used for the name is also tomorrow's, so the name you see
-on Wednesday evening is the one Thursday will keep all day — and a Christmas
-Eve evening already says Christmas.
+**Half an hour after sunset, the screen turns to night.** Every number is
+now taken from the hours between now and the next sunrise, rather than
+sunrise to sunset. The heading reads `Wednesday night`, the name ends in
+Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR TONIGHT`,
+and the footer shows the next sunrise.
 
-Today's screen therefore stays up through sunset and for an hour after it,
-which is the window in which someone is most likely to glance at it and still
-be acting on today.
+Night runs on the same grid, with three differences, all set in the rules
+file:
 
-**It flips back at midnight,** not at dawn. Showing "Thursday" at 5 AM on a
-Thursday is correct.
+- **No sunny squares.** They carry `night = 0`, so a clear night falls through
+  to its band's plain outcome rather than recommending sunglasses.
+- **Named after what you wear.** Places and things are for daylight, so a
+  night's name comes from a starred wear item. An outcome with nothing
+  starred falls back to its places and things.
+- **Reworded where daylight was assumed.** An outcome's `night = { tagline,
+  also }` replaces lines like "comes off by lunch". The sun tile becomes
+  **SKY** (Clear, Partly or Cloudy, with "Starry" underneath), the temperature
+  word is read from the overnight low, and `[screen.night]` rewords the footer.
+
+**A night belongs to the evening it began on.** At 2 AM Friday the screen
+still says `Thursday night`, and the holiday and the name are the ones for
+Thursday's date.
+
+**The day starts an hour before sunrise,** so the morning screen is up before
+anyone else is.
 
 **A holiday prefix appears and disappears on its own date.**
 

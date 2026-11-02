@@ -61,13 +61,19 @@ cat "$OUT/manifest.json"
 
 if [ "${1:-}" = "--publish" ]; then
   command -v gh >/dev/null || { echo "gh not installed: https://cli.github.com"; exit 1; }
-  echo "==> Publishing $TAG"
+  # The tag must name the commit this binary was built from. Without
+  # --target, gh tags the default branch (main), not this branch.
+  git diff --quiet HEAD -- || { echo "Uncommitted changes: commit before publishing"; exit 1; }
+  COMMIT=$(git rev-parse HEAD)
+  git merge-base --is-ancestor "$COMMIT" "@{u}" 2>/dev/null \
+    || { echo "HEAD is not pushed: git push first, so the tag has a commit to point at"; exit 1; }
+  echo "==> Publishing $TAG at ${COMMIT:0:7}"
   # Devices fetch /releases/latest/download/manifest.json, so this must be the
   # latest non-draft, non-prerelease release.
   gh release create "$TAG" "$OUT/$ASSET" "$OUT/manifest.json" \
-    --title "Firmware $VERSION" --notes "$NOTES" --latest
+    --title "Firmware $VERSION" --notes "$NOTES" --latest --target "$COMMIT"
   echo "==> Published. Devices update within CFG_OTA_CHECK_HOURS,"
-  echo "    or immediately if someone holds the left button (KEY2) at wake."
+  echo "    or at once on a long press of Right Nav (about 3 s, until the LED)."
 else
   echo
   echo "Not published. To publish:"
