@@ -398,7 +398,7 @@ void test_near_threshold_copy() {
   TEST_ASSERT_EQUAL_STRING("warm_clear", run(in).outcome.id);
   TEST_ASSERT_EQUAL_STRING("4\xC2\xB0 short of a beach day. Lovely for the park, chilly in the water.", run(in).outcome.alsoGrab);
   in = quiet(72);
-  TEST_ASSERT_EQUAL_STRING("Also grab: light pants instead, if the morning is chilly.", run(in).outcome.alsoGrab);
+  TEST_ASSERT_EQUAL_STRING("Also grab: light pants instead, if it gets chilly.", run(in).outcome.alsoGrab);
 }
 
 // When the beach day fails on one condition, an outcome can say which.
