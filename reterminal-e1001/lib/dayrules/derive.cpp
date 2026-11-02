@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstring>
 #include "wmo.h"
+#include "parking.h"     // NIGHT_AFTER_SUNSET_MIN: when night starts
 
 namespace day {
 
@@ -59,10 +60,15 @@ Span daySpan(const Raw& raw, int d) {
 }
 
 Span nightSpan(const Raw& raw, int nowMinute) {
-  // After noon the next sunrise is tomorrow's; before it, it is today's.
-  const int d = nowMinute >= 12 * 60 ? 1 : 0;
-  const int rise = raw.day[d].sunriseMin > 0 ? raw.day[d].sunriseMin / 60 : FALLBACK_START_HOUR;
-  return Span{ nowMinute / 60, d * 24 + rise };
+  // After noon the night is tonight's (dusk today, dawn tomorrow); before it,
+  // it is last night's (dusk yesterday, dawn today).
+  const int dusk = nowMinute >= 12 * 60 ? 0 : -1;
+  const DayMeta& eve = raw.meta(dusk);
+  const DayMeta& morn = raw.meta(dusk + 1);
+  int fall = eve.sunsetMin > 0 ? eve.sunsetMin + beach::NIGHT_AFTER_SUNSET_MIN : FALLBACK_END_HOUR * 60 + beach::NIGHT_AFTER_SUNSET_MIN;
+  if (fall > 1439) fall = 1439;
+  const int rise = morn.sunriseMin > 0 ? morn.sunriseMin / 60 : FALLBACK_START_HOUR;
+  return Span{ dusk * 24 + fall / 60, (dusk + 1) * 24 + rise };
 }
 
 void derive(const Raw& raw, int d, int weekday, Inputs& out) {
@@ -71,8 +77,8 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
 
 void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
   out = Inputs{};
-  const int d0 = sp.a0 / 24 < 2 ? sp.a0 / 24 : 1;
-  const int d1 = sp.a1 / 24 < 2 ? sp.a1 / 24 : 1;
+  const DayMeta& m0 = raw.meta(spanDay(sp.a0));
+  const DayMeta& m1 = raw.meta(spanDay(sp.a1));
 
   double tMin = 1e9, tMax = -1e9, wMax = -1e9;
   int pMax = -1, hMin = 1 << 14, hMax = -1;
@@ -100,7 +106,7 @@ void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
     const HourRow* r = rowAt(raw, a);
     const bool clear = r && r->cloud >= 0 && r->cloud <= CLEAR_CLOUD_MAX_PCT;
     if (clear) {
-      if (!out.hasFirstClearHour) { out.hasFirstClearHour = true; out.firstClearHour = a % 24; }
+      if (!out.hasFirstClearHour) { out.hasFirstClearHour = true; out.firstClearHour = spanHour(a); }
       if (runStart < 0) runStart = a;
       int len = a - runStart + 1;
       if (len > bestLen) { bestLen = len; bestStart = runStart; bestEnd = a; }
@@ -109,15 +115,15 @@ void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
     }
   }
   out.sunRunHours = bestLen;
-  out.sunRunStartHour = bestStart < 0 ? -1 : bestStart % 24;
-  out.sunRunEndHour = bestEnd < 0 ? -1 : bestEnd % 24;
+  out.sunRunStartHour = bestStart < 0 ? -1 : spanHour(bestStart);
+  out.sunRunEndHour = bestEnd < 0 ? -1 : spanHour(bestEnd);
 
   // Wet window: first and last hour over the threshold, gaps included.
   for (int a = sp.a0; a <= sp.a1; a++) {
     const HourRow* r = rowAt(raw, a);
     if (r && r->precipProb > RAIN_WINDOW_MIN_PCT) {
-      if (out.rainStartHour < 0) out.rainStartHour = a % 24;
-      out.rainEndHour = a % 24;
+      if (out.rainStartHour < 0) out.rainStartHour = spanHour(a);
+      out.rainEndHour = spanHour(a);
     }
   }
   if (any) {
@@ -143,11 +149,11 @@ void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
   out.aqiMax = aMax < 0 ? 0 : aMax;
   out.aqiMin = aMax < 0 ? 0 : aMin;
 
-  snprintf(out.conditionSummary, sizeof(out.conditionSummary), "%s", beach::wmoDescription(modeCode(raw, sp, raw.day[d0].dailyCode)));
+  snprintf(out.conditionSummary, sizeof(out.conditionSummary), "%s", beach::wmoDescription(modeCode(raw, sp, m0.dailyCode)));
   // The sunset that opened the window, and the sunrise that closes it. For a
   // day they are the same day's; for a night, the evening's and the morning's.
-  if (raw.day[d0].sunsetMin > 0) formatClock12(raw.day[d0].sunsetMin, out.sunsetLocal, sizeof(out.sunsetLocal));
-  if (raw.day[d1].sunriseMin > 0) formatClock12(raw.day[d1].sunriseMin, out.sunriseLocal, sizeof(out.sunriseLocal));
+  if (m0.sunsetMin > 0) formatClock12(m0.sunsetMin, out.sunsetLocal, sizeof(out.sunsetLocal));
+  if (m1.sunriseMin > 0) formatClock12(m1.sunriseMin, out.sunriseLocal, sizeof(out.sunriseLocal));
   snprintf(out.weekdayName, sizeof(out.weekdayName), "%s", weekdayName(weekday));
 }
 

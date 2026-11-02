@@ -363,9 +363,11 @@ void setup() {
   }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
 
-  // Day: sunrise to sunset, from an hour before sunrise. Night: now until the
-  // next sunrise, from half an hour after sunset. A night belongs to the
-  // evening it began on - 2 AM Friday is still Thursday night.
+  // Day: sunrise to sunset, shown from an hour before sunrise. Night:
+  // nightfall to sunrise, shown from nightfall. Both windows are fixed, so
+  // every look reads the same hours the pinned outcome was decided on. A
+  // night belongs to the evening it began on - 2 AM Friday is still
+  // Thursday night.
   int sunset = f.raw.day[0].sunsetMin;
   const bool night = isNight(lc.minuteOfDay, f.raw.day[0]);
   const bool beforeDawn = night && lc.minuteOfDay < 12 * 60;

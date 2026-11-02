@@ -43,7 +43,8 @@ footer   = "Sunset {sunsetLocal}"
 hero_panel_default = "light"
 
 # Night runs from half an hour after sunset to an hour before sunrise, and
-# reads the hours from now until sunrise instead of sunrise to sunset. The
+# reads the whole night - nightfall to sunrise - instead of sunrise to sunset,
+# the same hours at every look. The
 # screen says "Thursday night", and the day name ends in Night. Anything
 # below written for daylight can carry a `night` version: here, in a stat
 # ([stat.night]), or in an outcome (night = { tagline, also, icon }).
@@ -242,8 +243,8 @@ one_in = 10
 # because "take the raincoat after all" is worth interrupting for. A night
 # is pinned the same way, from its first look after dark.
 #
-# At night the same grid runs on the hours until sunrise, so tempMax is how
-# warm the evening is now. The sunny squares carry "night = 0": sunglasses
+# At night the same grid runs on the night's hours, so tempMax is how warm
+# the evening starts. The sunny squares carry "night = 0": sunglasses
 # and sunscreen are no use in the dark, so a clear night falls through to its
 # band's plain outcome. A swing at night runs the other way - warm now, cold
 # by morning - so the swing squares say so in their `night` lines.

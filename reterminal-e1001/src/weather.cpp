@@ -26,8 +26,9 @@ static bool parseForecast(const String& body, Fetched& out, char* err, size_t er
   out.modelNowUtc  = (time_t)(doc["current"]["time"].as<long long>());
   JsonArrayConst times = doc["hourly"]["time"];
   if (times.size() == 0) { snprintf(err, errLen, "forecast: no hourly data"); return false; }
-  out.todayStartUtc = (time_t)times[0].as<long long>();
-  long day0 = localDays(out.todayStartUtc, out.utcOffsetSec);
+  // past_days=1: the first row is yesterday's midnight, so today is the day after.
+  long day0 = localDays((time_t)times[0].as<long long>(), out.utcOffsetSec) + 1;
+  out.todayStartUtc = (time_t)(day0 * 86400L - out.utcOffsetSec);
 
   JsonArrayConst temp = doc["hourly"]["temperature_2m"], hum = doc["hourly"]["relative_humidity_2m"],
                  pp = doc["hourly"]["precipitation_probability"], wc = doc["hourly"]["weather_code"],
@@ -36,7 +37,7 @@ static bool parseForecast(const String& body, Fetched& out, char* err, size_t er
   for (size_t i = 0; i < times.size() && out.raw.n < day::MAX_ROWS; i++) {
     time_t t = (time_t)times[i].as<long long>();
     long d = localDays(t, out.utcOffsetSec) - day0;
-    if (d < 0 || d > 1) continue;
+    if (d < -1 || d > 1) continue;
     day::HourRow& r = out.raw.hours[out.raw.n++];
     r.day = (int8_t)d;
     r.hour = (int8_t)localHour(t, out.utcOffsetSec);
@@ -49,13 +50,14 @@ static bool parseForecast(const String& body, Fetched& out, char* err, size_t er
   }
   JsonObjectConst daily = doc["daily"];
   JsonArrayConst sr = daily["sunrise"];
-  for (int d = 0; d < 2 && (size_t)d < sr.size(); d++) {
-    day::DayMeta& m = out.raw.day[d];
+  // Daily rows are yesterday, today, tomorrow.
+  for (int i = 0; i < 3 && (size_t)i < sr.size(); i++) {
+    day::DayMeta& m = i == 0 ? out.raw.prev : out.raw.day[i - 1];
     m.valid = true;
-    long long a = daily["sunrise"][d] | 0LL, b = daily["sunset"][d] | 0LL;
+    long long a = daily["sunrise"][i] | 0LL, b = daily["sunset"][i] | 0LL;
     m.sunriseMin = a ? (int16_t)localMinuteOfDay((time_t)a, out.utcOffsetSec) : 0;
     m.sunsetMin  = b ? (int16_t)localMinuteOfDay((time_t)b, out.utcOffsetSec) : 0;
-    m.dailyCode  = intOr(daily["weather_code"][d], 99);
+    m.dailyCode  = intOr(daily["weather_code"][i], 99);
   }
   if (!out.raw.day[0].valid) { snprintf(err, errLen, "forecast: no daily data"); return false; }
   return true;
@@ -73,7 +75,7 @@ static bool parseAirQuality(const String& body, Fetched& out) {
   for (size_t i = 0; i < times.size() && out.raw.na < day::MAX_ROWS; i++) {
     time_t t = (time_t)times[i].as<long long>();
     long d = localDays(t, out.utcOffsetSec) - day0;
-    if (d < 0 || d > 1) continue;
+    if (d < -1 || d > 1) continue;
     out.raw.aqi[out.raw.na++] = day::AqiRow{ (int8_t)d, (int8_t)localHour(t, out.utcOffsetSec), intOr(aqi[i], -1) };
   }
   return out.raw.na > 0;
@@ -85,7 +87,7 @@ bool fetchWeather(const Settings& s, Fetched& out, char* err, size_t errLen) {
   String body;
   snprintf(url, sizeof(url),
     "%s://api.open-meteo.com/v1/forecast?latitude=%.5f&longitude=%.5f"
-    "&timezone=auto&timeformat=unixtime&forecast_days=2"
+    "&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=2"
     "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch"
     "&current=weather_code"
     "&hourly=temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m"
@@ -96,7 +98,7 @@ bool fetchWeather(const Settings& s, Fetched& out, char* err, size_t errLen) {
   body = String();
   snprintf(url, sizeof(url),
     "%s://air-quality-api.open-meteo.com/v1/air-quality?latitude=%.5f&longitude=%.5f"
-    "&timezone=auto&timeformat=unixtime&forecast_days=2&hourly=us_aqi",
+    "&timezone=auto&timeformat=unixtime&past_days=1&forecast_days=2&hourly=us_aqi",
     scheme, s.latitude, s.longitude);
   out.aqiOk = netGet(url, s.useTls, body) && parseAirQuality(body, out);
   if (!out.aqiOk) Serial.println("[weather] air quality unavailable; AQI will read 0");

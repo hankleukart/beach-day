@@ -70,6 +70,8 @@ const Scenario SCENARIOS[] = {
   { "night",  6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 21 * 60 + 10 },
   // Rain after midnight: the wet window has to read across the date change.
   { "nightrain", 6 * 60 + 40, 19 * 60 + 10, 50, 58, 80, 95, 12, 22, 61, false, false, nullptr, 20 * 60 + 5 },
+  // 2:05 AM: still last night, read from yesterday's nightfall.
+  { "predawn", 6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 2 * 60 + 5 },
 };
 
 // A plausible day rather than a flat line, so the readings table and the
@@ -104,24 +106,29 @@ void buildRaw(const Scenario& sc, day::Raw& raw) {
 // to the low at sunrise, with the rain (if any) in the small hours.
 void buildNightRaw(const Scenario& sc, day::Raw& raw) {
   raw = day::Raw{};
-  for (int d = 0; d < 2; d++) {
-    raw.day[d].valid = true;
-    raw.day[d].sunriseMin = (int16_t)sc.sunriseMin;
-    raw.day[d].sunsetMin  = (int16_t)sc.sunsetMin;
-    raw.day[d].dailyCode  = (int16_t)sc.code;
+  for (int d = -1; d < 2; d++) {
+    day::DayMeta& m = d < 0 ? raw.prev : raw.day[d];
+    m.valid = true;
+    m.sunriseMin = (int16_t)sc.sunriseMin;
+    m.sunsetMin  = (int16_t)sc.sunsetMin;
+    m.dailyCode  = (int16_t)sc.code;
   }
-  const int dusk = sc.sunsetMin / 60, dawn = 24 + sc.sunriseMin / 60;
+  // The night the scenario looks at: tonight, or last night before noon.
+  const int base = sc.nightAt >= 12 * 60 ? 0 : -24;
+  const int dusk = base + sc.sunsetMin / 60, dawn = base + 24 + sc.sunriseMin / 60;
   int n = 0;
-  for (int a = 0; a < 48 && n < day::MAX_ROWS; a++) {
+  for (int a = -24; a < 48 && n < day::MAX_ROWS; a++) {
     float t = (float)(a - dusk) / (float)(dawn - dusk);
     if (t < 0) t = 0;
     if (t > 1) t = 1;
     const int temp = sc.tempHiF - (int)((sc.tempHiF - sc.tempLoF) * t);
-    const int pp   = (a >= 24 && a <= 27) ? sc.precipPct : sc.precipPct / 5;
-    const int code = (a >= 24 && a <= 27) ? sc.code : (sc.code >= 50 ? 3 : sc.code);
-    raw.hours[n] = day::HourRow{ (int8_t)(a / 24), (int8_t)(a % 24), (double)temp, (double)(sc.windMph - 2 + (a % 4)),
+    const bool wet = a >= base + 24 && a <= base + 27;
+    const int pp   = wet ? sc.precipPct : sc.precipPct / 5;
+    const int code = wet ? sc.code : (sc.code >= 50 ? 3 : sc.code);
+    const int8_t dd = (int8_t)day::spanDay(a), hh = (int8_t)day::spanHour(a);
+    raw.hours[n] = day::HourRow{ dd, hh, (double)temp, (double)(sc.windMph - 2 + (hh % 4)),
                                  (int16_t)(70 + (int)(20 * t)), (int16_t)pp, (int16_t)sc.cloudPct, (int16_t)code };
-    raw.aqi[n] = day::AqiRow{ (int8_t)(a / 24), (int8_t)(a % 24), (int16_t)(sc.aqi - 4 + (a % 7)) };
+    raw.aqi[n] = day::AqiRow{ dd, hh, (int16_t)(sc.aqi - 4 + (hh % 7)) };
     n++;
   }
   raw.n = n; raw.na = n;

@@ -372,8 +372,10 @@ void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs&
     // every number below is an aggregate over exactly these hours.
     char when[64];
     if (in.night) {
-      snprintf(when, sizeof(when), "%s night  \xC2\xB7  until sunrise, %s", in.weekdayName,
-               in.sunriseLocal[0] ? in.sunriseLocal : "no sun times");
+      if (in.sunsetLocal[0] && in.sunriseLocal[0])
+        snprintf(when, sizeof(when), "%s night  \xC2\xB7  sunset %s - sunrise %s", in.weekdayName, in.sunsetLocal, in.sunriseLocal);
+      else
+        snprintf(when, sizeof(when), "%s night  \xC2\xB7  no sun times", in.weekdayName);
     } else if (in.sunriseLocal[0] && in.sunsetLocal[0]) {
       snprintf(when, sizeof(when), "%s  \xC2\xB7  %s - %s", in.weekdayName, in.sunriseLocal, in.sunsetLocal);
     } else {
@@ -400,7 +402,7 @@ void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs&
 
     int y = yTop, shown = 0;
     for (int a = h0; a <= h1 && y < yBottom; a++) {
-      const int dayIndex = a / 24, h = a % 24;    // a night crosses midnight
+      const int dayIndex = day::spanDay(a), h = day::spanHour(a);    // a night crosses midnight
       const day::HourRow* row = nullptr;
       for (int i = 0; i < raw.n; i++)
         if (raw.hours[i].day == dayIndex && raw.hours[i].hour == h) { row = &raw.hours[i]; break; }

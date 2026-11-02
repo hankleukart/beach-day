@@ -88,8 +88,8 @@ red and the reminder yellow; on the black-and-white one both are black.
 
 The **readings screen** answers "why did it decide that?". It lists every
 hourly row the rules read — by day, the hour containing sunrise through the
-hour containing sunset; at night ("Tonight's readings"), now through the
-hour containing the next sunrise — with temperature, rain chance, cloud,
+hour containing sunset; at night ("Tonight's readings"), the hour
+containing nightfall through the hour containing sunrise — with temperature, rain chance, cloud,
 wind, AQI and sky, and the figures the rules ran on along the bottom. Its
 footer shows the firmware version. Any button returns to the forecast.
 
@@ -131,8 +131,10 @@ wakes; every wake fetches fresh.
 By day, the hourly rows are aggregated over **that day's own daylight
 window**: the whole hour containing sunrise through the whole hour containing
 sunset. Sunrise at 6:42 makes the 6am row part of the day; sunset at 7:08 PM
-makes the 7pm row the last one. At night it is the hours from now until the
-next sunrise instead (see [Night](#night)).
+makes the 7pm row the last one. At night it is the whole night instead (see
+[Night](#night)). Either window is fixed: a look at 3 PM still counts the
+morning, and a look at 2 AM still counts the evening, so the figures always
+describe the same hours the pinned outcome was decided on.
 
 That window produces one set of figures — `tempMin`, `tempMax`, `swing`,
 `rain`, `wind`, `cloud`, `aqi`, `snow`, humidity range, the longest run of
@@ -226,8 +228,9 @@ alternative are all seeded by the date, so it holds all day.
 ## Night
 
 **Half an hour after sunset, the screen turns to night**, and it stays night
-until an hour before sunrise. Every number is taken from the hours between
-now and the next sunrise. The heading reads `Wednesday night`, the name ends
+until an hour before sunrise. Every number is taken from the whole night:
+the hour containing nightfall through the hour containing sunrise (7pm to
+6am, say), the same at 9 PM as at 2 AM. The heading reads `Wednesday night`, the name ends
 in Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR
 TONIGHT`, and the footer shows the next sunrise.
 

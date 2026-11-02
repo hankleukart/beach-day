@@ -976,17 +976,27 @@ void test_daylight_hours() {
   TEST_ASSERT_EQUAL_INT(day::FALLBACK_END_HOUR, h1);
 }
 
-// A night is one run of hours across midnight: now until sunrise.
+// A night is one fixed run of hours across midnight: the hour holding
+// nightfall (sunset + 30) through the hour holding the next sunrise - the same
+// at 9 PM as at 2 AM.
 void test_night_span() {
   day::Raw raw;
+  raw.prev.valid = true;   raw.prev.sunriseMin = 6 * 60 + 36;   raw.prev.sunsetMin = 19 * 60 + 10;
   raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8;
   raw.day[1].valid = true; raw.day[1].sunriseMin = 6 * 60 + 40; raw.day[1].sunsetMin = 19 * 60 + 6;
   int n = 0;
   auto add = [&](int d, int h, double t, int pp, int cloud) {
     raw.hours[n++] = day::HourRow{ (int8_t)d, (int8_t)h, t, 5, 70, (int16_t)pp, (int16_t)cloud, 0 };
   };
-  add(0, 14, 90, 0, 0);       // the afternoon: not tonight
-  add(0, 20, 68, 0, 80);
+  add(-1, 18, 75, 0, 0);      // yesterday before nightfall: not last night
+  add(-1, 19, 64, 0, 80);     // last night begins (nightfall 7:40 PM)
+  add(-1, 23, 58, 60, 80);
+  add(0, 3, 52, 0, 80);
+  add(0, 6, 51, 0, 80);       // the hour holding today's sunrise
+  add(0, 7, 53, 0, 80);       // after sunrise: not last night
+  add(0, 14, 90, 0, 0);       // the afternoon: no night's
+  add(0, 18, 72, 0, 0);       // before nightfall: not tonight
+  add(0, 19, 68, 0, 80);      // tonight begins (nightfall 7:38 PM)
   add(0, 21, 66, 0, 80);
   add(0, 23, 60, 40, 10);
   add(1, 1, 55, 50, 10);
@@ -994,23 +1004,41 @@ void test_night_span() {
   add(1, 7, 49, 0, 80);       // after sunrise: not tonight
   raw.n = n;
 
-  day::Span sp = day::nightSpan(raw, 21 * 60 + 10);
-  TEST_ASSERT_EQUAL_INT(21, sp.a0);
+  // Tonight, the same whether it is looked at early or late in the evening.
+  day::Span sp = day::nightSpan(raw, 19 * 60 + 40);
+  TEST_ASSERT_EQUAL_INT(19, sp.a0);
   TEST_ASSERT_EQUAL_INT(30, sp.a1);                                   // 6 AM tomorrow
+  sp = day::nightSpan(raw, 23 * 60 + 50);
+  TEST_ASSERT_EQUAL_INT(19, sp.a0);
+  TEST_ASSERT_EQUAL_INT(30, sp.a1);
   day::Inputs in;
   day::derive(raw, sp, 4, in);
   TEST_ASSERT_EQUAL_INT(50, (int)in.tempMinF);
-  TEST_ASSERT_EQUAL_INT(66, (int)in.tempMaxF);
+  TEST_ASSERT_EQUAL_INT(68, (int)in.tempMaxF);                        // the 7pm row, though it is now 11:50
   TEST_ASSERT_EQUAL_INT(23, in.rainStartHour);                        // clock hours, across midnight
   TEST_ASSERT_EQUAL_INT(1, in.rainEndHour);
   TEST_ASSERT_EQUAL_INT(1, (int)in.sunRunHours);                      // no midnight row: the run breaks
   TEST_ASSERT_EQUAL_STRING("6:40 AM", in.sunriseLocal);              // tomorrow's
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);               // tonight's
 
-  // Before dawn: the rest of the night is today's, up to today's sunrise.
+  // Before dawn it is still last night, from yesterday's nightfall.
   sp = day::nightSpan(raw, 2 * 60 + 5);
-  TEST_ASSERT_EQUAL_INT(2, sp.a0);
+  TEST_ASSERT_EQUAL_INT(-5, sp.a0);                                   // 7 PM yesterday
   TEST_ASSERT_EQUAL_INT(6, sp.a1);
+  day::derive(raw, sp, 3, in);
+  TEST_ASSERT_EQUAL_INT(51, (int)in.tempMinF);
+  TEST_ASSERT_EQUAL_INT(64, (int)in.tempMaxF);
+  TEST_ASSERT_EQUAL_INT(23, in.rainStartHour);
+  TEST_ASSERT_EQUAL_STRING("7:10 PM", in.sunsetLocal);               // yesterday's
+  TEST_ASSERT_EQUAL_STRING("6:38 AM", in.sunriseLocal);              // today's
+
+  // Hours before midnight count backwards cleanly.
+  TEST_ASSERT_EQUAL_INT(-1, day::spanDay(-5));
+  TEST_ASSERT_EQUAL_INT(19, day::spanHour(-5));
+  TEST_ASSERT_EQUAL_INT(-1, day::spanDay(-24));
+  TEST_ASSERT_EQUAL_INT(0, day::spanHour(-24));
+  TEST_ASSERT_EQUAL_INT(1, day::spanDay(30));
+  TEST_ASSERT_EQUAL_INT(6, day::spanHour(30));
 
   // The day's span is the daylight window.
   sp = day::daySpan(raw, 0);
