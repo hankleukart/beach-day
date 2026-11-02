@@ -2,15 +2,14 @@
 
 A self-contained e-ink display that tells a household what kind of day it is
 and what to put on. It runs on a Seeed reTerminal, talks to Open-Meteo over
-Wi-Fi, decides, draws, and goes back to sleep for an hour.
+Wi-Fi, decides, draws, and goes back to sleep.
 
 No hub, no server, no account, no subscription. Wi-Fi credentials and a
 location are the whole setup.
 
-> An earlier version of this project needed a Hubitat hub and a TRMNL
-> subscription. It still lives in the tree and still works — see
-> [README-v1.md](README-v1.md). Everything below describes the reTerminal
-> version only.
+This file explains how the product works. Every command — committing,
+publishing an update, flashing over USB, editing the rules — is in
+**[README-publish.md](README-publish.md)**.
 
 ---
 
@@ -18,57 +17,101 @@ location are the whole setup.
 
 | | |
 | --- | --- |
-| **Board** | Seeed reTerminal **E1001** (7.5" mono ePaper) or **E1002** (7.3" six-colour) |
-| **Power** | USB-C, or the internal battery |
+| **Board** | Seeed reTerminal **E1001** (7.5" black-and-white ePaper) or **E1002** (7.3" six-colour) |
+| **Power** | USB-C, or the internal 2000 mAh battery |
 | **Network** | 2.4 GHz Wi-Fi |
 
-Both boards are 800×480 and share a pin map, so one codebase drives both — the
-layout, fonts and icons are identical and only the ink differs. They live
-together in [reterminal-e1001/](reterminal-e1001/), which is a slightly
-unfortunate folder name by now.
+Both boards are 800×480 on the same pins, so one firmware drives both — the
+layout, fonts and icons are identical and only the ink differs. Each board
+remembers which panel it has; flashing it over USB sets that once, and
+updates over Wi-Fi keep it. If a board is ever set to the wrong panel (its
+screen stays blank), press Left Nav: the setup page has a **Display panel**
+section.
 
-On first boot the board has no credentials, so it raises its own Wi-Fi hotspot
-and shows the join instructions on screen. You connect a phone, pick a network,
-type a password and type a place name. It reboots, resolves the place to
-coordinates, fetches, and draws. To change any of it later, press
-**Left Nav**.
+| | E1001 | E1002 |
+| --- | --- | --- |
+| Panel | 7.5" mono, GDEY075T7 (UC8179) | 7.3" six-colour, GDEP073E01 (ED2208) |
+| Inks | black, white | black, white, red, green, blue, yellow |
+| Also onboard | ESP32-S3, 8 MB PSRAM, 3 buttons, LED, buzzer, RTC, temp/humidity sensor | same |
 
-Build and flash instructions, the OTA update server layout, and the design
-notes are in **[reterminal-e1001/README.md](reterminal-e1001/README.md)**.
+---
+
+## Setting one up
+
+On first boot the board has no Wi-Fi, so it raises its own hotspot and shows
+the instructions on screen:
+
+1. Join the Wi-Fi network **BeachDay-Setup-xxxx** on a phone (the name is on
+   the screen).
+2. A setup page opens on its own. If it doesn't, browse to `http://192.168.4.1`.
+3. Pick a Wi-Fi network, type the password, and type where the beach is: a
+   **postal code** (`90401`), a **town** (`Santa Monica`) or **town, state**
+   (`Springfield, IL`). Optionally: a short label for the screen, the
+   street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
+
+The board restarts, joins the Wi-Fi, looks the place up, and draws the
+forecast. The place it found appears at the top of the left panel — that is
+the confirmation. If it couldn't find the place, the screen says so. The
+hotspot times out after 10 minutes; the LED blinks fast while it is up.
+
+To change any of it later, press **Left Nav**. **Erase all settings** at the
+bottom of the setup page wipes Wi-Fi, location and reminders, for handing a
+board on.
 
 ---
 
 ## The screen
 
 The left panel is the verdict: a day name, an icon and a tagline. The right
-column is the detail — the weekday, four stat tiles, four things to wear, and
-one closing tip. A bar across the bottom means act on something today: street
-cleaning, or the weekly reminder — by default, "Take your trash to the street
-tonight" on Wednesday night, from half an hour after sunset until an hour
-before sunrise. The setup portal can move it to a morning instead. Street
-cleaning shows from that same nightfall the night before until its window
-ends. Street cleaning gets the bar first. On the colour
-panel street cleaning is red and the reminder yellow; on the black-and-white
-one both are black.
+column is the detail — the weekday, six stat tiles, four things to wear, and
+one closing tip.
 
-Three buttons, one press each:
+A bar across the bottom means act on something:
 
-| Button | Does |
-| --- | --- |
-| **Green (Refresh)** | Refresh the forecast now |
-| **Left Nav** | Open the setup portal (Wi-Fi, place, parking, trash reminder) |
-| **Right Nav** | Show the hourly readings behind the dashboard |
+- **Street cleaning** shows from half an hour after sunset the night before
+  until the cleaning window ends.
+- **The weekly reminder** — by default "Take your trash to the street
+  tonight" — shows on **Wednesday night**, from half an hour after sunset
+  until an hour before sunrise. The setup page can change the day, the
+  wording, and whether it shows that night or that morning.
 
-**To force a firmware and rules update:** press and hold Right Nav for about
-three seconds, until the LED lights, then let go. The screen says it is
-checking; a new firmware installs and the board restarts in about a minute,
-and otherwise it says why not (already up to date, battery under 30%, no
-Wi-Fi) before going back to the forecast. A quick tap of Right Nav is still
-the readings screen, whose footer shows the firmware version.
+Street cleaning gets the bar first. On the colour panel street cleaning is
+red and the reminder yellow; on the black-and-white one both are black.
 
-The readings screen is the "why did it decide that?" answer: every hourly row
-inside the daylight window with the derived figures along the bottom. Its
-footer also shows the firmware version the board is running.
+### Buttons
+
+| Button | Press | Hold about 3 seconds, until the LED lights |
+| --- | --- | --- |
+| **Green (Refresh)** | Refresh the forecast now | — |
+| **Left Nav** | Open the setup page (Wi-Fi, place, panel, parking, trash reminder) | — |
+| **Right Nav** | Show the hourly readings behind the screen | Check for a firmware and rules update now |
+
+The **readings screen** answers "why did it decide that?". It lists every
+hourly row the rules read — by day, the hour containing sunrise through the
+hour containing sunset; at night ("Tonight's readings"), now through the
+hour containing the next sunrise — with temperature, rain chance, cloud,
+wind, AQI and sky, and the figures the rules ran on along the bottom. Its
+footer shows the firmware version. Any button returns to the forecast.
+
+The **update check** shows "Checking for updates", then either installs a
+new firmware and restarts within a minute, or says why not (already up to
+date, battery under 30%, no Wi-Fi).
+
+### Colour (E1002)
+
+Six flat inks, no greys, a 30-second refresh — so colour is used in large
+fields with one meaning each:
+
+| Left panel | Outcome | Means |
+| --- | --- | --- |
+| **yellow** | the beach day (`hot_sunny`) | go to the beach |
+| **blue** | every rainy or snowy square | take the wet-weather gear |
+| **red** | every other cold or freezing square | it is genuinely cold |
+
+Everything else stays black and white. Stat icons keep their own inks —
+yellow sun, blue raindrop, green leaf, red thermometer — because there the
+colour *is* the data. On the black-and-white panel, colour accents become a
+light dot pattern on large icons and plain line art on small ones.
 
 ---
 
@@ -83,24 +126,24 @@ precipitation probability, cloud cover, wind, weather code — plus a second for
 hourly air quality, covering today and tomorrow. Nothing is cached between
 wakes; every wake fetches fresh.
 
-### 2. Reduce the hours to one day
+### 2. Reduce the hours to one set of figures
 
-The hourly rows are aggregated over **that day's own daylight window**: the
-whole hour containing sunrise through the whole hour containing sunset, both
-ends included. Sunrise at 6:42 makes the 6am row part of the day; sunset at
-7:08 PM makes the 7pm row the last one.
+By day, the hourly rows are aggregated over **that day's own daylight
+window**: the whole hour containing sunrise through the whole hour containing
+sunset. Sunrise at 6:42 makes the 6am row part of the day; sunset at 7:08 PM
+makes the 7pm row the last one. At night it is the hours from now until the
+next sunrise instead (see [Night](#night)).
 
 That window produces one set of figures — `tempMin`, `tempMax`, `swing`,
 `rain`, `wind`, `cloud`, `aqi`, `snow`, humidity range, the longest run of
-sunny hours, the rain window — which is what the rules actually see. Today and tomorrow are
-computed identically.
+sunny hours, the rain window — which is what the rules actually see.
 
 ### 3. Pick the outcome
 
 [`shared/v3/day-outcomes.toml`](shared/v3/day-outcomes.toml) answers two
 questions, in order.
 
-**How warm does it get?** The day's high picks a band:
+**How warm does it get?** The high picks a band:
 
 | Band | High |
 | --- | --- |
@@ -115,11 +158,11 @@ decides the extras:
 
 | | Condition | Means |
 | --- | --- | --- |
-| 1 | Snowy | `snow >= 1`: any daylight hour forecast as snow |
+| 1 | Snowy | `snow >= 1`: any hour forecast as snow |
 | 2 | Rainy | `rain >= 50`: some hour is 50% or likelier |
 | 3 | Windy | `wind >= 20`: what the WIND tile calls "Gusty" |
 | 4 | Swingy | `swing >= 20`: cold now, warm later |
-| 5 | Very sunny | `cloud <= 15`: near-cloudless all day |
+| 5 | Very sunny | `cloud <= 15`: near-cloudless all day (days only) |
 | 6 | Clear | none of the above: the band's plain day |
 
 That is one outcome per square: five bands by six conditions, less the three
@@ -128,13 +171,11 @@ Each square names its four things to wear, so a 72° rainy day gets a rain
 jacket and rain boots, and a 40° rainy day gets a waterproof coat, waterproof
 boots and gloves.
 
-Underneath, it is still the same engine: an ordered list where **every
-condition in a `when` must pass** and the **first outcome in file order**
-wins. The grid is just written band by band, conditions in the order above,
-so the file order *is* that precedence. The very last outcome,
-`freezing_clear`, has no `when` at all — it is the catch-all, and since every
-band above it ends on its own "clear" square, it can only ever be reached by a
-freezing day with nothing else going on.
+Underneath, it is an ordered list where **every condition in a `when` must
+pass** and the **first outcome in file order** wins. The grid is written band
+by band, conditions in the order above, so the file order *is* that
+precedence. The last outcome, `freezing_clear`, has no `when` at all — it is
+the catch-all.
 
 The beach day is the hot, very sunny square, `hot_sunny`. A hot day with a
 big morning chill is `hot_swing` instead, because a hoodie for the walk is
@@ -143,7 +184,7 @@ the more useful thing to say at 7 AM.
 ### 4. Pick the name
 
 An outcome does not have one name. It has a pool, and every name in it is one
-of three kinds — each written in its own place:
+of three kinds:
 
 | Kind | Written as | Means | Example |
 | --- | --- | --- | --- |
@@ -153,34 +194,16 @@ of three kinds — each written in its own place:
 
 Places and things are the bare noun; " Day" is added. A wear name is not
 written at all: you star the item in the outcome's own wear list, and the day
-is named after **whatever that tile says today**. So the name and the tiles
-can never disagree — and on a whimsy day when the starred tile is the one that
-swaps, the day becomes `Duck Umbrella Day`. The hero panel shows that tile's
-icon too. A place or thing shows its own picture — Kite Day shows a kite —
-from the `[day_icon]` table in the rules, and one with no entry there shows
-the outcome's own `icon`.
+is named after **whatever that tile says today** — so on a whimsy day when
+the starred tile swaps, the day becomes `Duck Umbrella Day`. The left panel
+shows the icon of whatever named the day: the tile's, or a place's or
+thing's own picture from `[day_icon]` (Kite Day shows a kite), falling back
+to the outcome's own `icon`.
 
-One is chosen per day:
-
-```
-index = (epochDay + hash(outcome id)) % pool size
-```
-
-That is seeded by the date and the outcome's id, so it **holds steady all day**,
-**differs tomorrow**, and **two outcomes don't rotate in lockstep**. Nothing is
-random — the board redraws every hour, and anything random would churn under
-whoever is reading it.
-
-So `hot_sunny` — places `Beach` and `Pool`, and a starred `Sun hat` — rotates
-through `Beach Day`, `Pool Day` and `Sun Hat Day`. A square with one starred
-item and nothing else, like the morning-chill `Hoodie Day`, never rotates.
-
-The clothing catalogue is keyed the same way the tiles read — `"Rain boots" =
-{ icon = "rain_boot" }` — and an outcome lists its four items by those names.
-
-If a board ever shows a name this file could not produce, it is not running
-this file. The board prefers the copy in its own filesystem over the compiled-in
-fallback, so check what it actually fetched before assuming the rules are wrong.
+One is chosen per day, seeded by the date and the outcome's id, so it **holds
+steady all day**, **differs tomorrow**, and **two outcomes don't rotate in
+lockstep**. Nothing is random — the board redraws every hour, and anything
+random would churn under whoever is reading it.
 
 If a `[[holiday]]` entry matches the date, its label is prefixed:
 `Thanksgiving Rain Boots Day`.
@@ -194,96 +217,19 @@ two.
 
 The rule for writing one is that it has to do the original's job. Bellbottoms
 are still light pants; a duck umbrella still keeps you dry; a parasol is not
-an umbrella. The tile keeps the original's icon, so the picture stays true
-either way, and only one tile swaps, so the other three stay plain advice. If
-the tile that swaps is the one naming the day, the name follows it.
-
-Like the name, it is seeded by the date — which day, which tile, which
-alternative — so it holds all day. `[whimsy] one_in = 10` sets the rate;
-delete the table to turn it off.
+an umbrella. The tile keeps the original's icon, and only one tile swaps, so
+the other three stay plain advice. Which day, which tile and which
+alternative are all seeded by the date, so it holds all day.
 
 ---
 
-## When it re-evaluates
+## Night
 
-Every wake runs the whole pipeline again — fetch, reduce, pick, draw — so the
-numbers on the tiles are always fresh. The one thing kept between wakes is the
-day's pinned outcome; see below.
-
-**Scheduled wakes:**
-
-| Period | Interval |
-| --- | --- |
-| Day: from one hour before sunrise until half an hour after sunset | every **60 min** |
-| Night: the rest | every **240 min** |
-
-**Extra wakes at the moments the screen would change anyway:** the start of
-the day (an hour before sunrise), the start of the night (half an hour after
-sunset, which is also when a street-cleaning alert for the next morning goes
-up), and the end of any enabled street-cleaning window.
-
-**On failure:** it retries after **10 min**, and after six consecutive failures
-backs off to 60 min. The last good screen stays up, restamped `OFFLINE since
-…`, so the display is never blank and never silently stale.
-
-**On a button:** Green (Refresh) forces an immediate refresh.
-
-**Separately,** the board checks for a new rules file and new firmware every
-**24 hours** each. Both are validated before being accepted — a rules file that
-does not parse or fails the engine's checks is rejected and the old one is
-kept, so a bad publish cannot take the display down.
-
----
-
-## When the screen can change
-
-This is the part that surprises people, so it is worth being precise.
-
-**The outcome is pinned for the day at the first look from an hour before
-sunrise.** After that, every wake still fetches and redraws — the tiles, the
-temperatures, the rain window all stay current — but the outcome, its name
-and its four things to wear hold. The pin lives in the board's flash, so a
-reboot or a flat battery mid-morning does not re-decide the day.
-
-The reason is that the forecast moves in small wobbles, not just real
-surprises: the high drifts a degree or two between model runs, and a day
-sitting at 77° or 78° would flip between Warm and Hot under whoever is
-reading it.
-
-**Only rain or snow can break the pin.** Outcomes marked `breaks_pin = true`
-— every rainy and snowy square — replace a pinned day the moment the forecast
-reaches them, because "take the raincoat after all" is worth interrupting
-for. Once broken, the pin is the wet outcome: drying out later does not
-un-say it.
-
-**The night has its own pin.** Its first look after dark decides the night
-the same way, and only rain or snow can break it. It is kept apart from the
-day's, so the night never overwrites the day it follows.
-
-Measured on 60 days of real archived forecasts (`tools/replay.sh` in
-[reterminal-e1001/](reterminal-e1001/), with `--no-pin` for the comparison):
-
-| | Without the pin | With it |
-| --- | --- | --- |
-| Days with one outcome from 6 AM on | 36 of 60 | **59 of 60** |
-| Changes after 6 AM | 30 | **1** — a real afternoon rain |
-
-The cost is that a pinned morning call cannot correct itself: it matched the
-day as it actually turned out 39 times in 60, the same as the 6 AM screen
-always did, where the unpinned screen reached 50 by evening by changing its
-mind.
-
-**The name cannot change within a day — unless rain or snow breaks the pin.**
-The name is seeded by the date, so it holds for the whole calendar day. But
-the pool belongs to the outcome, so if an afternoon rain moves the day from
-`warm_clear` to `warm_rain`, the name changes with it. Whimsy works the same way: pinned for
-the day, but it rides on whichever four items the outcome picked.
-
-**Half an hour after sunset, the screen turns to night.** Every number is
-now taken from the hours between now and the next sunrise, rather than
-sunrise to sunset. The heading reads `Wednesday night`, the name ends in
-Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR TONIGHT`,
-and the footer shows the next sunrise.
+**Half an hour after sunset, the screen turns to night**, and it stays night
+until an hour before sunrise. Every number is taken from the hours between
+now and the next sunrise. The heading reads `Wednesday night`, the name ends
+in Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR
+TONIGHT`, and the footer shows the next sunrise.
 
 Night runs on the same grid, with three differences, all set in the rules
 file:
@@ -296,56 +242,110 @@ file:
 - **Reworded where daylight was assumed.** An outcome's `night = { tagline,
   also }` replaces lines like "comes off by lunch". The sun tile becomes
   **SKY** (Clear, Partly or Cloudy, with "Starry" underneath), the temperature
-  word is read from the overnight low, and `[screen.night]` rewords the footer.
+  word reads the overnight low, and `[screen.night]` rewords the footer.
 
 **A night belongs to the evening it began on.** At 2 AM Friday the screen
-still says `Thursday night`, and the holiday and the name are the ones for
-Thursday's date.
+still says `Thursday night`, and the holiday and the name are Thursday's.
 
-**The day starts an hour before sunrise,** so the morning screen is up before
-anyone else is.
+---
+
+## When the screen can change
+
+Every wake runs the whole pipeline again, so the numbers on the tiles are
+always fresh. What is held is the outcome.
+
+**The day is pinned at its first look, an hour before sunrise.** After that,
+the tiles, the temperatures and the rain window stay current, but the
+outcome, its name and its four things to wear hold. The pin lives in the
+board's flash, so a reboot or a flat battery mid-morning does not re-decide
+the day. The forecast moves in small wobbles — the high drifts a degree or
+two between model runs — and a day sitting at 77° or 78° would otherwise flip
+between Warm and Hot under whoever is reading it.
+
+**Only rain or snow can break the pin.** Outcomes marked `breaks_pin = true`
+— every rainy and snowy square — replace a pinned day the moment the forecast
+reaches them, because "take the raincoat after all" is worth interrupting
+for. Once broken, the pin is the wet outcome: drying out later does not
+un-say it.
+
+**The night has its own pin**, set at its first look after dark and broken
+the same way. It is kept apart from the day's.
+
+Measured on 60 days of real archived forecasts (`tools/replay.sh`, with
+`--no-pin` for the comparison):
+
+| | Without the pin | With it |
+| --- | --- | --- |
+| Days with one outcome from 6 AM on | 36 of 60 | **59 of 60** |
+| Changes after 6 AM | 30 | **1** — a real afternoon rain |
+
+The cost is that a pinned morning call cannot correct itself: it matched the
+day as it actually turned out about two times in three, the same as the
+6 AM screen always did.
 
 **A holiday prefix appears and disappears on its own date.**
 
 ---
 
-## The rules are a file, not code
+## Wakes and battery
 
-[`shared/v3/day-outcomes.toml`](shared/v3/day-outcomes.toml) is read at run
-time. The thresholds, the outcomes, the names, the variants, the holidays, the
-wear items and the four stat tiles are all authored there — in TOML, by hand,
-with no build step.
+The board sleeps between wakes and only wakes when something could change:
 
-A copy is compiled into the firmware as a fallback, but the board prefers the
-one in its filesystem and will fetch a newer one. **Changing what the display
-says does not require reflashing.**
+| Period | Interval |
+| --- | --- |
+| Day: an hour before sunrise until half an hour after sunset | every **60 min** |
+| Night: the rest | every **240 min** |
 
-To see a change before it reaches a board:
+Plus extra wakes at the start of the day, the start of the night (which is
+also when a street-cleaning alert for the next morning goes up), and the end
+of any street-cleaning window. Green (Refresh) wakes it at any time.
 
-```bash
-cd reterminal-e1001
-tools/preview.sh
-```
+That is roughly 17 wakes a day of about 12 seconds each — call it 6–8 mAh a
+day from a 2000 mAh battery, so **months** on a charge.
 
-That compiles the real rendering code against a panel that draws into memory
-and writes PNGs to `docs-design/preview/` — same fonts, same icons, same
-dithering, same layout decisions as the hardware.
+**When the network is down,** the screen keeps its last good image (e-paper
+needs no power to hold it), restamped `OFFLINE since 2:05 PM`. The board
+retries every 10 minutes, backing off to hourly after six misses. If only the
+air-quality request fails, the forecast still draws and AQI reads 0.
+
+---
+
+## Updates
+
+The board checks once a day for new **rules** and new **firmware**, and the
+long press of Right Nav checks right away.
+
+- **Rules** come from `shared/v3/day-outcomes.toml` on GitHub. A file that
+  doesn't pass the engine's checks is rejected and the old rules stay, so a
+  bad edit can't take a display down. A copy is also built into the firmware
+  as a fallback. Changing what the display says never needs a reflash.
+- **Firmware** comes from the latest GitHub release. The board compares the
+  version, downloads, checks size and checksum, writes to its spare slot, and
+  only then switches over — a power cut mid-update leaves the old firmware
+  running. It never starts below 30% battery, and it always draws the screen
+  first, so a failed update never leaves a blank or stale panel.
+- **Safe mode.** If a new firmware crashes three boots in a row, the board
+  stops doing anything but looking for newer firmware, shows "Updating —
+  looking for new software", and retries every 30 minutes. Publishing a fix
+  repairs it remotely.
+
+Known limits: there is no automatic rollback for firmware that runs but draws
+the wrong thing, so check a release on a bench board first. Downloads are
+encrypted but don't verify GitHub's certificate — a deliberate trade so a
+board in a drawer doesn't break when a certificate rotates; fine for a
+handful of boards among friends.
 
 ---
 
 ## Where things live
 
 ```
-shared/v3/day-outcomes.toml    the rules: outcomes, names, variants, holidays, tiles
-reterminal-e1001/              firmware for both boards (E1001 mono, E1002 colour)
-  src/                         fetch, decide, draw, sleep, OTA, setup portal
-  lib/dayrules/                the engine: parse + validate TOML, derive, evaluate
-  test/                        host tests — pio test -e native
-  tools/preview.sh             render the layout to PNGs on a Mac
-  tools/replay.sh              replay 60 days of real forecasts, count the changes
-hubitat-trmnl/                 the v1 system (see README-v1.md)
+README.md                      this file: how it works
+README-publish.md              every command: commit, publish, flash, edit the rules
+shared/v3/day-outcomes.toml    the rules: outcomes, names, wear, whimsy, night, tiles
+reterminal-e1001/              firmware for both boards (E1001 and E1002)
+docs-design/                   design notes, icon sheet, layout previews
+hubitat-trmnl/, shared/*.json  the retired v1 (Hubitat + TRMNL) system
 ```
 
-The deep documentation — build, flash, OTA hosting, panel abstraction,
-typography, colour strategy, layout review checklist — is in
-**[reterminal-e1001/README.md](reterminal-e1001/README.md)**.
+The v1 setup guide is in git history (`git show v0.12.0-source:README-v1.md`).
