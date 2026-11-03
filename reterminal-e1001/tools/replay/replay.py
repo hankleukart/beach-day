@@ -58,24 +58,25 @@ def fetch(url, cache: Path):
         try:
             with urllib.request.urlopen(url, timeout=90) as r:
                 data = json.loads(r.read())
-            break
         except urllib.error.HTTPError as e:
-            body = e.read()
             try:
-                data = json.loads(body)
+                data = json.loads(e.read())
             except ValueError:
                 data = {}
-            # An unavailable run is a 400 with a reason, and worth remembering.
-            # Anything else ("Too many concurrent requests") must never reach
-            # the cache, where it would read as a missing run from then on.
-            reason = data.get("reason") or ""
-            if e.code == 400 and ("not available" in reason or "No data" in reason):
-                break
-            if e.code == 429 or e.code >= 500 or data.get("error"):
-                time.sleep(5 * (attempt + 1)); continue
-            raise
-        except (urllib.error.URLError, TimeoutError):
-            time.sleep(5 * (attempt + 1))
+            if not data.get("error") and e.code != 429 and e.code < 500:
+                raise
+        except (urllib.error.URLError, TimeoutError, ValueError):
+            time.sleep(5 * (attempt + 1)); continue
+        # An unavailable run is an error with a reason, and worth remembering.
+        # Anything else ("Too many concurrent requests", which can arrive as a
+        # 200 or a 429) must never reach the cache: it would read as a missing
+        # run from then on.
+        reason = data.get("reason") or ""
+        if data.get("error") is True and not ("not available" in reason or "No data" in reason):
+            time.sleep(5 * (attempt + 1)); continue
+        if "hourly" not in data and "daily" not in data and not data.get("error"):
+            time.sleep(5 * (attempt + 1)); continue
+        break
     else:
         sys.exit(f"replay: giving up on {url}")
     cache.parent.mkdir(parents=True, exist_ok=True)
