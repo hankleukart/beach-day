@@ -62,8 +62,12 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <input id="cc" name="cc" maxlength="2" placeholder="US" value="%CC%"><small>2-letter code. Helps with postal codes.</small></div>
 <div><label for="label">Label on screen</label>
 <input id="label" name="label" maxlength="22" placeholder="(uses the town name)" value="%LABEL%"></div></div>
+<details><summary>Day and night</summary>
+<small style="margin-top:8px">When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and Night Mode from sunset to sunrise.</small>
+%MODES%
+</details>
 <details><summary>Street-cleaning parking reminders</summary>
-<small style="margin-top:8px">Shows a NO PARKING bar from half an hour after sunset the night before until the restriction ends.</small>
+<small style="margin-top:8px">Shows a NO PARKING bar from the start of Night Mode the night before until the restriction ends.</small>
 %PARKING%
 </details>
 <details><summary>Display panel</summary>
@@ -71,7 +75,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
 </details>
 <details><summary>Trash reminder</summary>
-<small style="margin-top:8px">Shows a reminder bar on the night or the day you pick. Night runs from half an hour after sunset until an hour before sunrise; day is the rest. If street cleaning is due too, that shows first.</small>
+<small style="margin-top:8px">Shows a reminder bar on the night or the day you pick, as Day and night above sets them. If street cleaning is due too, that shows first.</small>
 %REMINDER%
 </details>
 <button type="submit">Save and restart</button>
@@ -129,12 +133,21 @@ String reminderFieldset(const beach::Reminder& r) {
     h += "<option value=\"" + String(d) + "\"" + (d == r.dayOfWeek ? " selected" : "") + ">" + DAY_NAMES[d] + "</option>";
   }
   h += "</select><label for=\"rmwhen\">When</label><select id=\"rmwhen\" name=\"rmwhen\">";
-  h += String("<option value=\"night\"") + (r.atNight ? " selected" : "") + ">That night, from half an hour after sunset</option>";
-  h += String("<option value=\"day\"") + (r.atNight ? "" : " selected") + ">That morning, from an hour before sunrise</option>";
+  h += String("<option value=\"night\"") + (r.atNight ? " selected" : "") + ">That night, from the start of Night Mode</option>";
+  h += String("<option value=\"day\"") + (r.atNight ? "" : " selected") + ">That morning, from the start of Day Mode</option>";
   h += "</select><label for=\"rmtext\">Reminder</label>";
   h += "<input id=\"rmtext\" name=\"rmtext\" maxlength=\"39\" value=\"" + htmlEscape(r.text) + "\">";
   h += "</fieldset>";
   return h;
+}
+
+template <size_t N>
+String modeSelect(const char* name, const char* title, const day::ModeOption (&options)[N], int16_t selected) {
+  String h = "<label for=\"" + String(name) + "\">" + title + "</label><select id=\"" + name + "\" name=\"" + name + "\">";
+  for (const day::ModeOption& o : options) {
+    h += "<option value=\"" + String(o.value) + "\"" + (o.value == selected ? " selected" : "") + ">" + o.label + "</option>";
+  }
+  return h + "</select>";
 }
 
 void handleRoot() {
@@ -147,6 +160,8 @@ void handleRoot() {
   mid.replace("%PARKING%", parkingFieldset("L", "Left side of the street", current.parking[0]) +
                            parkingFieldset("R", "Right side of the street", current.parking[1]));
   mid.replace("%REMINDER%", reminderFieldset(current.reminder));
+  mid.replace("%MODES%", modeSelect("daystart", "Day Mode start", day::DAY_START_OPTIONS, current.modes.day) +
+                         modeSelect("nightstart", "Night Mode start", day::NIGHT_START_OPTIONS, current.modes.night));
   {
     String opts;
     for (PanelModel m : { PanelModel::E1001, PanelModel::E1002 }) {
@@ -188,6 +203,13 @@ void readReminder(beach::Reminder& r, const beach::Reminder& current) {
   strlcpy(r.text, text.isEmpty() ? current.text : text.c_str(), sizeof(r.text));
 }
 
+template <size_t N>
+int16_t readMode(const char* name, const day::ModeOption (&options)[N], int16_t fallback) {
+  if (!server.hasArg(name)) return fallback;
+  const int v = server.arg(name).toInt();
+  return day::isModeOption(options, v) ? (int16_t)v : fallback;
+}
+
 void sendSimple(int code, const char* title, const String& body) {
   String page = "<!doctype html><html><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
                 "<style>body{font:17px system-ui,sans-serif;padding:32px 20px;max-width:480px;margin:0 auto;color:#111}h1{font-size:24px}a{color:#06c}</style>"
@@ -217,6 +239,8 @@ void handleSave() {
   readParking("L", in.parking[0], current.parking[0]);
   readParking("R", in.parking[1], current.parking[1]);
   readReminder(in.reminder, current.reminder);
+  in.modes.day = readMode("daystart", day::DAY_START_OPTIONS, current.modes.day);
+  in.modes.night = readMode("nightstart", day::NIGHT_START_OPTIONS, current.modes.night);
   // Kept apart from the other settings (its own NVS namespace), so it is
   // saved directly rather than through PortalInput.
   if (server.hasArg("panel")) {

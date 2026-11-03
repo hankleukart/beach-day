@@ -42,9 +42,8 @@ footer   = "Sunset {sunsetLocal}"
 # Colour panels (E1002) can also set an ink per outcome - see `color` below.
 hero_panel_default = "light"
 
-# Night runs from half an hour after sunset to an hour before sunrise, and
-# reads the whole night - nightfall to sunrise - instead of sunrise to sunset,
-# the same hours at every look. The
+# Night runs from sunset to 3 AM by default (the setup page can move both), and
+# reads the whole night - sunset to sunrise - instead of sunrise to sunset, the same hours at every look. The
 # screen says "Thursday night", and the day name ends in Night. Anything
 # below written for daylight can carry a `night` version: here, in a stat
 # ([stat.night]), or in an outcome (night = { tagline, also, icon }).
@@ -235,7 +234,7 @@ one_in = 10
 # written band by band, top to bottom; within a band, in the order above,
 # because the first `when` that passes wins.
 #
-# The day's outcome is pinned at the first look from an hour before sunrise
+# The day's outcome is pinned at its first look, 3 AM by default,
 # and held all day, so a forecast high wobbling a degree across a line does
 # not repaint the day under whoever is reading it. Numbers on the tiles keep
 # updating; the outcome and its name do not. Only an outcome marked

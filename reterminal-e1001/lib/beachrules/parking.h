@@ -8,11 +8,6 @@ constexpr int PARKING_SUNSET_FALLBACK_MIN = 1170;
 
 namespace beach {
 
-// Night starts this long after sunset - the screen turns to night, and a
-// street-cleaning alert for the next morning goes up. One constant, so the
-// alert and the wake that shows it can never drift apart.
-constexpr int NIGHT_AFTER_SUNSET_MIN = 30;
-
 struct ParkingRule {
   bool        enabled;
   const char* side;        // "LEFT" / "RIGHT" — appears in the alert text
@@ -29,6 +24,7 @@ struct ParkingInput {
   int8_t  tomorrowDow;
   int8_t  tomorrowDom;
   int16_t sunsetMinutes;   // 0 = unavailable
+  int16_t nightOffsetMin = 0;   // the screen turns to night this long after sunset
 };
 
 struct ParkingAlert {

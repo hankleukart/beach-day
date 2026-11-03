@@ -1,7 +1,8 @@
 // Open-Meteo hourly rows -> day::Inputs, over a day's sunrise..sunset hours
-// or a night's hours from nightfall until sunrise.
+// or a night's hours from sunset until sunrise.
 // Pure C++ so the host tests pin the semantics.
 #pragma once
+#include <cstddef>
 #include <cstdint>
 #include "dayspec.h"
 
@@ -28,6 +29,42 @@ struct HourRow {
 struct AqiRow { int8_t day, hour; int16_t aqi; };
 struct DayMeta { bool valid = false; int16_t sunriseMin = 0, sunsetMin = 0; int16_t dailyCode = 99; };
 
+// When the screen turns to each mode, as picked on the setup page. A day start
+// is minutes from sunrise, or DAY_START_3AM; a night start is minutes from
+// sunset. This moves only the switch: the hours each mode reads stay daySpan
+// and nightSpan.
+constexpr int16_t DAY_START_3AM = 1;    // not a whole-30-minute offset, so never a real choice
+struct ModeOption { int16_t value; const char* label; };
+constexpr ModeOption DAY_START_OPTIONS[] = {
+  { DAY_START_3AM, "3:00 AM" }, { 0, "Sunrise" }, { -30, "Sunrise - 30m" },
+  { -60, "Sunrise - 1h" }, { -120, "Sunrise - 2h" }, { -180, "Sunrise - 3h" },
+};
+constexpr ModeOption NIGHT_START_OPTIONS[] = {
+  { 0, "Sunset" }, { -30, "Sunset - 30m" }, { 30, "Sunset + 30m" },
+};
+template <size_t N>
+inline bool isModeOption(const ModeOption (&options)[N], int value) {
+  for (const ModeOption& o : options) if (o.value == value) return true;
+  return false;
+}
+struct ModeStarts { int16_t day = DAY_START_3AM; int16_t night = 0; };
+
+// Both clamped to the date, so an offset cannot push a start past midnight.
+inline int dayStartMinute(const ModeStarts& s, const DayMeta& today) {
+  if (s.day == DAY_START_3AM) return 3 * 60;
+  const int m = today.sunriseMin + s.day;
+  return m < 0 ? 0 : m;
+}
+inline int nightStartMinute(const ModeStarts& s, const DayMeta& today) {
+  const int m = today.sunsetMin + s.night;
+  return m > 1439 ? 1439 : m;
+}
+// Without sun times there is no night: the screen stays on the day.
+inline bool isNight(int now, const DayMeta& today, const ModeStarts& s) {
+  if (today.sunriseMin <= 0 || today.sunsetMin <= 0) return false;
+  return now >= nightStartMinute(s, today) || now < dayStartMinute(s, today);
+}
+
 struct Raw {
   HourRow hours[MAX_ROWS]; int n = 0;
   AqiRow  aqi[MAX_ROWS];   int na = 0;
@@ -49,9 +86,9 @@ struct Span { int a0 = 0, a1 = -1; };
 inline int spanDay(int a)  { return a >= 0 ? a / 24 : -((23 - a) / 24); }   // floor(a / 24)
 inline int spanHour(int a) { return a - spanDay(a) * 24; }                  // 0..23
 Span daySpan(const Raw& raw, int d);
-// A whole night, the same at every look: the hour holding nightfall (half an
-// hour after sunset) through the hour holding the next sunrise. After noon
-// that is tonight's; before noon, the one that began yesterday evening.
+// A whole night, the same at every look: the hour holding sunset through the
+// hour holding the next sunrise. After noon that is tonight's; before noon, the
+// one that began yesterday evening.
 Span nightSpan(const Raw& raw, int nowMinute);
 
 // weekday: 0 = Sunday. Fills every Inputs field but `night`, which is the

@@ -127,21 +127,6 @@ static LocalClock makeClock(time_t utc, int32_t off) {
   return c;
 }
 
-// Day and night. The day starts an hour before sunrise, so the morning
-// screen is up before anyone is; night starts half an hour after sunset,
-// once the light has gone. Night start is clamped to the last minute of the
-// day so a sunset close to midnight still turns before the date does.
-static int dayStartMinute(int sunriseMin) { return sunriseMin - 60; }
-static int nightStartMinute(int sunsetMin) {
-  int m = sunsetMin + beach::NIGHT_AFTER_SUNSET_MIN;
-  return m > 1439 ? 1439 : m;
-}
-// Without sun times there is no night: the screen stays on the day.
-static bool isNight(int now, const day::DayMeta& today) {
-  if (today.sunriseMin <= 0 || today.sunsetMin <= 0) return false;
-  return now >= nightStartMinute(today.sunsetMin) || now < dayStartMinute(today.sunriseMin);
-}
-
 // Sleep until the next regular interval or the next moment the screen would
 // change (day start; night start, which is also when a parking alert for
 // tomorrow goes up; a parking cutoff).
@@ -149,14 +134,16 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, con
   const int now = lc.minuteOfDay;
   int sunrise = raw.day[0].sunriseMin, sunset = raw.day[0].sunsetMin;
   bool sunKnown = sunrise > 0 && sunset > 0;
-  int next = now + (isNight(now, raw.day[0]) ? s.wakeNightMinutes : s.wakeDayMinutes);
+  int next = now + (day::isNight(now, raw.day[0], s.modes) ? s.wakeNightMinutes : s.wakeDayMinutes);
   auto consider = [&](int b) { if (b > now && b + 1 < next) next = b + 1; };
-  // Tomorrow's day start is estimated from today's sunrise. Waking a minute
-  // or two early is harmless: that wake has tomorrow's sunrise, and aims again.
+  // A day start tied to sunrise is estimated for tomorrow from today's. Waking
+  // a minute or two early is harmless: that wake has tomorrow's sunrise, and
+  // aims again.
   if (sunKnown) {
-    consider(dayStartMinute(sunrise));
-    consider(nightStartMinute(sunset));
-    consider(dayStartMinute(sunrise) + 1440);
+    const int dayStart = day::dayStartMinute(s.modes, raw.day[0]);
+    consider(dayStart);
+    consider(day::nightStartMinute(s.modes, raw.day[0]));
+    consider(dayStart + 1440);
   }
   for (int i = 0; i < s.parkingCount; i++) {
     const beach::ParkingRule& r = s.parking[i];
@@ -363,13 +350,14 @@ void setup() {
   }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
 
-  // Day: sunrise to sunset, shown from an hour before sunrise. Night:
-  // nightfall to sunrise, shown from nightfall. Both windows are fixed, so
+  // Day: shown from its start (3 AM by default) until night's, reading sunrise
+  // to sunset. Night: shown from its start (sunset by default) until day's,
+  // reading sunset to sunrise. Both windows are fixed, so
   // every look reads the same hours the pinned outcome was decided on. A
   // night belongs to the evening it began on - 2 AM Friday is still
   // Thursday night.
   int sunset = f.raw.day[0].sunsetMin;
-  const bool night = isNight(lc.minuteOfDay, f.raw.day[0]);
+  const bool night = day::isNight(lc.minuteOfDay, f.raw.day[0], s.modes);
   const bool beforeDawn = night && lc.minuteOfDay < 12 * 60;
   const long nameDays = lc.days - (beforeDawn ? 1 : 0);
   const int nameDow = beforeDawn ? (lc.dow + 6) % 7 : lc.dow;
@@ -421,11 +409,11 @@ void setup() {
   }
 
   beach::ParkingInput pin{ (int16_t)lc.minuteOfDay, (int8_t)lc.dow, (int8_t)lc.dom,
-                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset };
+                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset, s.modes.night };
   beach::ParkingAlert pa = beach::evaluateParking(s.parking, s.parkingCount, pin);
   // Street cleaning, else the weekly reminder, which goes with the day or
   // night on screen: "Wednesday night" carries Wednesday's night reminder
-  // until an hour before sunrise Thursday. (No sun times means no night, so
+  // until the day starts Thursday. (No sun times means no night, so
   // a night reminder waits for them.)
   const char* bar = beach::barText(pa, s.reminder, nameDow, night);
   const bool reminding = bar && !pa.active;

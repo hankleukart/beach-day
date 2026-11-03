@@ -5,6 +5,7 @@
 #include <cstdint>
 #include "parking.h"
 #include "reminder.h"
+#include "derive.h"
 
 struct Settings {
   char   ssid[33]     = "";
@@ -32,6 +33,7 @@ struct Settings {
   beach::ParkingRule parking[2] = {};
   int    parkingCount = 0;
   beach::Reminder reminder;   // weekly footer reminder (trash night)
+  day::ModeStarts modes;      // when the screen turns to day and to night
 
   bool configured() const;    // false while ssid is empty or the placeholder
   bool needsGeocode() const;  // a place was typed but never resolved
@@ -49,6 +51,7 @@ struct PortalInput {
   char label[24] = "";
   beach::ParkingRule parking[2] = {};
   beach::Reminder reminder;
+  day::ModeStarts modes;
 };
 bool savePortalInput(const PortalInput& in);
 void saveResolvedLocation(double lat, double lon, const char* shortName);

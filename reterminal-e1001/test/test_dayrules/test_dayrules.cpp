@@ -727,22 +727,32 @@ void test_street_cleaning_takes_the_bar_first() {
   TEST_ASSERT_NULL(beach::barText(pa, r, 3, false));
 }
 
-// Street cleaning on a Thursday morning goes up Wednesday at nightfall - half
-// an hour after sunset, the same moment the screen turns to night - not at
-// sunset itself.
-void test_street_cleaning_starts_at_nightfall() {
+// Street cleaning on a Thursday morning goes up Wednesday at sunset, the same
+// moment the screen turns to night.
+void test_street_cleaning_starts_at_sunset() {
   const beach::ParkingRule rule{ true, "LEFT", beach::weeks({ 1, 2, 3, 4, 5 }), 4, 8 * 60, 10 * 60 };
   beach::ParkingInput in{ 0, 3, 17, 4, 18, 19 * 60 + 8 };   // Wednesday, sunset 7:08 PM
+  in.nowMinutes = 19 * 60 + 7;
+  TEST_ASSERT_FALSE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "not before sunset");
   in.nowMinutes = 19 * 60 + 8;
-  TEST_ASSERT_FALSE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "not at sunset");
+  TEST_ASSERT_TRUE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "at sunset");
+  in.sunsetMinutes = 0;                                       // no sun times: the 7:30 fallback
+  in.nowMinutes = 19 * 60 + 29;
+  TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
+  in.nowMinutes = 19 * 60 + 30;
+  TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
+
+  // It moves with the night: 30 minutes either side of a 7:08 PM sunset.
+  in.sunsetMinutes = 19 * 60 + 8;
+  in.nightOffsetMin = 30;
   in.nowMinutes = 19 * 60 + 37;
   TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
   in.nowMinutes = 19 * 60 + 38;
-  TEST_ASSERT_TRUE_MESSAGE(beach::evaluateParking(&rule, 1, in).active, "at sunset + 30");
-  in.sunsetMinutes = 0;                                       // no sun times: the 7:30 fallback, + 30
-  in.nowMinutes = 19 * 60 + 59;
+  TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
+  in.nightOffsetMin = -30;
+  in.nowMinutes = 18 * 60 + 37;
   TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
-  in.nowMinutes = 20 * 60;
+  in.nowMinutes = 18 * 60 + 38;
   TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
 }
 
@@ -976,9 +986,72 @@ void test_daylight_hours() {
   TEST_ASSERT_EQUAL_INT(day::FALLBACK_END_HOUR, h1);
 }
 
-// A night is one fixed run of hours across midnight: the hour holding
-// nightfall (sunset + 30) through the hour holding the next sunrise - the same
-// at 9 PM as at 2 AM.
+// The defaults: day from 3 AM until sunset, night from sunset until 3 AM.
+void test_day_and_night_on_screen() {
+  const day::ModeStarts t;
+  day::DayMeta m; m.valid = true; m.sunriseMin = 6 * 60 + 38; m.sunsetMin = 19 * 60 + 8;
+  TEST_ASSERT_TRUE_MESSAGE(day::isNight(0, m, t), "midnight");
+  TEST_ASSERT_TRUE_MESSAGE(day::isNight(2 * 60 + 59, m, t), "2:59 AM");
+  TEST_ASSERT_FALSE_MESSAGE(day::isNight(3 * 60, m, t), "3 AM");
+  TEST_ASSERT_FALSE_MESSAGE(day::isNight(5 * 60, m, t), "before sunrise is already the day");
+  TEST_ASSERT_FALSE_MESSAGE(day::isNight(19 * 60 + 7, m, t), "a minute before sunset");
+  TEST_ASSERT_TRUE_MESSAGE(day::isNight(19 * 60 + 8, m, t), "at sunset");
+  TEST_ASSERT_TRUE_MESSAGE(day::isNight(23 * 60 + 59, m, t), "last minute of the date");
+  day::DayMeta none;
+  TEST_ASSERT_FALSE_MESSAGE(day::isNight(23 * 60, none, t), "no sun times, no night");
+  TEST_ASSERT_FALSE(day::isNight(60, none, t));
+}
+
+// Every choice on the setup page lands where its label says.
+void test_mode_start_options() {
+  day::DayMeta m; m.valid = true; m.sunriseMin = 6 * 60 + 38; m.sunsetMin = 19 * 60 + 8;
+  TEST_ASSERT_EQUAL_INT(6, (int)(sizeof(day::DAY_START_OPTIONS) / sizeof(day::DAY_START_OPTIONS[0])));
+  TEST_ASSERT_EQUAL_INT(3, (int)(sizeof(day::NIGHT_START_OPTIONS) / sizeof(day::NIGHT_START_OPTIONS[0])));
+  const struct { const char* label; int minute; } days[] = {
+    { "3:00 AM", 3 * 60 }, { "Sunrise", 6 * 60 + 38 }, { "Sunrise - 30m", 6 * 60 + 8 },
+    { "Sunrise - 1h", 5 * 60 + 38 }, { "Sunrise - 2h", 4 * 60 + 38 }, { "Sunrise - 3h", 3 * 60 + 38 },
+  };
+  for (int i = 0; i < 6; i++) {
+    day::ModeStarts t; t.day = day::DAY_START_OPTIONS[i].value;
+    TEST_ASSERT_EQUAL_STRING(days[i].label, day::DAY_START_OPTIONS[i].label);
+    TEST_ASSERT_EQUAL_INT(days[i].minute, day::dayStartMinute(t, m));
+    TEST_ASSERT_TRUE_MESSAGE(day::isNight(days[i].minute - 1, m, t), days[i].label);
+    TEST_ASSERT_FALSE_MESSAGE(day::isNight(days[i].minute, m, t), days[i].label);
+  }
+  const struct { const char* label; int minute; } nights[] = {
+    { "Sunset", 19 * 60 + 8 }, { "Sunset - 30m", 18 * 60 + 38 }, { "Sunset + 30m", 19 * 60 + 38 },
+  };
+  for (int i = 0; i < 3; i++) {
+    day::ModeStarts t; t.night = day::NIGHT_START_OPTIONS[i].value;
+    TEST_ASSERT_EQUAL_STRING(nights[i].label, day::NIGHT_START_OPTIONS[i].label);
+    TEST_ASSERT_EQUAL_INT(nights[i].minute, day::nightStartMinute(t, m));
+    TEST_ASSERT_FALSE_MESSAGE(day::isNight(nights[i].minute - 1, m, t), nights[i].label);
+    TEST_ASSERT_TRUE_MESSAGE(day::isNight(nights[i].minute, m, t), nights[i].label);
+  }
+
+  // The defaults are the first choice of each.
+  const day::ModeStarts dflt;
+  TEST_ASSERT_EQUAL_INT(day::DAY_START_OPTIONS[0].value, dflt.day);
+  TEST_ASSERT_EQUAL_INT(day::NIGHT_START_OPTIONS[0].value, dflt.night);
+
+  // Saved values outside the page's choices are refused; a late sunset stays on the date.
+  TEST_ASSERT_FALSE(day::isModeOption(day::DAY_START_OPTIONS, -45));
+  TEST_ASSERT_FALSE(day::isModeOption(day::NIGHT_START_OPTIONS, 60));
+  day::ModeStarts late; late.night = 30;
+  m.sunsetMin = 23 * 60 + 50;
+  TEST_ASSERT_EQUAL_INT(1439, day::nightStartMinute(late, m));
+
+  // Moving the switch does not move the hours a night reads.
+  day::Raw raw;
+  raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8;
+  raw.day[1] = raw.day[0];
+  const day::Span sp = day::nightSpan(raw, 19 * 60 + 38);
+  TEST_ASSERT_EQUAL_INT(19, sp.a0);
+  TEST_ASSERT_EQUAL_INT(30, sp.a1);
+}
+
+// A night is one fixed run of hours across midnight: the hour holding sunset
+// through the hour holding the next sunrise - the same at 9 PM as at 2 AM.
 void test_night_span() {
   day::Raw raw;
   raw.prev.valid = true;   raw.prev.sunriseMin = 6 * 60 + 36;   raw.prev.sunsetMin = 19 * 60 + 10;
@@ -988,15 +1061,15 @@ void test_night_span() {
   auto add = [&](int d, int h, double t, int pp, int cloud) {
     raw.hours[n++] = day::HourRow{ (int8_t)d, (int8_t)h, t, 5, 70, (int16_t)pp, (int16_t)cloud, 0 };
   };
-  add(-1, 18, 75, 0, 0);      // yesterday before nightfall: not last night
-  add(-1, 19, 64, 0, 80);     // last night begins (nightfall 7:40 PM)
+  add(-1, 18, 75, 0, 0);      // yesterday before sunset: not last night
+  add(-1, 19, 64, 0, 80);     // last night begins (sunset 7:10 PM)
   add(-1, 23, 58, 60, 80);
   add(0, 3, 52, 0, 80);
   add(0, 6, 51, 0, 80);       // the hour holding today's sunrise
   add(0, 7, 53, 0, 80);       // after sunrise: not last night
   add(0, 14, 90, 0, 0);       // the afternoon: no night's
-  add(0, 18, 72, 0, 0);       // before nightfall: not tonight
-  add(0, 19, 68, 0, 80);      // tonight begins (nightfall 7:38 PM)
+  add(0, 18, 72, 0, 0);       // before sunset: not tonight
+  add(0, 19, 68, 0, 80);      // tonight begins (sunset 7:08 PM)
   add(0, 21, 66, 0, 80);
   add(0, 23, 60, 40, 10);
   add(1, 1, 55, 50, 10);
@@ -1021,7 +1094,7 @@ void test_night_span() {
   TEST_ASSERT_EQUAL_STRING("6:40 AM", in.sunriseLocal);              // tomorrow's
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);               // tonight's
 
-  // Before dawn it is still last night, from yesterday's nightfall.
+  // Before 3 AM it is still last night, from yesterday's sunset.
   sp = day::nightSpan(raw, 2 * 60 + 5);
   TEST_ASSERT_EQUAL_INT(-5, sp.a0);                                   // 7 PM yesterday
   TEST_ASSERT_EQUAL_INT(6, sp.a1);
@@ -1044,6 +1117,14 @@ void test_night_span() {
   sp = day::daySpan(raw, 0);
   TEST_ASSERT_EQUAL_INT(6, sp.a0);
   TEST_ASSERT_EQUAL_INT(19, sp.a1);
+
+  // The night opens on the hour holding sunset itself: 6:45 PM reads from the
+  // 6pm row, and the day's last row is that same hour.
+  raw.day[0].sunsetMin = 18 * 60 + 45;
+  sp = day::nightSpan(raw, 19 * 60);
+  TEST_ASSERT_EQUAL_INT(18, sp.a0);
+  TEST_ASSERT_EQUAL_INT(30, sp.a1);
+  TEST_ASSERT_EQUAL_INT(18, day::daySpan(raw, 0).a1);
 }
 
 // Snow is counted from the weather code, inside daylight only. Freezing rain
@@ -1126,7 +1207,7 @@ int main(int, char**) {
   RUN_TEST(test_real_rules_break_pins_for_rain_and_snow_only);
   RUN_TEST(test_reminder_shows_on_its_day);
   RUN_TEST(test_street_cleaning_takes_the_bar_first);
-  RUN_TEST(test_street_cleaning_starts_at_nightfall);
+  RUN_TEST(test_street_cleaning_starts_at_sunset);
   RUN_TEST(test_holiday_fixed_date);
   RUN_TEST(test_holiday_nth_weekday);
   RUN_TEST(test_holiday_last_weekday);
@@ -1135,6 +1216,8 @@ int main(int, char**) {
   RUN_TEST(test_night_names);
   RUN_TEST(test_night_wording);
   RUN_TEST(test_real_rules_at_night);
+  RUN_TEST(test_day_and_night_on_screen);
+  RUN_TEST(test_mode_start_options);
   RUN_TEST(test_night_span);
   RUN_TEST(test_derive);
   RUN_TEST(test_derive_snow);

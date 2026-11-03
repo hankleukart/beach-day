@@ -19,7 +19,7 @@ What it reproduces, and what it can't:
   started by that hour: earlier hours come from earlier runs, the way the
   live API stitches the day's past hours.
 - Wakes follow the firmware's schedule (main.cpp secondsToNextWake): day from
-  sunrise - 1h, night from sunset + 30m. Only day wakes are replayed - the
+  3 AM, night from sunset: the setup page's defaults. Only day wakes are replayed - the
   night is its own outcome, on its own pin. Parking cutoffs are ignored.
 - AQI is the air-quality archive's single series, the same on every wake, so
   AQI never causes a flip here.
@@ -44,6 +44,7 @@ from zoneinfo import ZoneInfo
 VARS = "temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m"
 TZ_NAME = "America/Los_Angeles"
 WAKE_DAY_MIN, WAKE_NIGHT_MIN = 60, 240
+DAY_START = 3 * 60             # derive.h: the default day start
 WAKING_FROM = 6 * 60           # "I wake up": what the screen says from 6 AM on
 FIELDS = ("tempMax", "tempMin", "swing", "rain", "wind", "cloud", "aqi", "sunHours", "snow")
 
@@ -61,11 +62,16 @@ def fetch(url, cache: Path):
         except urllib.error.HTTPError as e:
             body = e.read()
             try:
-                data = json.loads(body)          # an unavailable run is a 400 with a reason
-                break
+                data = json.loads(body)
             except ValueError:
-                pass
-            if e.code == 429 or e.code >= 500:
+                data = {}
+            # An unavailable run is a 400 with a reason, and worth remembering.
+            # Anything else ("Too many concurrent requests") must never reach
+            # the cache, where it would read as a missing run from then on.
+            reason = data.get("reason") or ""
+            if e.code == 400 and ("not available" in reason or "No data" in reason):
+                break
+            if e.code == 429 or e.code >= 500 or data.get("error"):
                 time.sleep(5 * (attempt + 1)); continue
             raise
         except (urllib.error.URLError, TimeoutError):
@@ -167,8 +173,8 @@ class World:
         self.zeroed = 0      # rows where weather.cpp's missing->0 quirk kicked in
 
     def flip(self, d):
-        # main.cpp nightStartMinute(): half an hour after sunset, clamped to the day.
-        return min(self.days[d][1] + 30, 1439)
+        # derive.h: the default night start is sunset.
+        return self.days[d][1]
 
     def hours_of(self, d):
         for h in range(24):
@@ -208,11 +214,11 @@ class World:
                 break
             mod = lt.hour * 60 + lt.minute
             sr, ss, _ = self.days[today]
-            # main.cpp isNight(): no sun times, no night.
-            night = sr > 0 and ss > 0 and (mod >= self.flip(today) or mod < sr - 60)
+            # derive.h isNight(): no sun times, no night.
+            night = sr > 0 and ss > 0 and (mod >= self.flip(today) or mod < DAY_START)
             yield T, (None if night else today)
             nxt = mod + (WAKE_NIGHT_MIN if night else WAKE_DAY_MIN)
-            for b in (sr - 60, self.flip(today), sr - 60 + 1440):
+            for b in (DAY_START, self.flip(today), DAY_START + 1440):
                 if mod < b and b + 1 < nxt:
                     nxt = b + 1
             T += max((nxt - mod) * 60 - lt.second, 120)
@@ -307,7 +313,7 @@ def simulate(world, binary, spec, first, last, pin=True):
         # main.cpp: a day wake is always the day's own; the hour guard only
         # matters without sun times.
         lt = datetime.fromtimestamp(T, world.tz)
-        pinnable = pin and d == lt.date() and lt.hour * 60 + lt.minute >= (sr if sr > 0 else 360) - 60
+        pinnable = pin and d == lt.date() and (sr > 0 or lt.hour * 60 + lt.minute >= 360 - 60)
         recs.append(record(key, d, sr, ss, code, world.rows_at(T, d), world.aqi_rows(d), pinnable))
         wakes.append((key, T, d))
     for d in daterange(first, last):
@@ -345,7 +351,7 @@ def analyse(world, per_day, actual):
         midnight = int(datetime(d.year, d.month, d.day, tzinfo=world.tz).timestamp())
         wake_T = midnight + WAKING_FROM * 60
         # What the screen showed at 6 AM is the last wake at or before 6 AM;
-        # from there, every wake up to nightfall is something you could see.
+        # from there, every wake up to sunset is something you could see.
         before = [s for s in seq if s[0] <= wake_T]
         at6 = before[-1] if before else seq[0]
         waking = [at6] + [s for s in seq if s[0] > wake_T]
@@ -398,7 +404,7 @@ def main():
     P(f"Beach Day replay — {len(rows)} days, {first} to {last}")
     P(f"{args.model} at {args.lat}, {args.lon} · runs every 6h, usable {args.lag:g}h after nominal · "
       f"{len(runs)} runs, {len(missing)} missing")
-    P(f"rules: {args.spec} · day from sunrise-1h to sunset+30m · morning pin {'off' if args.no_pin else 'on'} · "
+    P(f"rules: {args.spec} · day from 3 AM to sunset · morning pin {'off' if args.no_pin else 'on'} · "
       f"{sum(len(r['seq']) for r in rows)} wakes evaluated")
     if disagree:
         P(f"!! {len(disagree)} evaluations where the explanation disagrees with the engine: {disagree[:5]}")
@@ -408,7 +414,7 @@ def main():
         P(f"missing runs: {', '.join(missing)}")
     P()
 
-    P("Per day: what the screen said, in order, from an hour before sunrise.")
+    P("Per day: what the screen said, in order, from 3 AM.")
     P("▸ marks what was on screen at 6 AM.")
     P()
     for r in rows:

@@ -67,7 +67,7 @@ static const char* NVS_NS = "beachday";
 #define CFG_REMINDER_DAY 3        // Wednesday
 #endif
 #ifndef CFG_REMINDER_AT_NIGHT
-#define CFG_REMINDER_AT_NIGHT true    // from nightfall, not in the morning
+#define CFG_REMINDER_AT_NIGHT true    // from sunset, not in the morning
 #endif
 #ifndef CFG_REMINDER_TEXT
 #define CFG_REMINDER_TEXT "Take your trash to the street tonight"
@@ -85,6 +85,19 @@ static void storeReminder(Preferences& p, const beach::Reminder& r) {
   p.putChar("rmDay", r.dayOfWeek);
   p.putBool("rmNight", r.atNight);
   p.putString("rmText", r.text);
+}
+
+// A value that is not one of the page's choices keeps the default.
+static void loadModes(Preferences& p, day::ModeStarts& m) {
+  const int d = p.getShort("dayStart", m.day);
+  const int n = p.getShort("nightStart", m.night);
+  if (day::isModeOption(day::DAY_START_OPTIONS, d)) m.day = (int16_t)d;
+  if (day::isModeOption(day::NIGHT_START_OPTIONS, n)) m.night = (int16_t)n;
+}
+
+static void storeModes(Preferences& p, const day::ModeStarts& m) {
+  p.putShort("dayStart", m.day);
+  p.putShort("nightStart", m.night);
 }
 
 // Parking rule <-> NVS. Keys are <= 15 chars as NVS requires.
@@ -184,6 +197,7 @@ const Settings& loadSettings() {
       loadParkingRule(prefs, "L", g.parking[0]);
       loadParkingRule(prefs, "R", g.parking[1]);
       loadReminder(prefs, g.reminder);
+      loadModes(prefs, g.modes);
 
       // Bench builds: hand Wi-Fi back to the config file if it has real
       // credentials. Location and parking still come from the portal.
@@ -220,6 +234,7 @@ bool savePortalInput(const PortalInput& in) {
   storeParkingRule(prefs, "L", in.parking[0]);
   storeParkingRule(prefs, "R", in.parking[1]);
   storeReminder(prefs, in.reminder);
+  storeModes(prefs, in.modes);
   prefs.end();
   loaded = false;              // force a re-read on next loadSettings()
   return true;

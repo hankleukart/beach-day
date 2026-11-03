@@ -27,7 +27,7 @@ struct Inputs {
   char   sunsetLocal[12] = "";
   char   sunriseLocal[12] = "";
   char   weekdayName[12] = "";
-  // Night: the window is the night - nightfall to sunrise - rather than
+  // Night: the window is the night - sunset to sunrise - rather than
   // sunrise to sunset. The rules can test it as `night` (1 or 0), and the file's
   // `night` tables take over its wording.
   bool   night = false;

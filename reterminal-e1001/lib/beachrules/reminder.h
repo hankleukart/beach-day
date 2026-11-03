@@ -1,7 +1,7 @@
 // A weekly reminder for the footer bar - trash night by default. It belongs to
-// one stretch of the screen: a weekday's night (half an hour after sunset
-// until an hour before the next sunrise) or its day (the rest). Wednesday
-// night still means Wednesday night at 2 AM Thursday, as the screen says.
+// one stretch of the screen: a weekday's night or its day, whenever those start
+// (sunset and 3 AM by default). Wednesday night still means Wednesday night at
+// 2 AM Thursday, as the screen says.
 #pragma once
 #include <cstdint>
 #include "parking.h"

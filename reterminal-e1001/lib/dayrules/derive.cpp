@@ -3,7 +3,6 @@
 #include <cstdio>
 #include <cstring>
 #include "wmo.h"
-#include "parking.h"     // NIGHT_AFTER_SUNSET_MIN: when night starts
 
 namespace day {
 
@@ -65,10 +64,9 @@ Span nightSpan(const Raw& raw, int nowMinute) {
   const int dusk = nowMinute >= 12 * 60 ? 0 : -1;
   const DayMeta& eve = raw.meta(dusk);
   const DayMeta& morn = raw.meta(dusk + 1);
-  int fall = eve.sunsetMin > 0 ? eve.sunsetMin + beach::NIGHT_AFTER_SUNSET_MIN : FALLBACK_END_HOUR * 60 + beach::NIGHT_AFTER_SUNSET_MIN;
-  if (fall > 1439) fall = 1439;
+  const int fall = eve.sunsetMin > 0 ? eve.sunsetMin / 60 : FALLBACK_END_HOUR;
   const int rise = morn.sunriseMin > 0 ? morn.sunriseMin / 60 : FALLBACK_START_HOUR;
-  return Span{ dusk * 24 + fall / 60, (dusk + 1) * 24 + rise };
+  return Span{ dusk * 24 + fall, (dusk + 1) * 24 + rise };
 }
 
 void derive(const Raw& raw, int d, int weekday, Inputs& out) {

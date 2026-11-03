@@ -46,8 +46,8 @@ the instructions on screen:
 2. A setup page opens on its own. If it doesn't, browse to `http://192.168.4.1`.
 3. Pick a Wi-Fi network, type the password, and type where the beach is: a
    **postal code** (`90401`), a **town** (`Santa Monica`) or **town, state**
-   (`Springfield, IL`). Optionally: a short label for the screen, the
-   street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
+   (`Springfield, IL`). Optionally: a short label for the screen, when day and
+   night start, the street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
 
 The board restarts, joins the Wi-Fi, looks the place up, and draws the
 forecast. The place it found appears at the top of the left panel — that is
@@ -68,11 +68,11 @@ one closing tip.
 
 A bar across the bottom means act on something:
 
-- **Street cleaning** shows from half an hour after sunset the night before
+- **Street cleaning** shows from the start of Night Mode the night before
   until the cleaning window ends.
 - **The weekly reminder** — by default "Take your trash to the street
-  tonight" — shows on **Wednesday night**, from half an hour after sunset
-  until an hour before sunrise. The setup page can change the day, the
+  tonight" — shows on **Wednesday night**, for the whole of Night Mode. The setup
+  page can change the day, the
   wording, and whether it shows that night or that morning.
 
 Street cleaning gets the bar first. On the colour panel street cleaning is
@@ -83,13 +83,13 @@ red and the reminder yellow; on the black-and-white one both are black.
 | Button | Press | Hold about 3 seconds, until the LED lights |
 | --- | --- | --- |
 | **Green (Refresh)** | Refresh the forecast now | — |
-| **Left Nav** | Open the setup page (Wi-Fi, place, panel, parking, trash reminder) | — |
+| **Left Nav** | Open the setup page (Wi-Fi, place, day and night, panel, parking, trash reminder) | — |
 | **Right Nav** | Show the hourly readings behind the screen | Check for a firmware and rules update now |
 
 The **readings screen** answers "why did it decide that?". It lists every
 hourly row the rules read — by day, the hour containing sunrise through the
 hour containing sunset; at night ("Tonight's readings"), the hour
-containing nightfall through the hour containing sunrise — with temperature, rain chance, cloud,
+containing sunset through the hour containing sunrise — with temperature, rain chance, cloud,
 wind, AQI and sky, and the figures the rules ran on along the bottom. Its
 footer shows the firmware version. Any button returns to the forecast.
 
@@ -227,10 +227,19 @@ alternative are all seeded by the date, so it holds all day.
 
 ## Night
 
-**Half an hour after sunset, the screen turns to night**, and it stays night
-until an hour before sunrise. Every number is taken from the whole night:
-the hour containing nightfall through the hour containing sunrise (7pm to
-6am, say), the same at 9 PM as at 2 AM. The heading reads `Wednesday night`, the name ends
+**By default the screen turns to night at sunset and back to day at 3 AM.** The
+setup page can move either one:
+
+| | Choices (default first) |
+| --- | --- |
+| **Day Mode start** | 3:00 AM, Sunrise, Sunrise - 30m, Sunrise - 1h, Sunrise - 2h, Sunrise - 3h |
+| **Night Mode start** | Sunset, Sunset - 30m, Sunset + 30m |
+
+These move only the switch, not the hours each mode reads. Day Mode always
+reads sunrise to sunset, even before the sun is up. Night Mode always reads the
+whole night: the hour containing sunset through the hour containing sunrise
+(7pm to 6am, say), the same at 9 PM as at 2 AM. The hour containing sunset
+counts for both. The heading reads `Wednesday night`, the name ends
 in Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR
 TONIGHT`, and the footer shows the next sunrise.
 
@@ -257,7 +266,7 @@ still says `Thursday night`, and the holiday and the name are Thursday's.
 Every wake runs the whole pipeline again, so the numbers on the tiles are
 always fresh. What is held is the outcome.
 
-**The day is pinned at its first look, an hour before sunrise.** After that,
+**The day is pinned at its first look, when Day Mode starts.** After that,
 the tiles, the temperatures and the rain window stay current, but the
 outcome, its name and its four things to wear hold. The pin lives in the
 board's flash, so a reboot or a flat battery mid-morning does not re-decide
@@ -279,8 +288,8 @@ Measured on 60 days of real archived forecasts (`tools/replay.sh`, with
 
 | | Without the pin | With it |
 | --- | --- | --- |
-| Days with one outcome from 6 AM on | 36 of 60 | **59 of 60** |
-| Changes after 6 AM | 30 | **1** — a real afternoon rain |
+| Days with one outcome from 6 AM on | 37 of 60 | **59 of 60** |
+| Changes after 6 AM | 29 | **1** — a real afternoon rain |
 
 The cost is that a pinned morning call cannot correct itself: it matched the
 day as it actually turned out about two times in three, the same as the
@@ -296,15 +305,15 @@ The board sleeps between wakes and only wakes when something could change:
 
 | Period | Interval |
 | --- | --- |
-| Day: an hour before sunrise until half an hour after sunset | every **60 min** |
-| Night: the rest | every **240 min** |
+| Day Mode (by default, 3 AM until sunset) | every **60 min** |
+| Night Mode (by default, sunset until 3 AM) | every **240 min** |
 
 Plus extra wakes at the start of the day, the start of the night (which is
 also when a street-cleaning alert for the next morning goes up), and the end
 of any street-cleaning window. Green (Refresh) wakes it at any time.
 
-That is roughly 17 wakes a day of about 12 seconds each — call it 6–8 mAh a
-day from a 2000 mAh battery, so **months** on a charge.
+With the defaults that is roughly 19 wakes a day of about 12 seconds each —
+call it 7–9 mAh a day from a 2000 mAh battery, so **months** on a charge.
 
 **When the network is down,** the screen keeps its last good image (e-paper
 needs no power to hold it), restamped `OFFLINE since 2:05 PM`. The board

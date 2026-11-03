@@ -70,7 +70,7 @@ const Scenario SCENARIOS[] = {
   { "night",  6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 21 * 60 + 10 },
   // Rain after midnight: the wet window has to read across the date change.
   { "nightrain", 6 * 60 + 40, 19 * 60 + 10, 50, 58, 80, 95, 12, 22, 61, false, false, nullptr, 20 * 60 + 5 },
-  // 2:05 AM: still last night, read from yesterday's nightfall.
+  // 2:05 AM: still last night, read from yesterday's sunset.
   { "predawn", 6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 2 * 60 + 5 },
 };
 
