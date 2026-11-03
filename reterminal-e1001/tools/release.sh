@@ -39,6 +39,20 @@ echo "==> Running the rules tests"
 echo "==> Building the release firmware (rules are embedded as the fallback copy)"
 "$PIO" run -e "$BUILD_ENV"
 
+# This file goes on a public release. Refuse it if it holds the config file's
+# Wi-Fi, and never print what was found.
+if [ -f src/beachday_config.h ]; then
+  for key in CFG_WIFI_SSID CFG_WIFI_PASSWORD; do
+    val=$(sed -n "s/^#define[[:space:]]*$key[[:space:]]*\"\(.*\)\".*/\1/p" src/beachday_config.h)
+    case "$val" in ""|YOUR_WIFI|YOUR_PASSWORD) continue ;; esac
+    if LC_ALL=C grep -aqF -- "$val" "$BIN"; then
+      echo "STOP: the firmware contains $key from beachday_config.h. Not releasing."
+      exit 1
+    fi
+  done
+  echo "==> No Wi-Fi from beachday_config.h in the firmware"
+fi
+
 mkdir -p "$OUT"
 cp "$BIN" "$OUT/$ASSET"
 SIZE=$(wc -c < "$OUT/$ASSET" | tr -d ' ')

@@ -19,11 +19,11 @@
 // Leaving YOUR_WIFI here is what makes a board start in setup-portal mode,
 // which is how you hand one to someone else.
 //
-// Fill these in for your own bench board: in the DEV build they override
-// whatever the portal previously saved, so reflashing never costs you the
-// password again. The release build always prefers the saved network, because
-// a board at someone's house must keep its own Wi-Fi across updates. Set
-// CFG_CONFIG_WINS to force either way.
+// Fill these in for your own bench board. Only the DEV build compiles them in,
+// and there they override whatever the portal previously saved, so reflashing
+// never costs you the password again. Every other build leaves them out -
+// release firmware is public - and uses the network saved on the board. Set
+// CFG_CONFIG_WINS to make the dev build prefer the saved network.
 #define CFG_WIFI_SSID      "YOUR_WIFI"
 #define CFG_WIFI_PASSWORD  "YOUR_PASSWORD"
 

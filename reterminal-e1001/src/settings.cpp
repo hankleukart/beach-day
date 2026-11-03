@@ -128,18 +128,25 @@ const Settings& loadSettings() {
   if (loaded) return g;
 
   // 1. compile-time defaults
-#ifdef BEACHDAY_GIFT
-  // A board being handed to someone else must start with nothing of ours on
-  // it: no Wi-Fi (so it opens the setup portal), no home coordinates, no
-  // label. Built by `flash.sh gift`, which also erases NVS first.
+  // The config file's Wi-Fi goes only into the dev builds, which stay on this
+  // Mac. Every other build can end up on a public release or at someone else's
+  // house, so it starts with none, and a board with nothing saved opens the
+  // setup portal.
+#ifdef BEACHDAY_CONFIG_WIFI
+  copyStr(g.ssid, sizeof(g.ssid), CFG_WIFI_SSID);
+  copyStr(g.password, sizeof(g.password), CFG_WIFI_PASSWORD);
+#else
   copyStr(g.ssid, sizeof(g.ssid), "YOUR_WIFI");
   copyStr(g.password, sizeof(g.password), "");
+#endif
+#ifdef BEACHDAY_GIFT
+  // A board being handed to someone else must start with nothing of ours on
+  // it: no home coordinates, no label. Built by `flash.sh gift`, which also
+  // erases NVS first.
   g.latitude = 0; g.longitude = 0;
   g.haveCoords = false;
   copyStr(g.locationName, sizeof(g.locationName), "");
 #else
-  copyStr(g.ssid, sizeof(g.ssid), CFG_WIFI_SSID);
-  copyStr(g.password, sizeof(g.password), CFG_WIFI_PASSWORD);
   g.latitude  = CFG_LATITUDE;
   g.longitude = CFG_LONGITUDE;
   g.haveCoords = true;
@@ -199,6 +206,7 @@ const Settings& loadSettings() {
       loadReminder(prefs, g.reminder);
       loadModes(prefs, g.modes);
 
+#ifdef BEACHDAY_CONFIG_WIFI
       // Bench builds: hand Wi-Fi back to the config file if it has real
       // credentials. Location and parking still come from the portal.
       if (CFG_CONFIG_WINS && strcmp(CFG_WIFI_SSID, "YOUR_WIFI") != 0 && CFG_WIFI_SSID[0]) {
@@ -208,6 +216,7 @@ const Settings& loadSettings() {
           g.configWon = true;
         }
       }
+#endif
     }
     if (prefs.isKey("otaUrl")) prefs.getString("otaUrl", g.otaManifestUrl, sizeof(g.otaManifestUrl));
     if (prefs.isKey("rulesUrl")) prefs.getString("rulesUrl", g.rulesUrl, sizeof(g.rulesUrl));
