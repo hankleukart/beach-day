@@ -27,12 +27,12 @@ struct Inputs {
   char   sunsetLocal[12] = "";
   char   sunriseLocal[12] = "";
   char   weekdayName[12] = "";
-  // Night: the window is the night - sunset to sunrise - rather than
-  // sunrise to sunset. The rules can test it as `night` (1 or 0), and the file's
-  // `night` tables take over its wording.
-  bool   night = false;
+  // Evening: the window is sunset to midnight rather than sunrise to
+  // sunset. The rules can test it as `evening` (1 or 0), and the file's
+  // `evening` tables take over its wording.
+  bool   evening = false;
   // Calendar, for holidays and for picking a day name that is stable all day.
-  // At night, the date of the evening it began on.
+  // In the evening, its own date - or yesterday's, after midnight.
   int    year = 0, month = 0, dayOfMonth = 0, weekday = 0;   // weekday 0 = Sunday
   long   epochDay = 0;
 };
@@ -45,7 +45,7 @@ struct Stat {
   char id[16] = ""; char label[16] = ""; char icon[20] = "";
   char value[20] = "";   // the big one
   char sub[20] = "";     // the supporting one; empty if the stat has none
-  char word[16] = "";
+  char word[20] = "";
 };
 
 struct Outcome {
@@ -70,10 +70,10 @@ struct Screen {
   Stat    stats[6];
   int     statCount = 0;
   char    eyebrow[24] = "";
-  char    weekday[20] = "";      // "Thursday", or "Thursday night"
+  char    weekday[20] = "";      // "Thursday", or "Thursday evening"
   char    subline[110] = "";
   char    footer[110] = "";
-  bool    night = false;
+  bool    evening = false;
 };
 
 // Lets the firmware check icon names against the art it can actually draw.
@@ -81,15 +81,15 @@ using IconChecker = bool (*)(const char* name);
 void setIconChecker(IconChecker fn);
 IconChecker g_iconCheckerAccessor();   // internal: for the validator
 
-// A stat's `night` table replaces whole parts of it after dark - the label,
-// the icon, the value, the sub line, the word - so a night value never runs
-// on a day band. Returns the table a part comes from: `night` if it names
+// A stat's `evening` table replaces whole parts of it after dark - the label,
+// the icon, the value, the sub line, the word - so an evening value never runs
+// on a day band. Returns the table a part comes from: `evening` if it names
 // any of that part's keys, else the stat itself. Internal, shared with the
 // validator so both read a stat the same way.
 enum StatPart { SP_LABEL, SP_ICON, SP_VALUE, SP_SUB, SP_WORD, SP_COUNT };
-toml_table_t* statPart(toml_table_t* st, toml_table_t* night, int part);
+toml_table_t* statPart(toml_table_t* st, toml_table_t* evening, int part);
 
-// The day's outcome, held from the first morning look - or the night's, from
+// The day's outcome, held from sunrise - or the evening's, from
 // the first look after dark.
 struct DayPin { long epochDay = -1; char id[24] = ""; };
 
@@ -120,8 +120,8 @@ class Spec {
   const char* outcomeId(int i) const;
 
   // `forceId` shows that outcome rather than matching `when` - how a pinned
-  // day is drawn. An id the file does not have is ignored. `in.night` picks
-  // the night wording.
+  // day is drawn. An id the file does not have is ignored. `in.evening` picks
+  // the evening wording.
   bool evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
                 const char* forceId = nullptr) const;
   bool hasOutcome(const char* id) const;
@@ -134,7 +134,7 @@ class Spec {
   bool valid_ = false;
 
   bool validate(toml_table_t* root, char* err, size_t errLen) const;
-  void resolveStat(toml_table_t* st, toml_table_t* night, const Inputs& in, Stat& out) const;
+  void resolveStat(toml_table_t* st, toml_table_t* evening, const Inputs& in, Stat& out) const;
   bool holidayFor(const Inputs& in, char* out, size_t n) const;
 };
 

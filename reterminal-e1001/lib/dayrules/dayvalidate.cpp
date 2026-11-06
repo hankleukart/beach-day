@@ -80,7 +80,7 @@ bool vKnownField(const char* f) {
   return f && f[0] && fieldValue(probe, f, v);
 }
 
-// A `night` table rewords; it cannot change what a thing is. Anything else
+// An `evening` table rewords; it cannot change what a thing is. Anything else
 // in it is a typo that would otherwise be ignored in silence.
 const char* vStrayKey(toml_table_t* t, const char* const* allowed) {
   for (int i = 0; ; i++) {
@@ -117,7 +117,9 @@ struct V {
     }
     return fail("%s: %s '%s' is not in icons", who, what, nameStr);
   }
-  bool bands(const char* who, toml_array_t* b, bool wantIcon) {
+  // `cap`: the buffer each band's text lands in, so a long one fails here
+  // instead of being cut short on the screen.
+  bool bands(const char* who, toml_array_t* b, bool wantIcon, size_t cap = 0) {
     if (!b || toml_array_nelem(b) == 0) return fail("%s: empty bands", who);
     double prev = -1e18;
     int count = toml_array_nelem(b);
@@ -135,6 +137,7 @@ struct V {
       char tmp[64];
       if (wantIcon) { if (!vStr(e, "icon", tmp, sizeof(tmp)) || !knownIcon(who, "band icon", tmp)) return false; }
       else if (!vStr(e, "text", tmp, sizeof(tmp))) return fail("%s: band %d has no text", who, i);
+      else if (cap && !fits("band text", who, tmp, cap)) return false;
     }
     return true;
   }
@@ -308,15 +311,15 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
         if (!v.fits("also_when_failed line", id, line, sizeof(Outcome::alsoGrab))) return false;
       }
     }
-    if (vHas(o, "night")) {
-      toml_table_t* nt = toml_table_in(o, "night");
-      if (!nt) return v.fail("%s: night must be a table", id);
+    if (vHas(o, "evening")) {
+      toml_table_t* nt = toml_table_in(o, "evening");
+      if (!nt) return v.fail("%s: evening must be a table", id);
       static const char* const OK[] = { "tagline", "also", "icon", nullptr };
-      if (const char* k = vStrayKey(nt, OK)) return v.fail("%s: night.%s - a night can only reword tagline, also or icon", id, k);
-      if (vStr(nt, "tagline", tmp, sizeof(tmp)) && !v.fits("night tagline", id, tmp, sizeof(Outcome::tagline))) return false;
+      if (const char* k = vStrayKey(nt, OK)) return v.fail("%s: evening.%s - an evening can only reword tagline, also or icon", id, k);
+      if (vStr(nt, "tagline", tmp, sizeof(tmp)) && !v.fits("evening tagline", id, tmp, sizeof(Outcome::tagline))) return false;
       char line[220];
-      if (vStr(nt, "also", line, sizeof(line)) && !v.fits("night also", id, line, sizeof(Outcome::alsoGrab))) return false;
-      if (vStr(nt, "icon", tmp, sizeof(tmp)) && !v.knownIcon(id, "night icon", tmp)) return false;
+      if (vStr(nt, "also", line, sizeof(line)) && !v.fits("evening also", id, line, sizeof(Outcome::alsoGrab))) return false;
+      if (vStr(nt, "icon", tmp, sizeof(tmp)) && !v.knownIcon(id, "evening icon", tmp)) return false;
     }
     if (vHas(o, "breaks_pin") && !toml_bool_in(o, "breaks_pin").ok)
       return v.fail("%s: breaks_pin must be true or false", id);
@@ -333,20 +336,20 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
     if (!vStr(base, "id", id, sizeof(id))) return v.fail("stat %d has no id", i);
     if (!v.fits("stat id", id, id, sizeof(Stat::id))) return false;
 
-    toml_table_t* night = nullptr;
-    if (vHas(base, "night")) {
-      night = toml_table_in(base, "night");
-      if (!night) return v.fail("%s: night must be a table", id);
+    toml_table_t* evening = nullptr;
+    if (vHas(base, "evening")) {
+      evening = toml_table_in(base, "evening");
+      if (!evening) return v.fail("%s: evening must be a table", id);
       static const char* const OK[] = { "label", "icon", "icon_field", "icon_bands", "value_field", "value_format",
                                         "value_bands", "sub_field", "sub_format", "sub_bands", "word_field",
                                         "word_bands", "word_override", nullptr };
-      if (const char* k = vStrayKey(night, OK)) return v.fail("%s: night.%s is not part of a stat", id, k);
+      if (const char* k = vStrayKey(evening, OK)) return v.fail("%s: evening.%s is not part of a stat", id, k);
     }
 
-    // The stat as the day reads it, then as the night does: each part from
+    // The stat as the day reads it, then as the evening does: each part from
     // wherever statPart() says, held to the same rules either way.
-    for (int pass = 0; pass < (night ? 2 : 1); pass++) {
-      toml_table_t* nt = pass ? night : nullptr;
+    for (int pass = 0; pass < (evening ? 2 : 1); pass++) {
+      toml_table_t* nt = pass ? evening : nullptr;
       toml_table_t* st = statPart(base, nt, SP_LABEL);
       if (vStr(st, "label", tmp, sizeof(tmp)) && !v.fits("label", id, tmp, sizeof(Stat::label))) return false;
 
@@ -361,7 +364,7 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
       if (!vStr(st, "value_field", tmp, sizeof(tmp)) || !vKnownField(tmp)) return v.fail("%s: value_field unknown", id);
       bool hasFormat = vHas(st, "value_format"), hasBands = vHas(st, "value_bands");
       if (hasFormat == hasBands) return v.fail("%s: needs value_format or value_bands, not both", id);
-      if (hasBands && !v.bands(id, toml_array_in(st, "value_bands"), false)) return false;
+      if (hasBands && !v.bands(id, toml_array_in(st, "value_bands"), false, sizeof(Stat::value))) return false;
 
       // The supporting line is optional, but if it exists it is held to the same
       // rules as the primary one.
@@ -370,14 +373,14 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
         if (!vStr(st, "sub_field", tmp, sizeof(tmp)) || !vKnownField(tmp)) return v.fail("%s: sub_field unknown", id);
         bool subFormat = vHas(st, "sub_format"), subBands = vHas(st, "sub_bands");
         if (subFormat == subBands) return v.fail("%s: needs sub_format or sub_bands, not both", id);
-        if (subBands && !v.bands(id, toml_array_in(st, "sub_bands"), false)) return false;
+        if (subBands && !v.bands(id, toml_array_in(st, "sub_bands"), false, sizeof(Stat::sub))) return false;
       } else if (vHas(st, "sub_format") || vHas(st, "sub_bands")) {
         return v.fail("%s: sub_format/sub_bands need a sub_field", id);
       }
 
       st = statPart(base, nt, SP_WORD);
       if (!vStr(st, "word_field", tmp, sizeof(tmp)) || !vKnownField(tmp)) return v.fail("%s: word_field unknown", id);
-      if (!v.bands(id, toml_array_in(st, "word_bands"), false)) return false;
+      if (!v.bands(id, toml_array_in(st, "word_bands"), false, sizeof(Stat::word))) return false;
 
       toml_table_t* ov = toml_table_in(st, "word_override");
       if (ov) {
@@ -392,11 +395,11 @@ bool Spec::validate(toml_table_t* root, char* err, size_t errLen) const {
   }
 
   toml_table_t* screen = toml_table_in(root, "screen");
-  if (screen && vHas(screen, "night")) {
-    toml_table_t* nt = toml_table_in(screen, "night");
-    if (!nt) return v.fail("screen.night must be a table");
+  if (screen && vHas(screen, "evening")) {
+    toml_table_t* nt = toml_table_in(screen, "evening");
+    if (!nt) return v.fail("screen.evening must be a table");
     static const char* const OK[] = { "subline", "footer", nullptr };
-    if (const char* k = vStrayKey(nt, OK)) return v.fail("screen.night.%s - a night can only reword subline or footer", k);
+    if (const char* k = vStrayKey(nt, OK)) return v.fail("screen.evening.%s - an evening can only reword subline or footer", k);
   }
 
   toml_array_t* holidays = toml_array_in(root, "holiday");

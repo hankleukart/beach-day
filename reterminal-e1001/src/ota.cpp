@@ -9,6 +9,8 @@
 #include <time.h>
 #include "version.h"
 #include "power.h"
+#include "otasig.h"
+#include "release_key.h"
 
 namespace {
 
@@ -58,9 +60,11 @@ bool fetchManifest(const char* url, JsonDocument& doc, char* status, size_t stat
   return true;
 }
 
-// Streams the image into the inactive OTA slot. Returns true only if the whole
-// image was written and verified, in which case the caller reboots.
-bool downloadAndFlash(const char* url, const char* md5, int expectedSize,
+// Streams the image into the inactive OTA slot, hashing it on the way. Returns
+// true only if the whole image was written, signed by the release key and
+// passed its checksum, in which case the caller reboots. Until Update.end()
+// the slot is not bootable, so a refused image never runs.
+bool downloadAndFlash(const char* url, const char* md5, const char* sig, int expectedSize,
                       char* status, size_t statusLen) {
   WiFiClientSecure client;
   client.setInsecure();
@@ -101,7 +105,32 @@ bool downloadAndFlash(const char* url, const char* md5, int expectedSize,
   if (md5 && strlen(md5) == 32) Update.setMD5(md5);
 
   Serial.printf("[ota] writing %d bytes\n", len);
-  size_t written = Update.writeStream(*http.getStreamPtr());
+  WiFiClient* stream = http.getStreamPtr();
+  otasig::Hasher hasher;
+  static uint8_t buf[4096];             // static: loopTask's stack also carries TLS
+  size_t written = 0;
+  uint32_t lastData = millis();
+  while (written < (size_t)len) {
+    const size_t avail = stream->available();
+    if (avail == 0) {
+      if (!stream->connected() || millis() - lastData > 30000) break;
+      delay(5);
+      continue;
+    }
+    size_t want = avail < sizeof(buf) ? avail : sizeof(buf);
+    if (want > (size_t)len - written) want = (size_t)len - written;
+    const int got = stream->read(buf, want);
+    if (got <= 0) continue;
+    hasher.update(buf, (size_t)got);
+    if (Update.write(buf, (size_t)got) != (size_t)got) {
+      snprintf(status, statusLen, "flash: %s", Update.errorString());
+      Update.abort();
+      http.end();
+      return false;
+    }
+    written += (size_t)got;
+    lastData = millis();
+  }
   http.end();
 
   if (written != (size_t)len) {
@@ -109,6 +138,18 @@ bool downloadAndFlash(const char* url, const char* md5, int expectedSize,
     Update.abort();
     return false;
   }
+
+  // The check that matters: whoever served this, only the release key's
+  // owner could have signed it.
+  uint8_t hash[32];
+  hasher.finish(hash);
+  char why[64];
+  if (!otasig::verify(hash, sig, RELEASE_PUBLIC_KEY_PEM, why, sizeof(why))) {
+    snprintf(status, statusLen, "refused: %s", why);
+    Update.abort();
+    return false;
+  }
+  Serial.println(F("[ota] signature ok"));
   if (!Update.end()) {
     snprintf(status, statusLen, "flash: %s", Update.errorString());
     return false;
@@ -155,6 +196,7 @@ OtaResult otaCheck(const Settings& s, bool force, char* status, size_t statusLen
   const char* md5  = doc["md5"]     | "";
   int size         = doc["size"]    | 0;
   const char* notes = doc["notes"]  | "";
+  const char* sig   = doc["sig"]    | "";
 
   if (want[0] == '\0' || url[0] == '\0') {
     snprintf(status, statusLen, "manifest: missing version/url");
@@ -166,8 +208,13 @@ OtaResult otaCheck(const Settings& s, bool force, char* status, size_t statusLen
     return OtaResult::UpToDate;
   }
   if (notes[0]) Serial.printf("[ota] notes: %s\n", notes);
+  // Don't spend a minute of battery downloading what will be refused anyway.
+  if (sig[0] == '\0') {
+    snprintf(status, statusLen, "refused %s: not signed", want);
+    return OtaResult::Failed;
+  }
 
-  if (!downloadAndFlash(url, md5, size, status, statusLen)) return OtaResult::Failed;
+  if (!downloadAndFlash(url, md5, sig, size, status, statusLen)) return OtaResult::Failed;
 
   Serial.printf("[ota] %s -> %s, rebooting\n", FIRMWARE_VERSION, want);
   Serial.flush();

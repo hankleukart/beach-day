@@ -11,6 +11,7 @@
 #include "pins.h"
 #include "version.h"
 #include "panelmodel.h"
+#include "portalform.h"
 
 namespace {
 
@@ -54,20 +55,20 @@ footer{margin-top:36px;font-size:13px;color:#777;text-align:center}footer a{colo
 const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden network&hellip;</option></select>
 <input id="o" name="ssid_other" placeholder="Network name" style="display:none;margin-top:8px">
 <label for="pass">Wi-Fi password</label>
-<input id="pass" name="pass" type="password" autocomplete="off" placeholder="Leave blank for an open network">
+<input id="pass" name="pass" type="password" autocomplete="off" placeholder="%PASSHINT%">
 <label for="loc">Weather forecast location</label>
 <input id="loc" name="loc" required placeholder="ZIP / postal code, or a town" value="%LOC%">
 <small>Examples: <b>90401</b>, <b>Santa Monica</b>, <b>Springfield, IL</b>. The display looks it up once it's online and shows the name it found.</small>
 <div class="row"><div><label for="cc">Country</label>
 <input id="cc" name="cc" maxlength="2" placeholder="US" value="%CC%"><small>2-letter code. Helps with postal codes.</small></div>
 <div><label for="label">Label on screen</label>
-<input id="label" name="label" maxlength="22" placeholder="(uses the town name)" value="%LABEL%"></div></div>
-<details><summary>Day and night</summary>
-<small style="margin-top:8px">When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and Night Mode from sunset to sunrise.</small>
+<input id="label" name="label" maxlength="22" placeholder="%LABELHINT%" value="%LABEL%"></div></div>
+<details><summary>Day and evening</summary>
+<small style="margin-top:8px">When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and decides the day at sunrise. Evening Mode reads sunset to midnight.</small>
 %MODES%
 </details>
 <details><summary>Street-cleaning parking reminders</summary>
-<small style="margin-top:8px">Shows a NO PARKING bar from the start of Night Mode the night before until the restriction ends.</small>
+<small style="margin-top:8px">Shows a NO PARKING bar from the start of Evening Mode the evening before until the restriction ends.</small>
 %PARKING%
 </details>
 <details><summary>Display panel</summary>
@@ -75,7 +76,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
 </details>
 <details><summary>Trash reminder</summary>
-<small style="margin-top:8px">Shows a reminder bar on the night or the day you pick, as Day and night above sets them. If street cleaning is due too, that shows first.</small>
+<small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick, as Day and evening above sets them. If street cleaning is due too, that shows first.</small>
 %REMINDER%
 </details>
 <button type="submit">Save and restart</button>
@@ -133,8 +134,8 @@ String reminderFieldset(const beach::Reminder& r) {
     h += "<option value=\"" + String(d) + "\"" + (d == r.dayOfWeek ? " selected" : "") + ">" + DAY_NAMES[d] + "</option>";
   }
   h += "</select><label for=\"rmwhen\">When</label><select id=\"rmwhen\" name=\"rmwhen\">";
-  h += String("<option value=\"night\"") + (r.atNight ? " selected" : "") + ">That night, from the start of Night Mode</option>";
-  h += String("<option value=\"day\"") + (r.atNight ? "" : " selected") + ">That morning, from the start of Day Mode</option>";
+  h += String("<option value=\"evening\"") + (r.atEvening ? " selected" : "") + ">That evening, from the start of Evening Mode</option>";
+  h += String("<option value=\"day\"") + (r.atEvening ? "" : " selected") + ">That day, from the start of Day Mode</option>";
   h += "</select><label for=\"rmtext\">Reminder</label>";
   h += "<input id=\"rmtext\" name=\"rmtext\" maxlength=\"39\" value=\"" + htmlEscape(r.text) + "\">";
   h += "</fieldset>";
@@ -150,18 +151,29 @@ String modeSelect(const char* name, const char* title, const day::ModeOption (&o
   return h + "</select>";
 }
 
+// A board set up from the config file has a place name but never typed a query.
+const char* shownPlace() { return current.locationQuery[0] ? current.locationQuery : current.locationName; }
+const char* shownCountry() { return current.countryCode[0] ? current.countryCode : "US"; }
+
 void handleRoot() {
   String page = FPSTR(PAGE_HEAD);
   page += networkOptions;
   String mid = FPSTR(PAGE_MID);
-  mid.replace("%LOC%",   htmlEscape(current.locationQuery));
-  mid.replace("%CC%",    htmlEscape(current.countryCode[0] ? current.countryCode : "US"));
-  mid.replace("%LABEL%", htmlEscape(current.fromPortal ? current.locationName : ""));
+  // The saved password is never put in the page: the hotspot is an open
+  // network, so anyone on it could read it. Leaving the box blank keeps it.
+  mid.replace("%PASSHINT%", current.configured() ? "Saved. Leave blank to keep it"
+                                                 : "Leave blank for an open network");
+  mid.replace("%LOC%",   htmlEscape(shownPlace()));
+  mid.replace("%CC%",    htmlEscape(shownCountry()));
+  mid.replace("%LABEL%", htmlEscape(current.fromPortal ? current.label : current.locationName));
+  mid.replace("%LABELHINT%", current.fromPortal && !current.label[0] && current.locationName[0]
+                                 ? "(uses " + htmlEscape(current.locationName) + ")"
+                                 : String("(uses the town name)"));
   mid.replace("%PARKING%", parkingFieldset("L", "Left side of the street", current.parking[0]) +
                            parkingFieldset("R", "Right side of the street", current.parking[1]));
   mid.replace("%REMINDER%", reminderFieldset(current.reminder));
   mid.replace("%MODES%", modeSelect("daystart", "Day Mode start", day::DAY_START_OPTIONS, current.modes.day) +
-                         modeSelect("nightstart", "Night Mode start", day::NIGHT_START_OPTIONS, current.modes.night));
+                         modeSelect("eveningstart", "Evening Mode start", day::EVENING_START_OPTIONS, current.modes.evening));
   {
     String opts;
     for (PanelModel m : { PanelModel::E1001, PanelModel::E1002 }) {
@@ -196,7 +208,7 @@ void readParking(const char* side, beach::ParkingRule& r, const beach::ParkingRu
 void readReminder(beach::Reminder& r, const beach::Reminder& current) {
   r.enabled = server.hasArg("rmon");
   r.dayOfWeek = (int8_t)constrain(server.arg("rmday").toInt(), 0, 6);
-  r.atNight = server.arg("rmwhen") != "day";
+  r.atEvening = server.arg("rmwhen") != "day";
   String text = server.arg("rmtext"); text.trim();
   // A cleared box keeps what was there, so switching it off and on again
   // does not lose the wording.
@@ -232,15 +244,20 @@ void handleSave() {
   if (!cc.isEmpty() && cc.length() != 2) { sendSimple(400, "Country code", "<p>Use a 2-letter code like US, or leave it blank.</p><p><a href=\"/\">Back</a></p>"); return; }
 
   strlcpy(in.ssid, ssid.c_str(), sizeof(in.ssid));
-  strlcpy(in.password, server.arg("pass").c_str(), sizeof(in.password));
+  const String pass = server.arg("pass");
+  strlcpy(in.password, beach::keepSavedPassword(pass.c_str(), ssid.c_str(), current.ssid) ? current.password : pass.c_str(),
+          sizeof(in.password));
   strlcpy(in.locationQuery, loc.c_str(), sizeof(in.locationQuery));
   strlcpy(in.countryCode, cc.c_str(), sizeof(in.countryCode));
   strlcpy(in.label, label.c_str(), sizeof(in.label));
+  in.keepPlace = beach::keepSavedPlace(current.haveCoords, loc.c_str(), shownPlace(), cc.c_str(), shownCountry());
+  in.latitude = current.latitude;
+  in.longitude = current.longitude;
   readParking("L", in.parking[0], current.parking[0]);
   readParking("R", in.parking[1], current.parking[1]);
   readReminder(in.reminder, current.reminder);
   in.modes.day = readMode("daystart", day::DAY_START_OPTIONS, current.modes.day);
-  in.modes.night = readMode("nightstart", day::NIGHT_START_OPTIONS, current.modes.night);
+  in.modes.evening = readMode("eveningstart", day::EVENING_START_OPTIONS, current.modes.evening);
   // Kept apart from the other settings (its own NVS namespace), so it is
   // saved directly rather than through PortalInput.
   if (server.hasArg("panel")) {
@@ -253,9 +270,10 @@ void handleSave() {
 
   Serial.printf("[portal] saved ssid='%s' loc='%s' cc='%s' label='%s'\n", in.ssid, in.locationQuery, in.countryCode, in.label);
   sendSimple(200, "Saved",
-    "<p>The display is restarting. It will join <b>" + htmlEscape(in.ssid) + "</b>, look up <b>" +
-    htmlEscape(in.locationQuery) + "</b>, and show the forecast in about a minute.</p>"
-    "<p>If it can't find that place, the screen will say so and how to try again.</p>"
+    "<p>The display is restarting. It will join <b>" + htmlEscape(in.ssid) + "</b>" +
+    (in.keepPlace ? String() : ", look up <b>" + htmlEscape(in.locationQuery) + "</b>,") +
+    " and show the forecast in about a minute.</p>" +
+    (in.keepPlace ? String() : String("<p>If it can't find that place, the screen will say so and how to try again.</p>")) +
     "<p>You can leave this page now.</p>");
   restartAt = millis() + 1500;
 }

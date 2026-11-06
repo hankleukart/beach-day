@@ -47,14 +47,16 @@ the instructions on screen:
 3. Pick a Wi-Fi network, type the password, and type where the beach is: a
    **postal code** (`90401`), a **town** (`Santa Monica`) or **town, state**
    (`Springfield, IL`). Optionally: a short label for the screen, when day and
-   night start, the street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
+   evening start, the street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
 
 The board restarts, joins the Wi-Fi, looks the place up, and draws the
 forecast. The place it found appears at the top of the left panel — that is
 the confirmation. If it couldn't find the place, the screen says so. The
 hotspot times out after 10 minutes; the LED blinks fast while it is up.
 
-To change any of it later, press **Left Nav**. **Erase all settings** at the
+To change any of it later, press **Left Nav**. The page opens with your current
+settings, so change only what you need and save. The saved Wi-Fi password is
+never shown; leave the box blank to keep it. **Erase all settings** at the
 bottom of the setup page wipes Wi-Fi, location and reminders, for handing a
 board on.
 
@@ -68,12 +70,12 @@ one closing tip.
 
 A bar across the bottom means act on something:
 
-- **Street cleaning** shows from the start of Night Mode the night before
+- **Street cleaning** shows from the start of Evening Mode the evening before
   until the cleaning window ends.
 - **The weekly reminder** — by default "Take your trash to the street
-  tonight" — shows on **Wednesday night**, for the whole of Night Mode. The setup
-  page can change the day, the
-  wording, and whether it shows that night or that morning.
+  tonight" — shows on **Wednesday evening**, for the whole of Evening Mode.
+  The setup page can change the day, the wording, and whether it shows that
+  evening or that day.
 
 Street cleaning gets the bar first. On the colour panel street cleaning is
 red and the reminder yellow; on the black-and-white one both are black.
@@ -83,13 +85,13 @@ red and the reminder yellow; on the black-and-white one both are black.
 | Button | Press | Hold about 3 seconds, until the LED lights |
 | --- | --- | --- |
 | **Green (Refresh)** | Refresh the forecast now | — |
-| **Left Nav** | Open the setup page (Wi-Fi, place, day and night, panel, parking, trash reminder) | — |
-| **Right Nav** | Show the hourly readings behind the screen | Check for a firmware and rules update now |
+| **Left Nav** | Open the setup page (Wi-Fi, place, day and evening, panel, parking, trash reminder) | — |
+| **Right Nav** | Show the hourly readings behind the screen | Check for a firmware update now |
 
 The **readings screen** answers "why did it decide that?". It lists every
 hourly row the rules read — by day, the hour containing sunrise through the
-hour containing sunset; at night ("Tonight's readings"), the hour
-containing sunset through the hour containing sunrise — with temperature, rain chance, cloud,
+hour containing sunset; in the evening ("This evening's readings"), the hour
+containing sunset through 11 PM — with temperature, rain chance, cloud,
 wind, AQI and sky, and the figures the rules ran on along the bottom. Its
 footer shows the firmware version. Any button returns to the forecast.
 
@@ -131,10 +133,10 @@ wakes; every wake fetches fresh.
 By day, the hourly rows are aggregated over **that day's own daylight
 window**: the whole hour containing sunrise through the whole hour containing
 sunset. Sunrise at 6:42 makes the 6am row part of the day; sunset at 7:08 PM
-makes the 7pm row the last one. At night it is the whole night instead (see
-[Night](#night)). Either window is fixed: a look at 3 PM still counts the
-morning, and a look at 2 AM still counts the evening, so the figures always
-describe the same hours the pinned outcome was decided on.
+makes the 7pm row the last one. In the evening it is sunset to midnight
+instead (see [Evening](#evening)). Either window is fixed: a look at 3 PM
+still counts the morning, and a look at 11 PM still counts from sunset, so the
+figures always describe the same hours the pinned outcome was decided on.
 
 That window produces one set of figures — `tempMin`, `tempMax`, `swing`,
 `rain`, `wind`, `cloud`, `aqi`, `snow`, humidity range, the longest run of
@@ -225,39 +227,40 @@ alternative are all seeded by the date, so it holds all day.
 
 ---
 
-## Night
+## Evening
 
-**By default the screen turns to night at sunset and back to day at 3 AM.** The
-setup page can move either one:
+**By default the screen turns to Evening Mode at sunset and back to Day Mode
+at midnight.** The setup page can move either one:
 
 | | Choices (default first) |
 | --- | --- |
-| **Day Mode start** | 3:00 AM, Sunrise, Sunrise - 30m, Sunrise - 1h, Sunrise - 2h, Sunrise - 3h |
-| **Night Mode start** | Sunset, Sunset - 30m, Sunset + 30m |
+| **Day Mode start** | Midnight, Sunrise, Sunrise - 30m, Sunrise - 1h, Sunrise - 2h, Sunrise - 3h |
+| **Evening Mode start** | Sunset, Sunset - 30m, Sunset + 30m |
 
 These move only the switch, not the hours each mode reads. Day Mode always
-reads sunrise to sunset, even before the sun is up. Night Mode always reads the
-whole night: the hour containing sunset through the hour containing sunrise
-(7pm to 6am, say), the same at 9 PM as at 2 AM. The hour containing sunset
-counts for both. The heading reads `Wednesday night`, the name ends
-in Night (`Rain Jacket Night`), the wear heading reads `WHAT TO WEAR
-TONIGHT`, and the footer shows the next sunrise.
+reads sunrise to sunset, even before the sun is up. Evening Mode always reads
+the hour containing sunset through the 11 PM hour (7pm to 11pm, say), the same
+at 8 PM as at 11:50 PM; nothing after midnight counts. The hour containing
+sunset counts for both. The heading reads `Wednesday evening`, the name ends
+in Evening (`Rain Jacket Evening`), the wear heading reads `WHAT TO WEAR OUT
+THIS EVENING`, and the footer shows tomorrow's sunrise.
 
-Night runs on the same grid, with three differences, all set in the rules
+A Day Mode start later than midnight leaves the evening on screen until then,
+still reading sunset to midnight: at 2 AM Friday it says `Thursday evening`.
+
+Evening runs on the same grid, with three differences, all set in the rules
 file:
 
-- **No sunny squares.** They carry `night = 0`, so a clear night falls through
-  to its band's plain outcome rather than recommending sunglasses.
-- **Named after what you wear.** Places and things are for daylight, so a
-  night's name comes from a starred wear item. An outcome with nothing
+- **No sunny squares.** They carry `evening = 0`, so a clear evening falls
+  through to its band's plain outcome rather than recommending sunglasses.
+- **Named after what you wear.** Places and things are for daylight, so an
+  evening's name comes from a starred wear item. An outcome with nothing
   starred falls back to its places and things.
-- **Reworded where daylight was assumed.** An outcome's `night = { tagline,
+- **Reworded where daylight was assumed.** An outcome's `evening = { tagline,
   also }` replaces lines like "comes off by lunch". The sun tile becomes
   **SKY** (Clear, Partly or Cloudy, with "Starry" underneath), the temperature
-  word reads the overnight low, and `[screen.night]` rewords the footer.
-
-**A night belongs to the evening it began on.** At 2 AM Friday the screen
-still says `Thursday night`, and the holiday and the name are Thursday's.
+  word reads the low before midnight, and `[screen.evening]` rewords the
+  subline and footer.
 
 ---
 
@@ -266,8 +269,9 @@ still says `Thursday night`, and the holiday and the name are Thursday's.
 Every wake runs the whole pipeline again, so the numbers on the tiles are
 always fresh. What is held is the outcome.
 
-**The day is pinned at its first look, when Day Mode starts.** After that,
-the tiles, the temperatures and the rain window stay current, but the
+**The day is pinned at sunrise.** From Day Mode's start until then (midnight
+to sunrise, by default) the screen follows the forecast as it changes. From
+sunrise on, the tiles, the temperatures and the rain window stay current, but the
 outcome, its name and its four things to wear hold. The pin lives in the
 board's flash, so a reboot or a flat battery mid-morning does not re-decide
 the day. The forecast moves in small wobbles — the high drifts a degree or
@@ -280,11 +284,13 @@ reaches them, because "take the raincoat after all" is worth interrupting
 for. Once broken, the pin is the wet outcome: drying out later does not
 un-say it.
 
-**The night has its own pin**, set at its first look after dark and broken
-the same way. It is kept apart from the day's.
+**The evening has its own pin**, set at its first look and broken the same
+way. It is kept apart from the day's.
 
 Measured on 60 days of real archived forecasts (`tools/replay.sh`, with
-`--no-pin` for the comparison):
+`--no-pin` for the comparison). These figures are from before 0.14.0, when
+the day was pinned at 3 AM; `tools/replay.sh` now replays the sunrise pin and
+needs a fresh run:
 
 | | Without the pin | With it |
 | --- | --- | --- |
@@ -305,12 +311,13 @@ The board sleeps between wakes and only wakes when something could change:
 
 | Period | Interval |
 | --- | --- |
-| Day Mode (by default, 3 AM until sunset) | every **60 min** |
-| Night Mode (by default, sunset until 3 AM) | every **240 min** |
+| Daylight (sunrise until Evening Mode starts) | every **60 min** |
+| Dark (Evening Mode, and Day Mode before sunrise) | every **240 min** |
 
-Plus extra wakes at the start of the day, the start of the night (which is
-also when a street-cleaning alert for the next morning goes up), and the end
-of any street-cleaning window. Green (Refresh) wakes it at any time.
+Plus extra wakes at the start of the day, at sunrise (when the day is
+pinned), at the start of the evening (which is also when a street-cleaning
+alert for the next morning goes up), and at the end of any street-cleaning
+window. Green (Refresh) wakes it at any time.
 
 With the defaults that is roughly 19 wakes a day of about 12 seconds each —
 call it 7–9 mAh a day from a 2000 mAh battery, so **months** on a charge.
@@ -324,17 +331,20 @@ air-quality request fails, the forecast still draws and AQI reads 0.
 
 ## Updates
 
-The board checks once a day for new **rules** and new **firmware**, and the
-long press of Right Nav checks right away.
+The board checks once a day for new firmware, and the long press of Right
+Nav checks right away.
 
-- **Rules** come from `shared/v3/day-outcomes.toml` on GitHub. A file that
-  doesn't pass the engine's checks is rejected and the old rules stay, so a
-  bad edit can't take a display down. A copy is also built into the firmware
-  as a fallback. Changing what the display says never needs a reflash.
+- **Rules** (`shared/v3/day-outcomes.toml`) are built into the firmware, so a
+  rules change goes out as a firmware release like any other. The tests run
+  the file through the engine before every release, and the board checks it
+  again at boot.
 - **Firmware** comes from the latest GitHub release. The board compares the
   version, downloads, checks size and checksum, writes to its spare slot, and
   only then switches over — a power cut mid-update leaves the old firmware
-  running. It never starts below 30% battery, and it always draws the screen
+  running.
+- **Signed.** Every release is signed with a key only the publisher holds,
+  and the board installs nothing that isn't signed by it. Whoever sits
+  between the board and GitHub can't slip in other firmware. It never starts below 30% battery, and it always draws the screen
   first, so a failed update never leaves a blank or stale panel.
 - **Safe mode.** If a new firmware crashes three boots in a row, the board
   stops doing anything but looking for newer firmware, shows "Updating —
@@ -343,9 +353,11 @@ long press of Right Nav checks right away.
 
 Known limits: there is no automatic rollback for firmware that runs but draws
 the wrong thing, so check a release on a bench board first. Downloads are
-encrypted but don't verify GitHub's certificate — a deliberate trade so a
-board in a drawer doesn't break when a certificate rotates; fine for a
-handful of boards among friends.
+encrypted but don't verify the server's certificate — a deliberate trade so a
+board in a drawer doesn't break when a certificate rotates. The signature
+covers firmware; the forecast and air-quality data are not covered, and
+someone on the network could feed a board a false forecast or an older signed
+release.
 
 ---
 
@@ -354,7 +366,7 @@ handful of boards among friends.
 ```
 README.md                      this file: how it works
 README-publish.md              every command: commit, publish, flash, edit the rules
-shared/v3/day-outcomes.toml    the rules: outcomes, names, wear, whimsy, night, tiles
+shared/v3/day-outcomes.toml    the rules: outcomes, names, wear, whimsy, evening, tiles
 reterminal-e1001/              firmware for both boards (E1001 and E1002)
 docs-design/                   design notes, icon sheet, layout previews
 hubitat-trmnl/, shared/*.json  the retired v1 (Hubitat + TRMNL) system

@@ -58,12 +58,12 @@ genuinely fluid, consider generating the render tables too.
 
 ## Decisions made while building (2026-09-20)
 
-- **Rules are loaded at run time.** `shared/v3/day-outcomes.json` is the spec
-  as written; `lib/dayrules` interprets it (first-match outcomes, `all`/`any`
-  conditions, banded stats, `byFailedTest` / near-threshold copy, `{token}`
-  templates). It ships on LittleFS, is embedded as a fallback, and is
-  re-fetched daily from GitHub — copy and thresholds change on every unit with
-  no firmware update.
+- **Rules are interpreted, not compiled.** `shared/v3/day-outcomes.toml` is
+  the spec as written; `lib/dayrules` interprets it (first-match outcomes,
+  `all`/`any` conditions, banded stats, `byFailedTest` / near-threshold copy,
+  `{token}` templates). It is built into the firmware as-is and ships with
+  each signed release. (Until 0.14.0 boards also re-fetched it daily from
+  GitHub; nearly every rules change needed new firmware anyway, so that went.)
 - **Fonts and icons are vector on the device.** Real Fraunces Black and Nunito
   TTFs (instanced + subset offline, 56 KB) rasterised by `stb_truetype`; icons
   are 48-unit command lists interpreted at any size. One asset per face/icon

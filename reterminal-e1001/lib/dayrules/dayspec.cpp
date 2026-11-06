@@ -34,7 +34,7 @@ const FieldDef FIELDS[] = {
   { "sunHours",       "sunRunHours" },
   { "snow",           "snowHours" },
   { "firstClearHour", "firstClearHour" },
-  { "night",          "night" },
+  { "evening",        "evening" },
 };
 
 double fieldOf(const Inputs& in, const char* canonical, bool& ok) {
@@ -51,7 +51,7 @@ double fieldOf(const Inputs& in, const char* canonical, bool& ok) {
   if (!strcmp(canonical, "cloudCoverAvgPct"))   return in.cloudCoverAvgPct;
   if (!strcmp(canonical, "sunRunHours"))        return in.sunRunHours;
   if (!strcmp(canonical, "snowHours"))          return in.snowHours;
-  if (!strcmp(canonical, "night"))              return in.night ? 1 : 0;
+  if (!strcmp(canonical, "evening"))            return in.evening ? 1 : 0;
   if (!strcmp(canonical, "firstClearHour")) {
     ok = in.hasFirstClearHour;
     return in.firstClearHour;
@@ -323,7 +323,7 @@ toml_table_t* pickBand(toml_array_t* bands, double value, const Inputs& in) {
 }
 } // namespace
 
-toml_table_t* statPart(toml_table_t* st, toml_table_t* night, int part) {
+toml_table_t* statPart(toml_table_t* st, toml_table_t* evening, int part) {
   static const char* const KEYS[SP_COUNT][4] = {
     { "label" },
     { "icon", "icon_field", "icon_bands" },
@@ -331,16 +331,16 @@ toml_table_t* statPart(toml_table_t* st, toml_table_t* night, int part) {
     { "sub_field", "sub_format", "sub_bands" },
     { "word_field", "word_bands", "word_override" },
   };
-  if (night && part >= 0 && part < SP_COUNT)
-    for (const char* k : KEYS[part]) if (k && toml_key_exists(night, k)) return night;
+  if (evening && part >= 0 && part < SP_COUNT)
+    for (const char* k : KEYS[part]) if (k && toml_key_exists(evening, k)) return evening;
   return st;
 }
 
-void Spec::resolveStat(toml_table_t* base, toml_table_t* night, const Inputs& in, Stat& out) const {
+void Spec::resolveStat(toml_table_t* base, toml_table_t* evening, const Inputs& in, Stat& out) const {
   tStr(base, "id", out.id, sizeof(out.id));
-  tStr(statPart(base, night, SP_LABEL), "label", out.label, sizeof(out.label));
+  tStr(statPart(base, evening, SP_LABEL), "label", out.label, sizeof(out.label));
 
-  toml_table_t* st = statPart(base, night, SP_ICON);
+  toml_table_t* st = statPart(base, evening, SP_ICON);
   if (!tStr(st, "icon", out.icon, sizeof(out.icon))) {
     char f[24] = "";
     double v = 0;
@@ -350,7 +350,7 @@ void Spec::resolveStat(toml_table_t* base, toml_table_t* night, const Inputs& in
     if (b) tStr(b, "icon", out.icon, sizeof(out.icon));
   }
   {
-    st = statPart(base, night, SP_VALUE);
+    st = statPart(base, evening, SP_VALUE);
     char f[24] = "", fmt[80] = "";
     double v = 0;
     tStr(st, "value_field", f, sizeof(f));
@@ -364,7 +364,7 @@ void Spec::resolveStat(toml_table_t* base, toml_table_t* night, const Inputs& in
     }
   }
   {
-    st = statPart(base, night, SP_SUB);
+    st = statPart(base, evening, SP_SUB);
     char f[24] = "", fmt[80] = "";
     double v = 0;
     if (tStr(st, "sub_field", f, sizeof(f))) {
@@ -379,7 +379,7 @@ void Spec::resolveStat(toml_table_t* base, toml_table_t* night, const Inputs& in
     }
   }
   {
-    st = statPart(base, night, SP_WORD);
+    st = statPart(base, evening, SP_WORD);
     char f[24] = "";
     double v = 0;
     tStr(st, "word_field", f, sizeof(f));
@@ -527,17 +527,17 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
                     const char* forceId) const {
   if (!valid_ || !root_) return false;
   out = Screen{};
-  out.night = in.night;
-  const char* const suffix = in.night ? " Night" : " Day";
+  out.evening = in.evening;
+  const char* const suffix = in.evening ? " Evening" : " Day";
 
   toml_array_t* outcomes = toml_array_in(root_, "outcome");
   if (!outcomes) return false;
 
   // Which beach-day test failed, for the outcome that explains itself. A
-  // beach day is a daytime thing, so a night never counts down to one.
+  // beach day is a daytime thing, so an evening never counts down to one.
   char beachFailed[24] = "";
   double beachTempThreshold = 0;
-  for (int i = 0; !in.night && i < toml_array_nelem(outcomes); i++) {
+  for (int i = 0; !in.evening && i < toml_array_nelem(outcomes); i++) {
     toml_table_t* o = toml_table_at(outcomes, i);
     bool isBeach = false;
     if (!tBool(o, "is_beach_day", isBeach) || !isBeach) continue;
@@ -574,9 +574,9 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
   // differs tomorrow, and two outcomes do not rotate in lockstep. The board
   // redraws hourly; anything random would churn under the reader.
   //
-  // A night is named after what you wear: places and things are for going
-  // out in daylight, and Kite Night is not a plan. An outcome with nothing
-  // starred keeps its whole pool, so every night still has a name.
+  // An evening is named after what you wear: places and things are for going
+  // out in daylight, and Kite Evening is not a plan. An outcome with nothing
+  // starred keeps its whole pool, so every evening still has a name.
   toml_array_t* names = toml_array_in(chosen, "names");
   toml_array_t* places = toml_array_in(chosen, "places");
   toml_array_t* things = toml_array_in(chosen, "things");
@@ -592,7 +592,7 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
   const int nThings = things ? toml_array_nelem(things) : 0;
   const int nVariants = variants ? toml_array_nelem(variants) : 0;
   const int pool = nNames + nPlaces + nThings + nStars + nVariants;
-  const bool starsOnly = in.night && nStars > 0;
+  const bool starsOnly = in.evening && nStars > 0;
 
   toml_table_t* v = nullptr;    // chosen variant table, if the pick landed on one
   int namedTile = -1;           // the starred tile the day is named after, if any
@@ -615,17 +615,17 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
 
   // A whole name written out ("Puddle Day", in `names` or a variant) still
   // says what time it is.
-  if (in.night) {
+  if (in.evening) {
     const size_t len = strlen(picked);
     if (len > 4 && !strcmp(picked + len - 4, " Day")) snprintf(picked + len - 4, sizeof(picked) - (len - 4), "%s", suffix);
   }
 
   // Anything a variant does not set falls back to the outcome, so shared
-  // values are written once. After dark the outcome's `night` table speaks
+  // values are written once. After dark the outcome's `evening` table speaks
   // first, for the lines that only make sense in daylight.
-  toml_table_t* nightTbl = in.night ? toml_table_in(chosen, "night") : nullptr;
+  toml_table_t* eveningTbl = in.evening ? toml_table_in(chosen, "evening") : nullptr;
   auto pick = [&](const char* key, char* out2, size_t n2) -> bool {
-    if (nightTbl && tStr(nightTbl, key, out2, n2)) return true;
+    if (eveningTbl && tStr(eveningTbl, key, out2, n2)) return true;
     if (v && tStr(v, key, out2, n2)) return true;
     return tStr(chosen, key, out2, n2);
   };
@@ -690,7 +690,7 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
     bool got = false;
     toml_table_t* byFailed = toml_table_in(chosen, "also_when_failed");
     if (byFailed && beachFailed[0]) got = tStr(byFailed, beachFailed, tmpl, sizeof(tmpl));
-    if (!got && !in.night) {
+    if (!got && !in.evening) {
       double within = 0;
       char near[180] = "";
       if (tNum(chosen, "also_near_beach_within", within) &&
@@ -710,19 +710,19 @@ bool Spec::evaluate(const Inputs& in, Screen& out, const char* eyebrowOverride,
   out.statCount = 0;
   for (int i = 0; stats && i < toml_array_nelem(stats) && out.statCount < 6; i++) {
     toml_table_t* st = toml_table_at(stats, i);
-    resolveStat(st, in.night ? toml_table_in(st, "night") : nullptr, in, out.stats[out.statCount++]);
+    resolveStat(st, in.evening ? toml_table_in(st, "evening") : nullptr, in, out.stats[out.statCount++]);
   }
 
-  // Header / footer. [screen.night] rewords the subline and footer after
+  // Header / footer. [screen.evening] rewords the subline and footer after
   // dark; anything it leaves out falls back to [screen].
   toml_table_t* screen = toml_table_in(root_, "screen");
-  toml_table_t* screenNight = (in.night && screen) ? toml_table_in(screen, "night") : nullptr;
+  toml_table_t* screenEvening = (in.evening && screen) ? toml_table_in(screen, "evening") : nullptr;
   auto screenStr = [&](const char* key, char* dst, size_t n) {
-    return (screenNight && tStr(screenNight, key, dst, n)) || tStr(screen, key, dst, n);
+    return (screenEvening && tStr(screenEvening, key, dst, n)) || tStr(screen, key, dst, n);
   };
   upperCpy(out.eyebrow, sizeof(out.eyebrow),
            (eyebrowOverride && eyebrowOverride[0]) ? eyebrowOverride : locationBuf_);
-  if (in.night) snprintf(out.weekday, sizeof(out.weekday), "%s night", in.weekdayName);
+  if (in.evening) snprintf(out.weekday, sizeof(out.weekday), "%s evening", in.weekdayName);
   else cpy(out.weekday, sizeof(out.weekday), in.weekdayName);
 
   {

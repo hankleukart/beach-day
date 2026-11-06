@@ -5,7 +5,6 @@
 #
 #   what:  dev      stays awake, buttons cycle the outcomes   (default)
 #          release  renders once, then deep-sleeps
-#          rules    push only shared/v3/day-outcomes.toml to the board
 #          erase    wipe saved settings (Wi-Fi, location, parking) and reflash
 #          gift     a board for someone else: erases it, flashes with no Wi-Fi
 #                   or location compiled in, and exits without the monitor so
@@ -17,8 +16,8 @@
 #
 #   e.g.  ./flash.sh dev e1002      ./flash.sh release e1002
 #
-# Firmware uploads also upload the LittleFS image, which carries the rules
-# file; the firmware falls back to a built-in copy if the image is missing.
+# The rules (shared/v3/day-outcomes.toml) are built into the firmware, so
+# every upload carries the current rules.
 #
 # If the upload can't find the board, press Green (Refresh, KEY0) to wake it
 # and run this again.
@@ -46,12 +45,11 @@ fi
 
 case "$WHAT" in
   test)    exec "$PIO" test -e native ;;
-  rules)   exec "$PIO" run -e "$RELEASE_ENV" -t uploadfs ;;
   erase)   echo "Erasing all saved settings..."; "$PIO" run -e "$RELEASE_ENV" -t erase; ENV="$RELEASE_ENV" ;;
   release) ENV="$RELEASE_ENV" ;;
   dev)     ENV="$DEV_ENV" ;;
   gift)    ENV="$GIFT_ENV"; GIFT=1 ;;
-  *)       echo "usage: $0 [dev|release|rules|erase|gift|test] [e1001|e1002]"; exit 1 ;;
+  *)       echo "usage: $0 [dev|release|erase|gift|test] [e1001|e1002]"; exit 1 ;;
 esac
 echo "==> $ENV"
 
@@ -68,7 +66,6 @@ if [ -n "${GIFT:-}" ]; then
 fi
 
 "$PIO" run -e "$ENV" -t upload
-"$PIO" run -e "$ENV" -t uploadfs
 
 if [ -n "${GIFT:-}" ]; then
   echo

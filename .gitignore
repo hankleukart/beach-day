@@ -18,9 +18,9 @@ reterminal-e1001/dist/
 # Font sources are fetched by tools/fetch_fonts.sh; only generated headers are tracked
 reterminal-e1001/tools/fonts/*.ttf
 
-# Generated at build time from shared/v3/day-outcomes.json
-reterminal-e1001/data/
+# Generated at build time by tools/pio_prebuild.py
 reterminal-e1001/src/spec_embedded.h
+reterminal-e1001/src/release_key.h
 
 # Generated layout previews (tools/preview.sh)
 reterminal-e1001/docs-design/preview/

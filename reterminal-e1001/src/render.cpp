@@ -67,10 +67,10 @@ int fitTitle(const char* title, int maxH, char lines[TITLE_MAX_LINES][160], int&
   for (int px = 66; px >= 24; px -= 2) {
     TextStyle st = T_HEADLINE; st.px = (float)px;
     int n = textWrap(st, title, avail, lines, TITLE_MAX_LINES);
-    // Keep "... Day" (or "... Night") on its own line when a short two-word name would otherwise stay on one line.
+    // Keep "... Day" (or "... Evening") on its own line when a short two-word name would otherwise stay on one line.
     if (n == 1) {
       const char* sp = strrchr(title, ' ');
-      if (sp && sp > title && (!strcmp(sp, " Day") || !strcmp(sp, " Night"))) {
+      if (sp && sp > title && (!strcmp(sp, " Day") || !strcmp(sp, " Evening"))) {
         size_t firstLen = (size_t)(sp - title);
         if (firstLen < 159) {
           memcpy(lines[0], title, firstLen); lines[0][firstLen] = '\0';
@@ -265,7 +265,7 @@ void drawRight(const ViewModel& vm) {
 
   // What to wear section
   const int headY = gridY2 + 16 + textCapHeight(T_SECTION);
-  textDraw(T_SECTION, COL_X0, headY, s.night ? "WHAT TO WEAR TONIGHT" : "WHAT TO WEAR");
+  textDraw(T_SECTION, COL_X0, headY, s.evening ? "WHAT TO WEAR OUT THIS EVENING" : "WHAT TO WEAR");
 
   const int tileY = headY + 9;
   const int tileH = 80;
@@ -305,7 +305,7 @@ void drawRight(const ViewModel& vm) {
     int fx = COL_X1 - fw;
     textDraw(T_FOOTER, fx, footerRuleY + 27, s.footer);
     IconStyle ist; ist.accents = false;
-    drawIcon(s.night ? "sunrise" : "sunset", fx - 7 - 10, footerRuleY + 22, 20, ist);
+    drawIcon(s.evening ? "sunrise" : "sunset", fx - 7 - 10, footerRuleY + 22, 20, ist);
     rightStartX = fx - 7 - 20;
   }
 
@@ -371,11 +371,11 @@ void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs&
     // Naming the window matters more here than anywhere else on the device:
     // every number below is an aggregate over exactly these hours.
     char when[64];
-    if (in.night) {
-      if (in.sunsetLocal[0] && in.sunriseLocal[0])
-        snprintf(when, sizeof(when), "%s night  \xC2\xB7  sunset %s - sunrise %s", in.weekdayName, in.sunsetLocal, in.sunriseLocal);
+    if (in.evening) {
+      if (in.sunsetLocal[0])
+        snprintf(when, sizeof(when), "%s evening  \xC2\xB7  sunset %s - midnight", in.weekdayName, in.sunsetLocal);
       else
-        snprintf(when, sizeof(when), "%s night  \xC2\xB7  no sun times", in.weekdayName);
+        snprintf(when, sizeof(when), "%s evening  \xC2\xB7  no sun times", in.weekdayName);
     } else if (in.sunriseLocal[0] && in.sunsetLocal[0]) {
       snprintf(when, sizeof(when), "%s  \xC2\xB7  %s - %s", in.weekdayName, in.sunriseLocal, in.sunsetLocal);
     } else {
@@ -402,7 +402,7 @@ void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs&
 
     int y = yTop, shown = 0;
     for (int a = h0; a <= h1 && y < yBottom; a++) {
-      const int dayIndex = day::spanDay(a), h = day::spanHour(a);    // a night crosses midnight
+      const int dayIndex = day::spanDay(a), h = day::spanHour(a);    // yesterday's evening has negative hours
       const day::HourRow* row = nullptr;
       for (int i = 0; i < raw.n; i++)
         if (raw.hours[i].day == dayIndex && raw.hours[i].hour == h) { row = &raw.hours[i]; break; }
@@ -429,7 +429,7 @@ void renderHourly(const day::Raw& raw, const day::Span& span, const day::Inputs&
       y += pitch;
       shown++;
     }
-    if (shown == 0) textDraw(CEL, 24, yTop + 12, in.night ? "No hourly rows for tonight." : "No hourly rows for this day.");
+    if (shown == 0) textDraw(CEL, 24, yTop + 12, in.evening ? "No hourly rows for this evening." : "No hourly rows for this day.");
 
     // The figures the rules actually ran on, so the summary can be checked
     // against the rows above it.

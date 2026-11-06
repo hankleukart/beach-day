@@ -36,10 +36,10 @@
 
 // ---- Wake schedule ----------------------------------------------------------
 // The board deep-sleeps between updates. It always wakes for the moments that
-// change the display (day start, night start, parking cutoff)
+// change the display (day start, sunrise, evening start, parking cutoff)
 // regardless of these intervals.
-#define CFG_WAKE_DAY_MINUTES    60     // from day start until night start
-#define CFG_WAKE_NIGHT_MINUTES  240    // overnight
+#define CFG_WAKE_DAY_MINUTES    60     // from sunrise until the evening starts
+#define CFG_WAKE_NIGHT_MINUTES  240    // while dark: the evening, and before sunrise
 #define CFG_RETRY_MINUTES       10     // after a failed fetch
 
 // ---- Street parking alerts (shared/rules.json "parkingAlert") ---------------
@@ -57,12 +57,12 @@
 #define CFG_PARKING_RIGHT_END      (10 * 60)
 
 // ---- Weekly reminder --------------------------------------------------------
-// The footer bar, for one night or one day a week - Wednesday night, from
+// The footer bar, for one evening or one day a week - Wednesday evening, from
 // sunset, by default. Street cleaning takes the bar first
 // when both are due. The setup portal can change all of these.
 #define CFG_REMINDER_ENABLED       true
 #define CFG_REMINDER_DAY           3        // Wednesday
-#define CFG_REMINDER_AT_NIGHT      true     // false: that day, from when the day starts
+#define CFG_REMINDER_AT_EVENING    true     // false: that day, from when the day starts
 #define CFG_REMINDER_TEXT          "Take your trash to the street tonight"
 
 // ---- Dev build only ---------------------------------------------------------
@@ -80,14 +80,6 @@
 #define CFG_OTA_MANIFEST_URL   "https://github.com/hankleukart/beach-day/releases/latest/download/manifest.json"
 #define CFG_OTA_CHECK_HOURS    24
 #define CFG_OTA_MIN_BATTERY_PCT 30
-
-// ---- Runtime rules ----------------------------------------------------------
-// The outcomes, criteria and copy live in shared/v3/day-outcomes.toml, loaded
-// at boot from the board's LittleFS (pio run -t uploadfs) with a built-in
-// fallback. Once a day the board re-fetches it from here, so copy and
-// thresholds change on every unit without a firmware update. "" disables.
-#define CFG_RULES_URL          "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.toml"
-#define CFG_RULES_CHECK_HOURS  24
 
 // ---- Network ----------------------------------------------------------------
 // HTTPS without certificate pinning: traffic is encrypted, the server is not

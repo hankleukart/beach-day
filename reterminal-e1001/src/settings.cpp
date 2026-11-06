@@ -23,12 +23,6 @@
 #ifndef CFG_OTA_MIN_BATTERY_PCT
 #  define CFG_OTA_MIN_BATTERY_PCT 30
 #endif
-#ifndef CFG_RULES_URL
-#  define CFG_RULES_URL "https://raw.githubusercontent.com/hankleukart/beach-day/v3-redesign/shared/v3/day-outcomes.toml"
-#endif
-#ifndef CFG_RULES_CHECK_HOURS
-#  define CFG_RULES_CHECK_HOURS 24
-#endif
 
 // Who wins when both beachday_config.h and the setup portal have Wi-Fi?
 //
@@ -66,8 +60,8 @@ static const char* NVS_NS = "beachday";
 #ifndef CFG_REMINDER_DAY
 #define CFG_REMINDER_DAY 3        // Wednesday
 #endif
-#ifndef CFG_REMINDER_AT_NIGHT
-#define CFG_REMINDER_AT_NIGHT true    // from sunset, not in the morning
+#ifndef CFG_REMINDER_AT_EVENING
+#define CFG_REMINDER_AT_EVENING true  // from the evening start, not in the day
 #endif
 #ifndef CFG_REMINDER_TEXT
 #define CFG_REMINDER_TEXT "Take your trash to the street tonight"
@@ -76,28 +70,28 @@ static const char* NVS_NS = "beachday";
 static void loadReminder(Preferences& p, beach::Reminder& r) {
   if (p.isKey("rmOn"))   r.enabled = p.getBool("rmOn", r.enabled);
   if (p.isKey("rmDay"))  r.dayOfWeek = (int8_t)p.getChar("rmDay", r.dayOfWeek);
-  if (p.isKey("rmNight")) r.atNight = p.getBool("rmNight", r.atNight);
+  if (p.isKey("rmNight")) r.atEvening = p.getBool("rmNight", r.atEvening);   // key from when it was Night
   if (p.isKey("rmText")) p.getString("rmText", r.text, sizeof(r.text));
 }
 
 static void storeReminder(Preferences& p, const beach::Reminder& r) {
   p.putBool("rmOn", r.enabled);
   p.putChar("rmDay", r.dayOfWeek);
-  p.putBool("rmNight", r.atNight);
+  p.putBool("rmNight", r.atEvening);
   p.putString("rmText", r.text);
 }
 
 // A value that is not one of the page's choices keeps the default.
 static void loadModes(Preferences& p, day::ModeStarts& m) {
   const int d = p.getShort("dayStart", m.day);
-  const int n = p.getShort("nightStart", m.night);
+  const int e = p.getShort("nightStart", m.evening);   // key from when it was Night Mode
   if (day::isModeOption(day::DAY_START_OPTIONS, d)) m.day = (int16_t)d;
-  if (day::isModeOption(day::NIGHT_START_OPTIONS, n)) m.night = (int16_t)n;
+  if (day::isModeOption(day::EVENING_START_OPTIONS, e)) m.evening = (int16_t)e;
 }
 
 static void storeModes(Preferences& p, const day::ModeStarts& m) {
   p.putShort("dayStart", m.day);
-  p.putShort("nightStart", m.night);
+  p.putShort("nightStart", m.evening);
 }
 
 // Parking rule <-> NVS. Keys are <= 15 chars as NVS requires.
@@ -160,8 +154,6 @@ const Settings& loadSettings() {
   copyStr(g.otaManifestUrl, sizeof(g.otaManifestUrl), CFG_OTA_MANIFEST_URL);
   g.otaCheckHours    = CFG_OTA_CHECK_HOURS;
   g.otaMinBatteryPct = CFG_OTA_MIN_BATTERY_PCT;
-  copyStr(g.rulesUrl, sizeof(g.rulesUrl), CFG_RULES_URL);
-  g.rulesCheckHours  = CFG_RULES_CHECK_HOURS;
 
   g.parking[0] = beach::ParkingRule{ CFG_PARKING_LEFT_ENABLED, "LEFT",
                                      beach::weeks(CFG_PARKING_LEFT_WEEKS), CFG_PARKING_LEFT_DAY,
@@ -172,7 +164,7 @@ const Settings& loadSettings() {
   g.parkingCount = 2;
   g.reminder.enabled = CFG_REMINDER_ENABLED;
   g.reminder.dayOfWeek = CFG_REMINDER_DAY;
-  g.reminder.atNight = CFG_REMINDER_AT_NIGHT;
+  g.reminder.atEvening = CFG_REMINDER_AT_EVENING;
   copyStr(g.reminder.text, sizeof(g.reminder.text), CFG_REMINDER_TEXT);
 
   // 2. NVS overrides written by the setup portal. If the portal has ever
@@ -185,7 +177,10 @@ const Settings& loadSettings() {
       prefs.getString("pass", g.password, sizeof(g.password));
       prefs.getString("locq", g.locationQuery, sizeof(g.locationQuery));
       prefs.getString("cc",   g.countryCode,   sizeof(g.countryCode));
-      if (prefs.isKey("label")) prefs.getString("label", g.locationName, sizeof(g.locationName));
+      if (prefs.isKey("label")) {
+        prefs.getString("label", g.locationName, sizeof(g.locationName));
+        copyStr(g.label, sizeof(g.label), g.locationName);
+      }
 
       if (prefs.isKey("lat") && prefs.isKey("lon")) {
         g.latitude  = prefs.getDouble("lat", 0);
@@ -219,7 +214,6 @@ const Settings& loadSettings() {
 #endif
     }
     if (prefs.isKey("otaUrl")) prefs.getString("otaUrl", g.otaManifestUrl, sizeof(g.otaManifestUrl));
-    if (prefs.isKey("rulesUrl")) prefs.getString("rulesUrl", g.rulesUrl, sizeof(g.rulesUrl));
     prefs.end();
   }
 
@@ -236,10 +230,15 @@ bool savePortalInput(const PortalInput& in) {
   prefs.putString("locq",  in.locationQuery);
   prefs.putString("cc",    in.countryCode);
   prefs.putString("label", in.label);
-  // A new place (or the same one retyped) must be geocoded afresh.
-  prefs.remove("lat");
-  prefs.remove("lon");
-  prefs.remove("geoName");
+  // A new place must be geocoded afresh; the same one keeps what it found.
+  if (in.keepPlace) {
+    prefs.putDouble("lat", in.latitude);
+    prefs.putDouble("lon", in.longitude);
+  } else {
+    prefs.remove("lat");
+    prefs.remove("lon");
+    prefs.remove("geoName");
+  }
   storeParkingRule(prefs, "L", in.parking[0]);
   storeParkingRule(prefs, "R", in.parking[1]);
   storeReminder(prefs, in.reminder);

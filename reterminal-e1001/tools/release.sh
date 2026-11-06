@@ -12,6 +12,11 @@
 # Bump FIRMWARE_VERSION in src/version.h first. Devices compare that string
 # against the manifest's "version" and update when they differ, so publishing
 # without bumping it does nothing.
+#
+# Every release is signed with the private key at $BEACHDAY_SIGNING_KEY
+# (default ~/.config/beachday/release-signing-key.pem, made once by
+# tools/make-signing-key.sh). Boards refuse an update without a valid
+# signature from it.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -30,13 +35,18 @@ ASSET="beachday-reterminal-$VERSION.bin"
 OUT=dist
 BIN=.pio/build/$BUILD_ENV/firmware.bin
 
+KEY="${BEACHDAY_SIGNING_KEY:-$HOME/.config/beachday/release-signing-key.pem}"
+PUB=keys/release-signing.pub.pem
+[ -f "$KEY" ] || { echo "No signing key at $KEY: boards would refuse this release. Restore it from your backup (or see tools/make-signing-key.sh)."; exit 1; }
+[ -f "$PUB" ] || { echo "Missing $PUB"; exit 1; }
+
 echo "==> Version $VERSION, both panels  (repo $REPO, tag $TAG)"
 
 # Refuse to ship firmware whose logic has not been checked.
 echo "==> Running the rules tests"
 "$PIO" test -e native
 
-echo "==> Building the release firmware (rules are embedded as the fallback copy)"
+echo "==> Building the release firmware (the rules are built in)"
 "$PIO" run -e "$BUILD_ENV"
 
 # This file goes on a public release. Refuse it if it holds the config file's
@@ -58,6 +68,21 @@ cp "$BIN" "$OUT/$ASSET"
 SIZE=$(wc -c < "$OUT/$ASSET" | tr -d ' ')
 MD5=$(md5 -q "$OUT/$ASSET" 2>/dev/null || md5sum "$OUT/$ASSET" | cut -d' ' -f1)
 
+# Sign, then prove the boards will accept it: the signature must check out
+# against the public key in the repo, and that key must be the one this
+# firmware was built with (so the NEXT release is checked against it too).
+openssl dgst -sha256 -sign "$KEY" -out "$OUT/$ASSET.sig" "$OUT/$ASSET"
+openssl dgst -sha256 -verify "$PUB" -signature "$OUT/$ASSET.sig" "$OUT/$ASSET" >/dev/null \
+  || { echo "STOP: $KEY does not match $PUB - boards would refuse this. Not releasing."; exit 1; }
+while IFS= read -r line; do
+  case "$line" in -----*|"") continue ;; esac
+  LC_ALL=C grep -aqF -- "$line" "$BIN" \
+    || { echo "STOP: the firmware was not built with $PUB. Not releasing."; exit 1; }
+done < "$PUB"
+SIG=$(openssl base64 -A -in "$OUT/$ASSET.sig")
+rm "$OUT/$ASSET.sig"
+echo "==> Signed; the signature checks out against $PUB"
+
 NOTES="${RELEASE_NOTES:-$(git log -1 --pretty=%s)}"
 
 cat > "$OUT/manifest.json" <<JSON
@@ -66,6 +91,7 @@ cat > "$OUT/manifest.json" <<JSON
   "url": "https://github.com/$REPO/releases/download/$TAG/$ASSET",
   "md5": "$MD5",
   "size": $SIZE,
+  "sig": "$SIG",
   "notes": "$NOTES"
 }
 JSON
@@ -78,6 +104,7 @@ if [ "${1:-}" = "--publish" ]; then
   # The tag must name the commit this binary was built from. Without
   # --target, gh tags the default branch (main), not this branch.
   git diff --quiet HEAD -- || { echo "Uncommitted changes: commit before publishing"; exit 1; }
+  git ls-files --error-unmatch "$PUB" >/dev/null 2>&1 || { echo "$PUB is not committed: commit it before publishing"; exit 1; }
   COMMIT=$(git rev-parse HEAD)
   git merge-base --is-ancestor "$COMMIT" "@{u}" 2>/dev/null \
     || { echo "HEAD is not pushed: git push first, so the tag has a commit to point at"; exit 1; }

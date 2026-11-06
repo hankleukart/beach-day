@@ -10,6 +10,7 @@
 #include "dayspec.h"
 #include "derive.h"
 #include "reminder.h"
+#include "portalform.h"
 
 #ifndef DAYRULES_SPEC_PATH
 #define DAYRULES_SPEC_PATH "../shared/v3/day-outcomes.toml"
@@ -36,10 +37,10 @@ static day::Inputs base() {
   return in;
 }
 
-static const day::Screen& run(const day::Inputs& in0, bool night = false, const char* eyebrow = nullptr) {
+static const day::Screen& run(const day::Inputs& in0, bool evening = false, const char* eyebrow = nullptr) {
   static day::Screen s;
   day::Inputs in = in0;
-  in.night = night;
+  in.evening = evening;
   TEST_ASSERT_TRUE_MESSAGE(spec.evaluate(in, s, eyebrow), "evaluate failed");
   return s;
 }
@@ -700,14 +701,14 @@ void test_reminder_shows_on_its_day() {
   beach::Reminder r;
   r.enabled = true; r.dayOfWeek = 3;
   snprintf(r.text, sizeof(r.text), "Take your trash to the street tonight");
-  TEST_ASSERT_TRUE_MESSAGE(r.atNight, "Wednesday night by default");
-  TEST_ASSERT_TRUE(beach::reminderActive(r, 3, true));          // Wednesday night
+  TEST_ASSERT_TRUE_MESSAGE(r.atEvening, "Wednesday evening by default");
+  TEST_ASSERT_TRUE(beach::reminderActive(r, 3, true));          // Wednesday evening
   TEST_ASSERT_FALSE_MESSAGE(beach::reminderActive(r, 3, false), "not Wednesday's day");
-  TEST_ASSERT_FALSE(beach::reminderActive(r, 4, true));         // Thursday night
-  r.atNight = false;                                            // the morning instead
+  TEST_ASSERT_FALSE(beach::reminderActive(r, 4, true));         // Thursday evening
+  r.atEvening = false;                                            // the morning instead
   TEST_ASSERT_TRUE(beach::reminderActive(r, 3, false));
   TEST_ASSERT_FALSE(beach::reminderActive(r, 3, true));
-  r.atNight = true;
+  r.atEvening = true;
   r.enabled = false;
   TEST_ASSERT_FALSE(beach::reminderActive(r, 3, true));
   r.enabled = true; r.text[0] = '\0';
@@ -728,7 +729,7 @@ void test_street_cleaning_takes_the_bar_first() {
 }
 
 // Street cleaning on a Thursday morning goes up Wednesday at sunset, the same
-// moment the screen turns to night.
+// moment the screen turns to evening.
 void test_street_cleaning_starts_at_sunset() {
   const beach::ParkingRule rule{ true, "LEFT", beach::weeks({ 1, 2, 3, 4, 5 }), 4, 8 * 60, 10 * 60 };
   beach::ParkingInput in{ 0, 3, 17, 4, 18, 19 * 60 + 8 };   // Wednesday, sunset 7:08 PM
@@ -742,14 +743,14 @@ void test_street_cleaning_starts_at_sunset() {
   in.nowMinutes = 19 * 60 + 30;
   TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
 
-  // It moves with the night: 30 minutes either side of a 7:08 PM sunset.
+  // It moves with the evening: 30 minutes either side of a 7:08 PM sunset.
   in.sunsetMinutes = 19 * 60 + 8;
-  in.nightOffsetMin = 30;
+  in.eveningOffsetMin = 30;
   in.nowMinutes = 19 * 60 + 37;
   TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
   in.nowMinutes = 19 * 60 + 38;
   TEST_ASSERT_TRUE(beach::evaluateParking(&rule, 1, in).active);
-  in.nightOffsetMin = -30;
+  in.eveningOffsetMin = -30;
   in.nowMinutes = 18 * 60 + 37;
   TEST_ASSERT_FALSE(beach::evaluateParking(&rule, 1, in).active);
   in.nowMinutes = 18 * 60 + 38;
@@ -806,24 +807,24 @@ void test_hero_panel_and_colour() {
   TEST_ASSERT_TRUE_MESSAGE(sc.outcome.heroLight, "falls back to screen.hero_panel_default");
 }
 
-void test_eyebrow_and_night() {
+void test_eyebrow_and_evening() {
   auto in = base();
   snprintf(in.sunriseLocal, sizeof(in.sunriseLocal), "6:40 AM");
   const day::Screen& d = run(in, false, "Cambridge");
   TEST_ASSERT_EQUAL_STRING("CAMBRIDGE", d.eyebrow);
   TEST_ASSERT_EQUAL_STRING("Wednesday", d.weekday);
   TEST_ASSERT_EQUAL_STRING("Sunset 7:08 PM", d.footer);
-  TEST_ASSERT_FALSE(d.night);
+  TEST_ASSERT_FALSE(d.evening);
   const day::Screen& n = run(in, true);
-  TEST_ASSERT_TRUE(n.night);
-  TEST_ASSERT_EQUAL_STRING("Wednesday night", n.weekday);
+  TEST_ASSERT_TRUE(n.evening);
+  TEST_ASSERT_EQUAL_STRING("Wednesday evening", n.weekday);
   TEST_ASSERT_EQUAL_STRING("Sunrise 6:40 AM", n.footer);
-  TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 down to 62\xC2\xB0 by sunrise", n.subline);
+  TEST_ASSERT_EQUAL_STRING("Clear sky \xC2\xB7 down to 62\xC2\xB0 by midnight", n.subline);
 }
 
-// A night is named after what you wear. Places and things are for daylight,
+// An evening is named after what you wear. Places and things are for daylight,
 // and stand in only when an outcome has nothing starred.
-void test_night_names() {
+void test_evening_names() {
   day::Spec sp; day::Screen sc; char err[200];
   std::string t = also(namedByWear("\"Rain boots\" = { icon = \"sun\" }", "[\"*Rain boots\", \"a\", \"a\", \"a\"]"),
                        "tagline = \"T\"", "tagline = \"T\"\nplaces = [\"Beach\"]\nthings = [\"Kite\"]");
@@ -833,34 +834,34 @@ void test_night_names() {
     auto in = base(); in.epochDay = 20621 + d;
     TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
     if (strcmp(sc.outcome.title, "Rain Boots Day")) sawPlace = true;
-    in.night = true;
+    in.evening = true;
     TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
-    TEST_ASSERT_EQUAL_STRING("Rain Boots Night", sc.outcome.title);
+    TEST_ASSERT_EQUAL_STRING("Rain Boots Evening", sc.outcome.title);
     TEST_ASSERT_EQUAL_STRING("sun", sc.outcome.heroIcon);
   }
   TEST_ASSERT_TRUE_MESSAGE(sawPlace, "days still use places and things");
 
-  // Nothing starred: the place or thing names the night after all.
+  // Nothing starred: the place or thing names the evening after all.
   t = specWith("names = [\"Only Day\"]", "places = [\"Beach\"]");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-  auto in = base(); in.night = true;
+  auto in = base(); in.evening = true;
   TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
-  TEST_ASSERT_EQUAL_STRING("Beach Night", sc.outcome.title);
+  TEST_ASSERT_EQUAL_STRING("Beach Evening", sc.outcome.title);
 
-  // A whole name written out says Night too.
+  // A whole name written out says Evening too.
   t = specWith("", "");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
-  TEST_ASSERT_EQUAL_STRING("Only Night", sc.outcome.title);
+  TEST_ASSERT_EQUAL_STRING("Only Evening", sc.outcome.title);
 }
 
-// `night` tables reword after dark and fall back to the day for anything
-// they leave out; `night` is a field the conditions can test.
-void test_night_wording() {
+// `evening` tables reword after dark and fall back to the day for anything
+// they leave out; `evening` is a field the conditions can test.
+void test_evening_wording() {
   day::Spec sp; day::Screen sc; char err[200];
-  std::string t = also(specWith("also = \"grab\"", "also = \"grab\"\nnight = { also = \"night grab\" }"),
+  std::string t = also(specWith("also = \"grab\"", "also = \"grab\"\nevening = { also = \"evening grab\" }"),
                        "word_bands = [ { max = 200, text = \"w\" } ]",
-                       "word_bands = [ { max = 200, text = \"w\" } ]\n\n[stat.night]\nlabel = \"N\"\n"
+                       "word_bands = [ { max = 200, text = \"w\" } ]\n\n[stat.evening]\nlabel = \"N\"\n"
                        "word_field = \"tempMin\"\nword_bands = [ { max = 200, text = \"nw\" } ]\n");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
   auto in = base();
@@ -868,43 +869,45 @@ void test_night_wording() {
   TEST_ASSERT_EQUAL_STRING("grab", sc.outcome.alsoGrab);
   TEST_ASSERT_EQUAL_STRING("S", sc.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("w", sc.stats[0].word);
-  in.night = true;
+  in.evening = true;
   TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
-  TEST_ASSERT_EQUAL_STRING("night grab", sc.outcome.alsoGrab);
-  TEST_ASSERT_EQUAL_STRING("T", sc.outcome.tagline);                  // not in the night table: the day's
+  TEST_ASSERT_EQUAL_STRING("evening grab", sc.outcome.alsoGrab);
+  TEST_ASSERT_EQUAL_STRING("T", sc.outcome.tagline);                  // not in the evening table: the day's
   TEST_ASSERT_EQUAL_STRING("N", sc.stats[0].label);
   TEST_ASSERT_EQUAL_STRING("nw", sc.stats[0].word);
   TEST_ASSERT_EQUAL_STRING("84", sc.stats[0].value);                  // value part untouched
 
-  // A day-only outcome steps aside at night.
+  // A day-only outcome steps aside at evening.
   t = specWith("[[outcome]]\nid = \"only\"",
-               "[[outcome]]\nid = \"sunny\"\nwhen = [\"night = 0\"]\nnames = [\"Sunny Day\"]\ntagline = \"T\"\n"
+               "[[outcome]]\nid = \"sunny\"\nwhen = [\"evening = 0\"]\nnames = [\"Sunny Day\"]\ntagline = \"T\"\n"
                "icon = \"sun\"\nwear = [\"a\", \"a\", \"a\", \"a\"]\n\n[[outcome]]\nid = \"only\"");
   TEST_ASSERT_TRUE_MESSAGE(sp.load(t.c_str(), t.size(), err, sizeof(err)), err);
-  in.night = false;
+  in.evening = false;
   TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("sunny", sc.outcome.id);
-  in.night = true;
+  in.evening = true;
   TEST_ASSERT_TRUE(sp.evaluate(in, sc, nullptr));
   TEST_ASSERT_EQUAL_STRING("only", sc.outcome.id);
 
-  rejects("night table rewording the wear", specWith("also = \"grab\"", "also = \"grab\"\nnight = { wear = [\"a\"] }"));
-  rejects("night tagline too long", specWith("also = \"grab\"", "also = \"grab\"\nnight = { tagline = \"" + std::string(40, 'X') + "\" }"));
-  rejects("stat night with a stray key",
-          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.night]\nlabl = \"N\"\n"));
-  rejects("stat night with an unknown field",
+  rejects("evening table rewording the wear", specWith("also = \"grab\"", "also = \"grab\"\nevening = { wear = [\"a\"] }"));
+  rejects("evening tagline too long", specWith("also = \"grab\"", "also = \"grab\"\nevening = { tagline = \"" + std::string(40, 'X') + "\" }"));
+  rejects("stat evening with a stray key",
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.evening]\nlabl = \"N\"\n"));
+  rejects("stat evening with an unknown field",
           specWith("word_bands = [ { max = 200, text = \"w\" } ]",
-                   "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.night]\nword_field = \"moonlight\"\nword_bands = [ { max = 1, text = \"x\" } ]\n"));
-  rejects("screen night with a stray key", specWith("", "") + "\n[screen.night]\neyebrow = \"X\"\n");
+                   "word_bands = [ { max = 200, text = \"w\" } ]\n[stat.evening]\nword_field = \"moonlight\"\nword_bands = [ { max = 1, text = \"x\" } ]\n"));
+  rejects("screen evening with a stray key", specWith("", "") + "\n[screen.evening]\neyebrow = \"X\"\n");
+  rejects("a tile word too long for the tile",
+          specWith("word_bands = [ { max = 200, text = \"w\" } ]", "word_bands = [ { max = 200, text = \"" + std::string(20, 'w') + "\" } ]"));
 }
 
-// The real rules after dark: every square named for the night, nothing for
+// The real rules after dark: every square named for the evening, nothing for
 // the sun on a clear one, and the sky in place of the sun tile.
-void test_real_rules_at_night() {
+void test_real_rules_at_evening() {
   for (double t : { 85.0, 70.0, 57.0, 40.0, 20.0 }) {
     for (int cond = 0; cond < 6; cond++) {
       auto in = quiet(t);
-      in.night = true;
+      in.evening = true;
       if (cond == 0) in.snowHours = 2;
       if (cond == 1) in.precipChanceMaxPct = 80;
       if (cond == 2) in.windMaxMph = 25;
@@ -915,7 +918,7 @@ void test_real_rules_at_night() {
         const day::Screen& sc = run(in, true);
         const char* title = sc.outcome.title;
         size_t len = strlen(title);
-        TEST_ASSERT_TRUE_MESSAGE(len > 6 && !strcmp(title + len - 6, " Night"), title);
+        TEST_ASSERT_TRUE_MESSAGE(len > 8 && !strcmp(title + len - 8, " Evening"), title);
         TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.id, "sunny"), sc.outcome.id);
         for (int w = 0; w < sc.outcome.wearCount; w++) {
           TEST_ASSERT_NULL_MESSAGE(strstr(sc.outcome.wear[w].label, "Sunscreen"), sc.outcome.id);
@@ -986,73 +989,122 @@ void test_daylight_hours() {
   TEST_ASSERT_EQUAL_INT(day::FALLBACK_END_HOUR, h1);
 }
 
-// The defaults: day from 3 AM until sunset, night from sunset until 3 AM.
-void test_day_and_night_on_screen() {
+// Saving the setup page without touching a field must not lose that field.
+void test_setup_page_keeps_what_was_not_changed() {
+  // Same network, blank box: keep the saved password.
+  TEST_ASSERT_TRUE(beach::keepSavedPassword("", "HomeNet", "HomeNet"));
+  // A typed password always wins.
+  TEST_ASSERT_FALSE(beach::keepSavedPassword("new-pass", "HomeNet", "HomeNet"));
+  // Another network, blank box: an open network, never the old password.
+  TEST_ASSERT_FALSE(beach::keepSavedPassword("", "CafeWifi", "HomeNet"));
+  TEST_ASSERT_FALSE(beach::keepSavedPassword("", "", ""));
+
+  // Same place and country: no new lookup.
+  TEST_ASSERT_TRUE(beach::keepSavedPlace(true, "90291", "90291", "US", "US"));
+  // A changed place or country is looked up.
+  TEST_ASSERT_FALSE(beach::keepSavedPlace(true, "90401", "90291", "US", "US"));
+  TEST_ASSERT_FALSE(beach::keepSavedPlace(true, "90291", "90291", "CA", "US"));
+  // A place that never resolved gets another try.
+  TEST_ASSERT_FALSE(beach::keepSavedPlace(false, "90291", "90291", "US", "US"));
+}
+
+// The defaults: day from midnight until sunset, evening from sunset until
+// midnight.
+void test_day_and_evening_on_screen() {
   const day::ModeStarts t;
   day::DayMeta m; m.valid = true; m.sunriseMin = 6 * 60 + 38; m.sunsetMin = 19 * 60 + 8;
-  TEST_ASSERT_TRUE_MESSAGE(day::isNight(0, m, t), "midnight");
-  TEST_ASSERT_TRUE_MESSAGE(day::isNight(2 * 60 + 59, m, t), "2:59 AM");
-  TEST_ASSERT_FALSE_MESSAGE(day::isNight(3 * 60, m, t), "3 AM");
-  TEST_ASSERT_FALSE_MESSAGE(day::isNight(5 * 60, m, t), "before sunrise is already the day");
-  TEST_ASSERT_FALSE_MESSAGE(day::isNight(19 * 60 + 7, m, t), "a minute before sunset");
-  TEST_ASSERT_TRUE_MESSAGE(day::isNight(19 * 60 + 8, m, t), "at sunset");
-  TEST_ASSERT_TRUE_MESSAGE(day::isNight(23 * 60 + 59, m, t), "last minute of the date");
+  TEST_ASSERT_FALSE_MESSAGE(day::isEvening(0, m, t), "midnight is the day");
+  TEST_ASSERT_FALSE_MESSAGE(day::isEvening(2 * 60 + 59, m, t), "2:59 AM");
+  TEST_ASSERT_FALSE_MESSAGE(day::isEvening(5 * 60, m, t), "before sunrise is already the day");
+  TEST_ASSERT_FALSE_MESSAGE(day::isEvening(19 * 60 + 7, m, t), "a minute before sunset");
+  TEST_ASSERT_TRUE_MESSAGE(day::isEvening(19 * 60 + 8, m, t), "at sunset");
+  TEST_ASSERT_TRUE_MESSAGE(day::isEvening(23 * 60 + 59, m, t), "last minute of the date");
   day::DayMeta none;
-  TEST_ASSERT_FALSE_MESSAGE(day::isNight(23 * 60, none, t), "no sun times, no night");
-  TEST_ASSERT_FALSE(day::isNight(60, none, t));
+  TEST_ASSERT_FALSE_MESSAGE(day::isEvening(23 * 60, none, t), "no sun times, no evening");
+  TEST_ASSERT_FALSE(day::isEvening(60, none, t));
+}
+
+// The day is decided at sunrise, not when Day Mode starts: until then the
+// screen follows the forecast. Without sun times, at 6 AM.
+void test_day_is_pinned_at_sunrise() {
+  day::DayMeta m; m.valid = true; m.sunriseMin = 6 * 60 + 38; m.sunsetMin = 19 * 60 + 8;
+  TEST_ASSERT_FALSE_MESSAGE(day::dayPinnable(0, m), "midnight");
+  TEST_ASSERT_FALSE_MESSAGE(day::dayPinnable(6 * 60 + 37, m), "a minute before sunrise");
+  TEST_ASSERT_TRUE_MESSAGE(day::dayPinnable(6 * 60 + 38, m), "at sunrise");
+  TEST_ASSERT_TRUE(day::dayPinnable(15 * 60, m));
+  day::DayMeta none;
+  TEST_ASSERT_FALSE(day::dayPinnable(5 * 60 + 59, none));
+  TEST_ASSERT_TRUE(day::dayPinnable(6 * 60, none));
+
+  // Through the engine: a 2 AM look shows the live outcome and pins nothing;
+  // the sunrise look pins; a later look holds it.
+  day::Spec sp; char err[200];
+  const std::string text = specWith("", "");
+  TEST_ASSERT_TRUE_MESSAGE(sp.load(text.c_str(), text.size(), err, sizeof(err)), err);
+  const char* id = sp.outcomeId(0);
+  day::DayPin pin; char show[24];
+  TEST_ASSERT_FALSE(day::resolvePin(sp, pin, 20621, day::dayPinnable(2 * 60, m), id, show, sizeof(show)));
+  TEST_ASSERT_EQUAL_STRING(id, show);
+  TEST_ASSERT_EQUAL_INT(-1, (int)pin.epochDay);
+  TEST_ASSERT_TRUE(day::resolvePin(sp, pin, 20621, day::dayPinnable(6 * 60 + 39, m), id, show, sizeof(show)));
+  TEST_ASSERT_EQUAL_INT(20621, (int)pin.epochDay);
+  TEST_ASSERT_EQUAL_STRING(id, pin.id);
 }
 
 // Every choice on the setup page lands where its label says.
 void test_mode_start_options() {
   day::DayMeta m; m.valid = true; m.sunriseMin = 6 * 60 + 38; m.sunsetMin = 19 * 60 + 8;
   TEST_ASSERT_EQUAL_INT(6, (int)(sizeof(day::DAY_START_OPTIONS) / sizeof(day::DAY_START_OPTIONS[0])));
-  TEST_ASSERT_EQUAL_INT(3, (int)(sizeof(day::NIGHT_START_OPTIONS) / sizeof(day::NIGHT_START_OPTIONS[0])));
+  TEST_ASSERT_EQUAL_INT(3, (int)(sizeof(day::EVENING_START_OPTIONS) / sizeof(day::EVENING_START_OPTIONS[0])));
   const struct { const char* label; int minute; } days[] = {
-    { "3:00 AM", 3 * 60 }, { "Sunrise", 6 * 60 + 38 }, { "Sunrise - 30m", 6 * 60 + 8 },
+    { "Midnight", 0 }, { "Sunrise", 6 * 60 + 38 }, { "Sunrise - 30m", 6 * 60 + 8 },
     { "Sunrise - 1h", 5 * 60 + 38 }, { "Sunrise - 2h", 4 * 60 + 38 }, { "Sunrise - 3h", 3 * 60 + 38 },
   };
   for (int i = 0; i < 6; i++) {
     day::ModeStarts t; t.day = day::DAY_START_OPTIONS[i].value;
     TEST_ASSERT_EQUAL_STRING(days[i].label, day::DAY_START_OPTIONS[i].label);
     TEST_ASSERT_EQUAL_INT(days[i].minute, day::dayStartMinute(t, m));
-    TEST_ASSERT_TRUE_MESSAGE(day::isNight(days[i].minute - 1, m, t), days[i].label);
-    TEST_ASSERT_FALSE_MESSAGE(day::isNight(days[i].minute, m, t), days[i].label);
+    TEST_ASSERT_FALSE_MESSAGE(day::isEvening(days[i].minute, m, t), days[i].label);
+    // A start after midnight leaves the evening on screen until then.
+    if (days[i].minute > 0) TEST_ASSERT_TRUE_MESSAGE(day::isEvening(days[i].minute - 1, m, t), days[i].label);
   }
-  const struct { const char* label; int minute; } nights[] = {
+  const struct { const char* label; int minute; } evenings[] = {
     { "Sunset", 19 * 60 + 8 }, { "Sunset - 30m", 18 * 60 + 38 }, { "Sunset + 30m", 19 * 60 + 38 },
   };
   for (int i = 0; i < 3; i++) {
-    day::ModeStarts t; t.night = day::NIGHT_START_OPTIONS[i].value;
-    TEST_ASSERT_EQUAL_STRING(nights[i].label, day::NIGHT_START_OPTIONS[i].label);
-    TEST_ASSERT_EQUAL_INT(nights[i].minute, day::nightStartMinute(t, m));
-    TEST_ASSERT_FALSE_MESSAGE(day::isNight(nights[i].minute - 1, m, t), nights[i].label);
-    TEST_ASSERT_TRUE_MESSAGE(day::isNight(nights[i].minute, m, t), nights[i].label);
+    day::ModeStarts t; t.evening = day::EVENING_START_OPTIONS[i].value;
+    TEST_ASSERT_EQUAL_STRING(evenings[i].label, day::EVENING_START_OPTIONS[i].label);
+    TEST_ASSERT_EQUAL_INT(evenings[i].minute, day::eveningStartMinute(t, m));
+    TEST_ASSERT_FALSE_MESSAGE(day::isEvening(evenings[i].minute - 1, m, t), evenings[i].label);
+    TEST_ASSERT_TRUE_MESSAGE(day::isEvening(evenings[i].minute, m, t), evenings[i].label);
   }
 
   // The defaults are the first choice of each.
   const day::ModeStarts dflt;
   TEST_ASSERT_EQUAL_INT(day::DAY_START_OPTIONS[0].value, dflt.day);
-  TEST_ASSERT_EQUAL_INT(day::NIGHT_START_OPTIONS[0].value, dflt.night);
+  TEST_ASSERT_EQUAL_INT(day::EVENING_START_OPTIONS[0].value, dflt.evening);
 
-  // Saved values outside the page's choices are refused; a late sunset stays on the date.
+  // Saved values outside the page's choices are refused - including 1, which
+  // was "3:00 AM" before 0.14.0 - and a late sunset stays on the date.
+  TEST_ASSERT_FALSE(day::isModeOption(day::DAY_START_OPTIONS, 1));
   TEST_ASSERT_FALSE(day::isModeOption(day::DAY_START_OPTIONS, -45));
-  TEST_ASSERT_FALSE(day::isModeOption(day::NIGHT_START_OPTIONS, 60));
-  day::ModeStarts late; late.night = 30;
+  TEST_ASSERT_FALSE(day::isModeOption(day::EVENING_START_OPTIONS, 60));
+  day::ModeStarts late; late.evening = 30;
   m.sunsetMin = 23 * 60 + 50;
-  TEST_ASSERT_EQUAL_INT(1439, day::nightStartMinute(late, m));
+  TEST_ASSERT_EQUAL_INT(1439, day::eveningStartMinute(late, m));
 
-  // Moving the switch does not move the hours a night reads.
+  // Moving the switch does not move the hours an evening reads.
   day::Raw raw;
   raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8;
   raw.day[1] = raw.day[0];
-  const day::Span sp = day::nightSpan(raw, 19 * 60 + 38);
+  const day::Span sp = day::eveningSpan(raw, 19 * 60 + 38);
   TEST_ASSERT_EQUAL_INT(19, sp.a0);
-  TEST_ASSERT_EQUAL_INT(30, sp.a1);
+  TEST_ASSERT_EQUAL_INT(23, sp.a1);
 }
 
-// A night is one fixed run of hours across midnight: the hour holding sunset
-// through the hour holding the next sunrise - the same at 9 PM as at 2 AM.
-void test_night_span() {
+// An evening is one fixed run of hours: the hour holding sunset through the
+// 11 PM hour - the same at 7:30 PM as at 11:50 PM. Nothing after midnight.
+void test_evening_span() {
   day::Raw raw;
   raw.prev.valid = true;   raw.prev.sunriseMin = 6 * 60 + 36;   raw.prev.sunsetMin = 19 * 60 + 10;
   raw.day[0].valid = true; raw.day[0].sunriseMin = 6 * 60 + 38; raw.day[0].sunsetMin = 19 * 60 + 8;
@@ -1061,49 +1113,49 @@ void test_night_span() {
   auto add = [&](int d, int h, double t, int pp, int cloud) {
     raw.hours[n++] = day::HourRow{ (int8_t)d, (int8_t)h, t, 5, 70, (int16_t)pp, (int16_t)cloud, 0 };
   };
-  add(-1, 18, 75, 0, 0);      // yesterday before sunset: not last night
-  add(-1, 19, 64, 0, 80);     // last night begins (sunset 7:10 PM)
+  add(-1, 18, 75, 0, 0);      // yesterday before sunset: not yesterday's evening
+  add(-1, 19, 64, 0, 80);     // yesterday's evening begins (sunset 7:10 PM)
   add(-1, 23, 58, 60, 80);
-  add(0, 3, 52, 0, 80);
+  add(0, 0, 54, 90, 80);      // after midnight: no evening's
   add(0, 6, 51, 0, 80);       // the hour holding today's sunrise
-  add(0, 7, 53, 0, 80);       // after sunrise: not last night
-  add(0, 14, 90, 0, 0);       // the afternoon: no night's
+  add(0, 14, 90, 0, 0);       // the afternoon: no evening's
   add(0, 18, 72, 0, 0);       // before sunset: not tonight
   add(0, 19, 68, 0, 80);      // tonight begins (sunset 7:08 PM)
-  add(0, 21, 66, 0, 80);
-  add(0, 23, 60, 40, 10);
-  add(1, 1, 55, 50, 10);
-  add(1, 6, 50, 0, 80);
-  add(1, 7, 49, 0, 80);       // after sunrise: not tonight
+  add(0, 21, 66, 30, 10);
+  add(0, 22, 63, 40, 10);
+  add(0, 23, 60, 40, 80);     // the last hour of the evening
+  add(1, 0, 45, 90, 10);      // midnight: tomorrow, not tonight
+  add(1, 6, 44, 0, 80);
   raw.n = n;
 
   // Tonight, the same whether it is looked at early or late in the evening.
-  day::Span sp = day::nightSpan(raw, 19 * 60 + 40);
+  day::Span sp = day::eveningSpan(raw, 19 * 60 + 40);
   TEST_ASSERT_EQUAL_INT(19, sp.a0);
-  TEST_ASSERT_EQUAL_INT(30, sp.a1);                                   // 6 AM tomorrow
-  sp = day::nightSpan(raw, 23 * 60 + 50);
+  TEST_ASSERT_EQUAL_INT(23, sp.a1);
+  sp = day::eveningSpan(raw, 23 * 60 + 50);
   TEST_ASSERT_EQUAL_INT(19, sp.a0);
-  TEST_ASSERT_EQUAL_INT(30, sp.a1);
+  TEST_ASSERT_EQUAL_INT(23, sp.a1);
   day::Inputs in;
   day::derive(raw, sp, 4, in);
-  TEST_ASSERT_EQUAL_INT(50, (int)in.tempMinF);
-  TEST_ASSERT_EQUAL_INT(68, (int)in.tempMaxF);                        // the 7pm row, though it is now 11:50
-  TEST_ASSERT_EQUAL_INT(23, in.rainStartHour);                        // clock hours, across midnight
-  TEST_ASSERT_EQUAL_INT(1, in.rainEndHour);
-  TEST_ASSERT_EQUAL_INT(1, (int)in.sunRunHours);                      // no midnight row: the run breaks
-  TEST_ASSERT_EQUAL_STRING("6:40 AM", in.sunriseLocal);              // tomorrow's
+  TEST_ASSERT_EQUAL_INT(60, (int)in.tempMinF);                        // the 11pm row, not the colder midnight
+  TEST_ASSERT_EQUAL_INT(68, (int)in.tempMaxF);
+  TEST_ASSERT_EQUAL_INT(40, (int)in.precipChanceMaxPct);              // midnight's 90% is tomorrow's
+  TEST_ASSERT_EQUAL_INT(21, in.rainStartHour);                        // 9 PM: 30% is over the 20% line
+  TEST_ASSERT_EQUAL_INT(23, in.rainEndHour);
+  TEST_ASSERT_EQUAL_INT(2, (int)in.sunRunHours);                      // 9 and 10 PM
+  TEST_ASSERT_EQUAL_STRING("6:40 AM", in.sunriseLocal);              // tomorrow's, for the footer
   TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);               // tonight's
 
-  // Before 3 AM it is still last night, from yesterday's sunset.
-  sp = day::nightSpan(raw, 2 * 60 + 5);
+  // With a Day Mode start after midnight, 2 AM still shows yesterday's evening.
+  sp = day::eveningSpan(raw, 2 * 60 + 5);
   TEST_ASSERT_EQUAL_INT(-5, sp.a0);                                   // 7 PM yesterday
-  TEST_ASSERT_EQUAL_INT(6, sp.a1);
+  TEST_ASSERT_EQUAL_INT(-1, sp.a1);                                   // 11 PM yesterday
   day::derive(raw, sp, 3, in);
-  TEST_ASSERT_EQUAL_INT(51, (int)in.tempMinF);
+  TEST_ASSERT_EQUAL_INT(58, (int)in.tempMinF);
   TEST_ASSERT_EQUAL_INT(64, (int)in.tempMaxF);
-  TEST_ASSERT_EQUAL_INT(23, in.rainStartHour);
+  TEST_ASSERT_EQUAL_INT(60, (int)in.precipChanceMaxPct);
   TEST_ASSERT_EQUAL_STRING("7:10 PM", in.sunsetLocal);               // yesterday's
-  TEST_ASSERT_EQUAL_STRING("6:38 AM", in.sunriseLocal);              // today's
+  TEST_ASSERT_EQUAL_STRING("6:38 AM", in.sunriseLocal);              // today's: the next one
 
   // Hours before midnight count backwards cleanly.
   TEST_ASSERT_EQUAL_INT(-1, day::spanDay(-5));
@@ -1113,17 +1165,20 @@ void test_night_span() {
   TEST_ASSERT_EQUAL_INT(1, day::spanDay(30));
   TEST_ASSERT_EQUAL_INT(6, day::spanHour(30));
 
-  // The day's span is the daylight window.
+  // The day's span is the daylight window, and its sunrise is its own.
   sp = day::daySpan(raw, 0);
   TEST_ASSERT_EQUAL_INT(6, sp.a0);
   TEST_ASSERT_EQUAL_INT(19, sp.a1);
+  day::derive(raw, sp, 4, in);
+  TEST_ASSERT_EQUAL_STRING("6:38 AM", in.sunriseLocal);
+  TEST_ASSERT_EQUAL_STRING("7:08 PM", in.sunsetLocal);
 
-  // The night opens on the hour holding sunset itself: 6:45 PM reads from the
-  // 6pm row, and the day's last row is that same hour.
+  // The evening opens on the hour holding sunset itself: 6:45 PM reads from
+  // the 6pm row, and the day's last row is that same hour.
   raw.day[0].sunsetMin = 18 * 60 + 45;
-  sp = day::nightSpan(raw, 19 * 60);
+  sp = day::eveningSpan(raw, 19 * 60);
   TEST_ASSERT_EQUAL_INT(18, sp.a0);
-  TEST_ASSERT_EQUAL_INT(30, sp.a1);
+  TEST_ASSERT_EQUAL_INT(23, sp.a1);
   TEST_ASSERT_EQUAL_INT(18, day::daySpan(raw, 0).a1);
 }
 
@@ -1212,13 +1267,15 @@ int main(int, char**) {
   RUN_TEST(test_holiday_nth_weekday);
   RUN_TEST(test_holiday_last_weekday);
   RUN_TEST(test_hero_panel_and_colour);
-  RUN_TEST(test_eyebrow_and_night);
-  RUN_TEST(test_night_names);
-  RUN_TEST(test_night_wording);
-  RUN_TEST(test_real_rules_at_night);
-  RUN_TEST(test_day_and_night_on_screen);
+  RUN_TEST(test_eyebrow_and_evening);
+  RUN_TEST(test_evening_names);
+  RUN_TEST(test_evening_wording);
+  RUN_TEST(test_real_rules_at_evening);
+  RUN_TEST(test_setup_page_keeps_what_was_not_changed);
+  RUN_TEST(test_day_and_evening_on_screen);
+  RUN_TEST(test_day_is_pinned_at_sunrise);
   RUN_TEST(test_mode_start_options);
-  RUN_TEST(test_night_span);
+  RUN_TEST(test_evening_span);
   RUN_TEST(test_derive);
   RUN_TEST(test_derive_snow);
   RUN_TEST(test_derive_windows);

@@ -41,7 +41,7 @@ struct Scenario {
   bool stressCopy;               // force two-line copy to test the fitting
   bool findWhimsy = false;       // move to the first date that swaps a tile
   const char* bar = nullptr;     // a footer reminder to show, at its default wording
-  int  nightAt = -1;             // a minute after dark: show the night from then
+  int  eveningAt = -1;           // a minute in the evening: show the evening from then
 };
 
 const Scenario SCENARIOS[] = {
@@ -56,6 +56,8 @@ const Scenario SCENARIOS[] = {
   // Worst-case copy: everything that can wrap to two lines does, which is
   // where the stat band runs out of height.
   { "stress", 5 * 60 + 12, 20 * 60 + 31, 62, 84,  5, 10,  8, 32, 0, true },
+  // Cool morning, warm afternoon: warm_swing, the hoodie day. No hero colour.
+  { "hoodie", 6 * 60 + 40, 18 * 60 + 5, 51, 74, 5, 55, 7, 30, 2, false },
   // Below freezing with snow in the forecast: the full-snow-gear square.
   { "snow",   7 * 60 + 15, 16 * 60 + 40, 18, 29, 70, 95, 10, 25, 73, false },
   // The beach day a week later, on a date that swaps one tile for whimsy.
@@ -66,12 +68,10 @@ const Scenario SCENARIOS[] = {
   // Trash night: the longest default text the footer bar has to carry.
   { "trash",  6 * 60 + 40, 19 * 60 + 10, 58, 72,  5, 30, 10, 30, 2, false, false,
     "Take your trash to the street tonight" },
-  // 9:10 PM on a clear, cool night: the night screen, sky tile and all.
-  { "night",  6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 21 * 60 + 10 },
-  // Rain after midnight: the wet window has to read across the date change.
-  { "nightrain", 6 * 60 + 40, 19 * 60 + 10, 50, 58, 80, 95, 12, 22, 61, false, false, nullptr, 20 * 60 + 5 },
-  // 2:05 AM: still last night, read from yesterday's sunset.
-  { "predawn", 6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 2 * 60 + 5 },
+  // 9:10 PM on a clear, cool evening: the evening screen, sky tile and all.
+  { "evening", 6 * 60 + 40, 19 * 60 + 10, 48, 61,  5,  8,  6, 30, 0, false, false, nullptr, 21 * 60 + 10 },
+  // Rain late in the evening, up to midnight.
+  { "eveningrain", 6 * 60 + 40, 19 * 60 + 10, 50, 58, 80, 95, 12, 22, 61, false, false, nullptr, 20 * 60 + 5 },
 };
 
 // A plausible day rather than a flat line, so the readings table and the
@@ -102,9 +102,9 @@ void buildRaw(const Scenario& sc, day::Raw& raw) {
   raw.n = n; raw.na = na;
 }
 
-// A night: every hour of both days, cooling from the evening high at sunset
-// to the low at sunrise, with the rain (if any) in the small hours.
-void buildNightRaw(const Scenario& sc, day::Raw& raw) {
+// An evening: every hour of three days, cooling from the high at sunset to
+// the low at midnight, with the rain (if any) in the last hours before it.
+void buildEveningRaw(const Scenario& sc, day::Raw& raw) {
   raw = day::Raw{};
   for (int d = -1; d < 2; d++) {
     day::DayMeta& m = d < 0 ? raw.prev : raw.day[d];
@@ -113,16 +113,16 @@ void buildNightRaw(const Scenario& sc, day::Raw& raw) {
     m.sunsetMin  = (int16_t)sc.sunsetMin;
     m.dailyCode  = (int16_t)sc.code;
   }
-  // The night the scenario looks at: tonight, or last night before noon.
-  const int base = sc.nightAt >= 12 * 60 ? 0 : -24;
-  const int dusk = base + sc.sunsetMin / 60, dawn = base + 24 + sc.sunriseMin / 60;
+  // The evening the scenario looks at: tonight, or yesterday's before noon.
+  const int base = sc.eveningAt >= 12 * 60 ? 0 : -24;
+  const int dusk = base + sc.sunsetMin / 60, last = base + 23;
   int n = 0;
   for (int a = -24; a < 48 && n < day::MAX_ROWS; a++) {
-    float t = (float)(a - dusk) / (float)(dawn - dusk);
+    float t = (float)(a - dusk) / (float)(last - dusk);
     if (t < 0) t = 0;
     if (t > 1) t = 1;
     const int temp = sc.tempHiF - (int)((sc.tempHiF - sc.tempLoF) * t);
-    const bool wet = a >= base + 24 && a <= base + 27;
+    const bool wet = a >= base + 20 && a <= base + 23;
     const int pp   = wet ? sc.precipPct : sc.precipPct / 5;
     const int code = wet ? sc.code : (sc.code >= 50 ? 3 : sc.code);
     const int8_t dd = (int8_t)day::spanDay(a), hh = (int8_t)day::spanHour(a);
@@ -196,12 +196,12 @@ int main(int argc, char** argv) {
   }
 
   static day::Raw raw;
-  const bool night = sc->nightAt >= 0;
-  if (night) buildNightRaw(*sc, raw); else buildRaw(*sc, raw);
-  const day::Span span = night ? day::nightSpan(raw, sc->nightAt) : day::daySpan(raw, 0);
+  const bool evening = sc->eveningAt >= 0;
+  if (evening) buildEveningRaw(*sc, raw); else buildRaw(*sc, raw);
+  const day::Span span = evening ? day::eveningSpan(raw, sc->eveningAt) : day::daySpan(raw, 0);
   day::Inputs in;
   day::derive(raw, span, 3, in);
-  in.night = night;
+  in.evening = evening;
   fillDate(in, sc->findWhimsy ? firstWhimsyOffset(spec, text, in) : 0);
 
   ViewModel vm;
@@ -211,9 +211,9 @@ int main(int argc, char** argv) {
   }
   vm.valid = true;
   vm.batteryPct = 96;
-  if (night) {
-    const int h = sc->nightAt / 60;
-    std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %d:%02d%c", h % 12 ? h % 12 : 12, sc->nightAt % 60, h >= 12 ? 'p' : 'a');
+  if (evening) {
+    const int h = sc->eveningAt / 60;
+    std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated %d:%02d%c", h % 12 ? h % 12 : 12, sc->eveningAt % 60, h >= 12 ? 'p' : 'a');
   } else {
     std::snprintf(vm.updatedText, sizeof(vm.updatedText), "Updated 9:40a");
   }
@@ -241,7 +241,7 @@ int main(int argc, char** argv) {
   // The board's own footer for this screen (main.cpp).
   char foot[72];
   std::snprintf(foot, sizeof(foot), "%s \xC2\xB7 firmware %s \xC2\xB7 any button returns", vm.updatedText, FIRMWARE_VERSION);
-  renderHourly(raw, span, in, night ? "Tonight's readings" : "Today's readings", foot);
+  renderHourly(raw, span, in, evening ? "This evening's readings" : "Today's readings", foot);
   if (!previewSave(outRead)) { std::fprintf(stderr, "cannot write %s\n", outRead); return 1; }
 
   renderEnd();

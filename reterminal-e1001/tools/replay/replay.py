@@ -19,12 +19,14 @@ What it reproduces, and what it can't:
   started by that hour: earlier hours come from earlier runs, the way the
   live API stitches the day's past hours.
 - Wakes follow the firmware's schedule (main.cpp secondsToNextWake): day from
-  3 AM, night from sunset: the setup page's defaults. Only day wakes are replayed - the
-  night is its own outcome, on its own pin. Parking cutoffs are ignored.
+  midnight, evening from sunset: the setup page's defaults. Only day wakes are
+  replayed - the evening is its own outcome, on its own pin. Parking cutoffs
+  are ignored.
 - AQI is the air-quality archive's single series, the same on every wake, so
   AQI never causes a flip here.
-- The morning pin runs through the engine's own resolvePin, as on the board.
-  --no-pin shows what the screen would do without it.
+- The day's pin is set at sunrise and runs through the engine's own
+  resolvePin, as on the board. --no-pin shows what the screen would do
+  without it.
 """
 import argparse
 import bisect
@@ -44,7 +46,7 @@ from zoneinfo import ZoneInfo
 VARS = "temperature_2m,relative_humidity_2m,precipitation_probability,weather_code,cloud_cover,wind_speed_10m"
 TZ_NAME = "America/Los_Angeles"
 WAKE_DAY_MIN, WAKE_NIGHT_MIN = 60, 240
-DAY_START = 3 * 60             # derive.h: the default day start
+DAY_START = 0                  # derive.h: the default day start, midnight
 WAKING_FROM = 6 * 60           # "I wake up": what the screen says from 6 AM on
 FIELDS = ("tempMax", "tempMin", "swing", "rain", "wind", "cloud", "aqi", "sunHours", "snow")
 
@@ -174,7 +176,7 @@ class World:
         self.zeroed = 0      # rows where weather.cpp's missing->0 quirk kicked in
 
     def flip(self, d):
-        # derive.h: the default night start is sunset.
+        # derive.h: the default evening start is sunset.
         return self.days[d][1]
 
     def hours_of(self, d):
@@ -215,11 +217,13 @@ class World:
                 break
             mod = lt.hour * 60 + lt.minute
             sr, ss, _ = self.days[today]
-            # derive.h isNight(): no sun times, no night.
-            night = sr > 0 and ss > 0 and (mod >= self.flip(today) or mod < DAY_START)
-            yield T, (None if night else today)
-            nxt = mod + (WAKE_NIGHT_MIN if night else WAKE_DAY_MIN)
-            for b in (DAY_START, self.flip(today), DAY_START + 1440):
+            # derive.h isEvening(): no sun times, no evening.
+            evening = sr > 0 and ss > 0 and (mod >= self.flip(today) or mod < DAY_START)
+            yield T, (None if evening else today)
+            # The slow interval while dark: the evening, and before sunrise.
+            dark = evening or (sr > 0 and ss > 0 and mod < sr)
+            nxt = mod + (WAKE_NIGHT_MIN if dark else WAKE_DAY_MIN)
+            for b in (DAY_START, sr, self.flip(today), DAY_START + 1440):
                 if mod < b and b + 1 < nxt:
                     nxt = b + 1
             T += max((nxt - mod) * 60 - lt.second, 120)
@@ -261,8 +265,8 @@ def parse_rules(spec_path):
         conds = []
         for expr in o.get("when", []):
             f, op, v = expr.split()
-            if f == "night":
-                # Only day wakes are replayed, and there night is 0: the
+            if f == "evening":
+                # Only day wakes are replayed, and there evening is 0: the
                 # condition either always holds or rules the outcome out.
                 if not OPS[op](0, float(v)):
                     conds = None
@@ -311,10 +315,10 @@ def simulate(world, binary, spec, first, last, pin=True):
             continue
         key = f"{d.isoformat()}@{T}"
         sr, ss, code = world.days[d]
-        # main.cpp: a day wake is always the day's own; the hour guard only
-        # matters without sun times.
+        # derive.h dayPinnable(): the day is decided at sunrise (6 AM
+        # without sun times); before then the screen follows the forecast.
         lt = datetime.fromtimestamp(T, world.tz)
-        pinnable = pin and d == lt.date() and (sr > 0 or lt.hour * 60 + lt.minute >= 360 - 60)
+        pinnable = pin and d == lt.date() and lt.hour * 60 + lt.minute >= (sr if sr > 0 else 360)
         recs.append(record(key, d, sr, ss, code, world.rows_at(T, d), world.aqi_rows(d), pinnable))
         wakes.append((key, T, d))
     for d in daterange(first, last):
@@ -405,7 +409,7 @@ def main():
     P(f"Beach Day replay — {len(rows)} days, {first} to {last}")
     P(f"{args.model} at {args.lat}, {args.lon} · runs every 6h, usable {args.lag:g}h after nominal · "
       f"{len(runs)} runs, {len(missing)} missing")
-    P(f"rules: {args.spec} · day from 3 AM to sunset · morning pin {'off' if args.no_pin else 'on'} · "
+    P(f"rules: {args.spec} · day from midnight to sunset · sunrise pin {'off' if args.no_pin else 'on'} · "
       f"{sum(len(r['seq']) for r in rows)} wakes evaluated")
     if disagree:
         P(f"!! {len(disagree)} evaluations where the explanation disagrees with the engine: {disagree[:5]}")
@@ -415,7 +419,7 @@ def main():
         P(f"missing runs: {', '.join(missing)}")
     P()
 
-    P("Per day: what the screen said, in order, from 3 AM.")
+    P("Per day: what the screen said, in order, from midnight.")
     P("▸ marks what was on screen at 6 AM.")
     P()
     for r in rows:

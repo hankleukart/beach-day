@@ -49,7 +49,7 @@ void devShowHourly() {
     return;
   }
   renderHourly(g_fetched.raw, g_span, g_inputs,
-               g_inputs.night ? "Tonight's readings" : "Today's readings", "press Green (or l) for the forecast");
+               g_inputs.evening ? "This evening's readings" : "Today's readings", "press Green (or l) for the forecast");
 #endif
 }
 
@@ -69,11 +69,12 @@ static void clearBootFailures() {
 }
 
 // The pinned outcome, in NVS so a reboot or a flat battery mid-morning does
-// not re-decide the day from whatever the forecast says by then. The night
-// keeps its own pin, so dark never overwrites the day it follows.
+// not re-decide the day from whatever the forecast says by then. The evening
+// keeps its own pin, so it never overwrites the day it follows. (The evening's
+// keys still say "n" for night, which it was called before 0.14.0.)
 struct PinKeys { const char* day; const char* id; };
-static constexpr PinKeys DAY_PIN   { "pinDay",  "pinId" };
-static constexpr PinKeys NIGHT_PIN { "npinDay", "npinId" };
+static constexpr PinKeys DAY_PIN     { "pinDay",  "pinId" };
+static constexpr PinKeys EVENING_PIN { "npinDay", "npinId" };
 
 static day::DayPin loadPin(const PinKeys& k) {
   day::DayPin pin;
@@ -128,13 +129,16 @@ static LocalClock makeClock(time_t utc, int32_t off) {
 }
 
 // Sleep until the next regular interval or the next moment the screen would
-// change (day start; night start, which is also when a parking alert for
-// tomorrow goes up; a parking cutoff).
+// change: the day start; sunrise, when the day's outcome is pinned; the
+// evening start, which is also when a parking alert for tomorrow goes up; a
+// parking cutoff. While it is dark - the evening, and the day before sunrise,
+// when nobody is reading - it wakes at the slower night interval.
 static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, const Settings& s) {
   const int now = lc.minuteOfDay;
   int sunrise = raw.day[0].sunriseMin, sunset = raw.day[0].sunsetMin;
   bool sunKnown = sunrise > 0 && sunset > 0;
-  int next = now + (day::isNight(now, raw.day[0], s.modes) ? s.wakeNightMinutes : s.wakeDayMinutes);
+  const bool dark = day::isEvening(now, raw.day[0], s.modes) || (sunKnown && now < sunrise);
+  int next = now + (dark ? s.wakeNightMinutes : s.wakeDayMinutes);
   auto consider = [&](int b) { if (b > now && b + 1 < next) next = b + 1; };
   // A day start tied to sunrise is estimated for tomorrow from today's. Waking
   // a minute or two early is harmless: that wake has tomorrow's sunrise, and
@@ -142,7 +146,8 @@ static uint32_t secondsToNextWake(const LocalClock& lc, const day::Raw& raw, con
   if (sunKnown) {
     const int dayStart = day::dayStartMinute(s.modes, raw.day[0]);
     consider(dayStart);
-    consider(day::nightStartMinute(s.modes, raw.day[0]));
+    consider(sunrise);
+    consider(day::eveningStartMinute(s.modes, raw.day[0]));
     consider(dayStart + 1440);
   }
   for (int i = 0; i < s.parkingCount; i++) {
@@ -168,7 +173,7 @@ static void sleepNow(uint32_t seconds) {
 
 static void logScreen(const day::Screen& sc, const day::Inputs& in) {
   Serial.printf("[day] %s%s  tmin %d tmax %d swing %d rain %d wind %d aqi %d-%d hum %d-%d cloud %d clear@%d  '%s'\n",
-                sc.outcome.id, sc.night ? " (night)" : "",
+                sc.outcome.id, sc.evening ? " (evening)" : "",
                 (int)in.tempMinF, (int)in.tempMaxF, (int)in.tempSwingF, (int)in.precipChanceMaxPct,
                 (int)in.windMaxMph, (int)in.aqiMin, (int)in.aqiMax, (int)in.humidityMinPct, (int)in.humidityMaxPct,
                 (int)in.cloudCoverAvgPct, in.hasFirstClearHour ? in.firstClearHour : -1, in.conditionSummary);
@@ -236,7 +241,7 @@ void setup() {
                 s.configWon  ? "(from beachday_config.h, overriding the saved network - dev build)" :
                 s.fromPortal ? "(saved by the setup portal - beachday_config.h is NOT used; press Left Nav to change it)"
                              : "(from beachday_config.h)");
-  if (forceOta) Serial.println(F("[beach] Right Nav held: forcing update + rules check"));
+  if (forceOta) Serial.println(F("[beach] Right Nav held: forcing an update check"));
 
   renderBegin();
 
@@ -286,8 +291,6 @@ void setup() {
     char st[96] = "";
     const OtaResult r = otaCheck(s, true, st, sizeof(st));   // restarts if it updated
     Serial.printf("[beach] ota: %s\n", st);
-    char rules[96] = "";
-    if (specFetch(s, rules, sizeof(rules))) Serial.printf("[beach] %s\n", rules);
     if (r != OtaResult::Updated) {
       // Up to date, or refused (battery, download): say which, then carry on.
       char why[120];
@@ -350,26 +353,26 @@ void setup() {
   }
   LocalClock lc = makeClock(nowUtc, f.utcOffsetSec);
 
-  // Day: shown from its start (3 AM by default) until night's, reading sunrise
-  // to sunset. Night: shown from its start (sunset by default) until day's,
-  // reading sunset to sunrise. Both windows are fixed, so
-  // every look reads the same hours the pinned outcome was decided on. A
-  // night belongs to the evening it began on - 2 AM Friday is still
-  // Thursday night.
+  // Day: shown from its start (midnight by default) until the evening's,
+  // reading sunrise to sunset. Evening: shown from its start (sunset by
+  // default) until the day's, reading sunset to midnight. Both windows are
+  // fixed, so every look reads the same hours the pinned outcome was decided
+  // on. An evening still on screen after midnight (a Day Mode start later
+  // than midnight) is the one before: 2 AM Friday is still Thursday evening.
   int sunset = f.raw.day[0].sunsetMin;
-  const bool night = day::isNight(lc.minuteOfDay, f.raw.day[0], s.modes);
-  const bool beforeDawn = night && lc.minuteOfDay < 12 * 60;
-  const long nameDays = lc.days - (beforeDawn ? 1 : 0);
-  const int nameDow = beforeDawn ? (lc.dow + 6) % 7 : lc.dow;
-  g_span = night ? day::nightSpan(f.raw, lc.minuteOfDay) : day::daySpan(f.raw, 0);
+  const bool evening = day::isEvening(lc.minuteOfDay, f.raw.day[0], s.modes);
+  const bool pastMidnight = evening && lc.minuteOfDay < 12 * 60;
+  const long nameDays = lc.days - (pastMidnight ? 1 : 0);
+  const int nameDow = pastMidnight ? (lc.dow + 6) % 7 : lc.dow;
+  g_span = evening ? day::eveningSpan(f.raw, lc.minuteOfDay) : day::daySpan(f.raw, 0);
 
   day::Inputs& in = g_inputs;
   day::derive(f.raw, g_span, nameDow, in);
-  in.night = night;
+  in.evening = evening;
   g_haveFetch = true;
 
   // Calendar, for holiday names and for the day-stable pick among a day's
-  // several names: the date the day or night is named for.
+  // several names: the date the day or evening is named for.
   {
     int y, m, dom;
     civilFromDays(nameDays, y, m, dom);
@@ -381,22 +384,20 @@ void setup() {
   static ViewModel vm;           // ~1.4 KB
   vm.valid = spec().evaluate(in, vm.screen, s.locationName);
 
-  // Decide the day once, at its first look, and hold it: the forecast high
-  // wobbling a degree across a line should not repaint the day under whoever
-  // is reading it. Rain and snow (breaks_pin in the rules) still get through.
-  // A night is held the same way, on its own pin.
+  // Decide the day once, at sunrise, and hold it: the forecast high wobbling a
+  // degree across a line should not repaint the day under whoever is reading
+  // it. Before sunrise the screen follows the forecast. Rain and snow
+  // (breaks_pin in the rules) still get through. An evening is held the same
+  // way, from its first look, on its own pin.
   if (vm.valid) {
-    const PinKeys& keys = night ? NIGHT_PIN : DAY_PIN;
+    const PinKeys& keys = evening ? EVENING_PIN : DAY_PIN;
     day::DayPin pin = loadPin(keys);
     char show[24], live[24];
     snprintf(live, sizeof(live), "%s", vm.screen.outcome.id);
-    // Without sun times it is always "day", so wait for a plausible morning
-    // before pinning one - a 2 AM look should not decide the day.
-    const bool pinnable = night || f.raw.day[0].sunriseMin > 0 ||
-                          lc.minuteOfDay >= day::FALLBACK_START_HOUR * 60 - 60;
+    const bool pinnable = evening || day::dayPinnable(lc.minuteOfDay, f.raw.day[0]);
     if (day::resolvePin(spec(), pin, in.epochDay, pinnable, live, show, sizeof(show))) {
       savePin(keys, pin);
-      Serial.printf("[pin] %s pinned for the %s\n", pin.id, night ? "night" : "day");
+      Serial.printf("[pin] %s pinned for the %s\n", pin.id, evening ? "evening" : "day");
     }
     if (strcmp(show, live) != 0) {
       vm.valid = spec().evaluate(in, vm.screen, s.locationName, show);
@@ -409,13 +410,13 @@ void setup() {
   }
 
   beach::ParkingInput pin{ (int16_t)lc.minuteOfDay, (int8_t)lc.dow, (int8_t)lc.dom,
-                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset, s.modes.night };
+                           (int8_t)lc.tomorrowDow, (int8_t)lc.tomorrowDom, (int16_t)sunset, s.modes.evening };
   beach::ParkingAlert pa = beach::evaluateParking(s.parking, s.parkingCount, pin);
   // Street cleaning, else the weekly reminder, which goes with the day or
-  // night on screen: "Wednesday night" carries Wednesday's night reminder
-  // until the day starts Thursday. (No sun times means no night, so
-  // a night reminder waits for them.)
-  const char* bar = beach::barText(pa, s.reminder, nameDow, night);
+  // evening on screen: "Wednesday evening" carries Wednesday's evening
+  // reminder until the day starts Thursday. (No sun times means no evening,
+  // so an evening reminder waits for them.)
+  const char* bar = beach::barText(pa, s.reminder, nameDow, evening);
   const bool reminding = bar && !pa.active;
   vm.parkingActive = bar != nullptr;
   vm.barIsReminder = reminding;
@@ -446,7 +447,7 @@ void setup() {
     // board is running, and the setup portal is only on someone's phone.
     char foot[72];
     snprintf(foot, sizeof(foot), "%s \xC2\xB7 firmware %s \xC2\xB7 any button returns", vm.updatedText, FIRMWARE_VERSION);
-    renderHourly(f.raw, g_span, in, night ? "Tonight's readings" : "Today's readings", foot);
+    renderHourly(f.raw, g_span, in, evening ? "This evening's readings" : "Today's readings", foot);
     failCount = 0;
     clearBootFailures();
     renderEnd();
@@ -458,15 +459,13 @@ void setup() {
   failCount = 0;
   staleShown = false;
 
-  // Housekeeping after the screen is right: rules first (visible next wake),
-  // then firmware (reboots on success).
-  bool rulesDue = !forceOta && specFetchDue(s);
-  bool otaWanted = !forceOta && otaDue(s);
-  if (rulesDue || otaWanted) {
+  // Housekeeping after the screen is right: a firmware update (which also
+  // carries the rules) reboots on success.
+  if (!forceOta && otaDue(s)) {
     char st[96] = "";
     if (netConnect(s, 20000)) {
-      if (rulesDue) { specFetch(s, st, sizeof(st)); Serial.printf("[beach] %s\n", st); }
-      if (otaWanted) { otaCheck(s, forceOta, st, sizeof(st)); Serial.printf("[beach] ota: %s\n", st); }
+      otaCheck(s, false, st, sizeof(st));
+      Serial.printf("[beach] ota: %s\n", st);
       netDisconnect();
     }
   }

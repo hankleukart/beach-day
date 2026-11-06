@@ -14,6 +14,7 @@ struct Settings {
   double longitude    = 0;
   bool   haveCoords   = false;      // lat/lon are usable
   char   locationName[24] = "";     // label shown in the hero panel
+  char   label[24] = "";            // the label typed in the portal, if any
   char   locationQuery[48] = "";    // what the person typed in the portal
   char   countryCode[4] = "";       // optional 2-letter hint for geocoding
   bool   fromPortal   = false;      // NVS (portal) values are in effect
@@ -27,13 +28,10 @@ struct Settings {
   char     otaManifestUrl[160] = "";
   uint16_t otaCheckHours  = 24;
   uint8_t  otaMinBatteryPct = 30;
-  // Runtime rules (src/specstore.cpp)
-  char     rulesUrl[160] = "";
-  uint16_t rulesCheckHours = 24;
   beach::ParkingRule parking[2] = {};
   int    parkingCount = 0;
   beach::Reminder reminder;   // weekly footer reminder (trash night)
-  day::ModeStarts modes;      // when the screen turns to day and to night
+  day::ModeStarts modes;      // when the screen turns to day and to evening
 
   bool configured() const;    // false while ssid is empty or the placeholder
   bool needsGeocode() const;  // a place was typed but never resolved
@@ -52,6 +50,8 @@ struct PortalInput {
   beach::ParkingRule parking[2] = {};
   beach::Reminder reminder;
   day::ModeStarts modes;
+  bool   keepPlace = false;         // same place: keep these, no new lookup
+  double latitude = 0, longitude = 0;
 };
 bool savePortalInput(const PortalInput& in);
 void saveResolvedLocation(double lat, double lon, const char* shortName);

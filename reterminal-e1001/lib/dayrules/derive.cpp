@@ -19,8 +19,8 @@ void formatClock12(int minutes, char* out, size_t n) {
 // drizzle (56-57, 66-67) are left out: they want a raincoat, not snow boots.
 static bool isSnowCode(int c) { return (c >= 71 && c <= 77) || c == 85 || c == 86; }
 
-// Hours are counted from midnight at the start of day 0, so a night that
-// crosses midnight is one unbroken run.
+// Hours are counted from midnight at the start of day 0, so yesterday's
+// evening is a run of negative hours.
 static int absHour(const HourRow& r) { return r.day * 24 + r.hour; }
 
 static const HourRow* rowAt(const Raw& raw, int a) {
@@ -58,15 +58,12 @@ Span daySpan(const Raw& raw, int d) {
   return Span{ d * 24 + h0, d * 24 + h1 };
 }
 
-Span nightSpan(const Raw& raw, int nowMinute) {
-  // After noon the night is tonight's (dusk today, dawn tomorrow); before it,
-  // it is last night's (dusk yesterday, dawn today).
-  const int dusk = nowMinute >= 12 * 60 ? 0 : -1;
-  const DayMeta& eve = raw.meta(dusk);
-  const DayMeta& morn = raw.meta(dusk + 1);
+Span eveningSpan(const Raw& raw, int nowMinute) {
+  // After noon the evening is tonight's; before it, yesterday's.
+  const int d = nowMinute >= 12 * 60 ? 0 : -1;
+  const DayMeta& eve = raw.meta(d);
   const int fall = eve.sunsetMin > 0 ? eve.sunsetMin / 60 : FALLBACK_END_HOUR;
-  const int rise = morn.sunriseMin > 0 ? morn.sunriseMin / 60 : FALLBACK_START_HOUR;
-  return Span{ dusk * 24 + fall, (dusk + 1) * 24 + rise };
+  return Span{ d * 24 + fall, d * 24 + 23 };
 }
 
 void derive(const Raw& raw, int d, int weekday, Inputs& out) {
@@ -76,7 +73,6 @@ void derive(const Raw& raw, int d, int weekday, Inputs& out) {
 void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
   out = Inputs{};
   const DayMeta& m0 = raw.meta(spanDay(sp.a0));
-  const DayMeta& m1 = raw.meta(spanDay(sp.a1));
 
   double tMin = 1e9, tMax = -1e9, wMax = -1e9;
   int pMax = -1, hMin = 1 << 14, hMax = -1;
@@ -148,10 +144,11 @@ void derive(const Raw& raw, const Span& sp, int weekday, Inputs& out) {
   out.aqiMin = aMax < 0 ? 0 : aMin;
 
   snprintf(out.conditionSummary, sizeof(out.conditionSummary), "%s", beach::wmoDescription(modeCode(raw, sp, m0.dailyCode)));
-  // The sunset that opened the window, and the sunrise that closes it. For a
-  // day they are the same day's; for a night, the evening's and the morning's.
+  // The window's first day's sunset, and the first sunrise from its opening
+  // hour on: a day's own sunrise, or for an evening, tomorrow's.
+  const DayMeta& rise = (m0.sunriseMin > 0 && m0.sunriseMin / 60 >= spanHour(sp.a0)) ? m0 : raw.meta(spanDay(sp.a0) + 1);
   if (m0.sunsetMin > 0) formatClock12(m0.sunsetMin, out.sunsetLocal, sizeof(out.sunsetLocal));
-  if (m1.sunriseMin > 0) formatClock12(m1.sunriseMin, out.sunriseLocal, sizeof(out.sunriseLocal));
+  if (rise.sunriseMin > 0) formatClock12(rise.sunriseMin, out.sunriseLocal, sizeof(out.sunriseLocal));
   snprintf(out.weekdayName, sizeof(out.weekdayName), "%s", weekdayName(weekday));
 }
 

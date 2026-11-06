@@ -73,7 +73,7 @@ void banner() {
 void dump(const ViewModel& vm, const char* which) {
   const day::Screen& s = vm.screen;
   Serial.printf("[dev] --- %s ---\n", which);
-  Serial.printf("  outcome   %s%s\n", s.outcome.id, s.night ? " (night)" : "");
+  Serial.printf("  outcome   %s%s\n", s.outcome.id, s.evening ? " (evening)" : "");
   Serial.printf("  hero      %s | %s | %s\n", s.eyebrow, s.outcome.title, s.outcome.tagline);
   Serial.printf("  header    %s\n", s.weekday);
   Serial.printf("  subline   %s\n", s.subline);

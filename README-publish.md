@@ -54,7 +54,7 @@ version afterwards: `git checkout v3-redesign`.
 ## 2. Change the rules
 
 Everything the display says — outcomes, thresholds, names, wear, whimsy,
-night wording, holidays, the stat tiles — is in
+evening wording, holidays, the stat tiles — is in
 `shared/v3/day-outcomes.toml`. The comments in that file explain each
 section. Edit it, then:
 
@@ -64,9 +64,9 @@ cd reterminal-e1001
 tools/preview.sh                   # see the screens as PNGs in docs-design/preview/
 ```
 
-Then commit and push (section 1). Every board picks the new rules up within a
-day — no firmware release needed. To try them on the board on your desk
-first: `./flash.sh rules e1001`.
+The rules are built into the firmware, so they reach the boards as a
+firmware release (section 3). To try them on the board on your desk first:
+`./flash.sh release e1001`.
 
 Things the checks enforce, so you don't have to remember them:
 
@@ -75,11 +75,12 @@ Things the checks enforce, so you don't have to remember them:
   `*starred` wear item).
 - Every icon name is in the `icons` list at the top of the file.
 - Every field in a `when` exists (`tempMax`, `rain`, `wind`, `swing`, `cloud`,
-  `snow`, `night`, …). A misspelt field would otherwise never pass, silently.
+  `snow`, `evening`, …). A misspelt field would otherwise never pass, silently.
 - The last outcome has no `when` (it is the catch-all); no other outcome may
   leave it out.
-- A `night` table only rewords: `tagline`, `also` or `icon` on an outcome;
-  parts of a stat in `[stat.night]`; `subline` or `footer` in `[screen.night]`.
+- An `evening` table only rewords: `tagline`, `also` or `icon` on an outcome;
+  parts of a stat in `[stat.evening]`; `subline` or `footer` in `[screen.evening]`.
+- Every tile's band text fits its tile (19 characters).
 
 **A new icon** means drawing it in `reterminal-e1001/tools/gen_icons.py`,
 then:
@@ -91,12 +92,6 @@ cd reterminal-e1001
 
 and adding its name to `icons` in the rules. That needs a firmware release
 (section 3), because the drawings live in the firmware.
-
-**Rules that need new firmware.** If a rules change uses something only a
-newer firmware understands, older boards reject the file and keep their
-current rules until they update — safe, just not immediate. The new firmware
-carries the new rules built in. Push the rules and publish the firmware
-together: commit and push, then run the release straight after.
 
 ### See how often a rules change would flip the screen
 
@@ -115,12 +110,8 @@ it. Downloads are cached in `.pio/replay/cache`, so a second run is instant.
 
 ## 3. Update the boards over Wi-Fi (OTA)
 
-### Rules only
-
-Push the commit. That's all. Each board fetches the rules from the
-`v3-redesign` branch on GitHub once a day.
-
-### Firmware
+Rules changes and code changes go out the same way: a firmware release.
+Pushing to GitHub alone changes nothing on the boards.
 
 1. Bump the version in `reterminal-e1001/src/version.h` (e.g. `0.12.0` →
    `0.12.1`). Boards update only when this string differs from the one they
@@ -136,8 +127,8 @@ tools/release.sh --publish
 ```
 
 This runs the tests (and stops if any fail), builds one firmware for both
-panels, and creates the GitHub release `fw-v<version>`, marked Latest, with
-the firmware and its `manifest.json`. Run `tools/release.sh` without
+panels, signs it, and creates the GitHub release `fw-v<version>`, marked
+Latest, with the firmware and its `manifest.json`. Run `tools/release.sh` without
 `--publish` to build and check without releasing.
 
 To confirm what the boards will see:
@@ -145,6 +136,21 @@ To confirm what the boards will see:
 ```sh
 curl -sL https://github.com/hankleukart/beach-day/releases/latest/download/manifest.json
 ```
+
+### The signing key
+
+Boards install only firmware signed with the release key. The private half
+is on this Mac at `~/.config/beachday/release-signing-key.pem`, outside the
+repo; the public half is `reterminal-e1001/keys/release-signing.pub.pem`,
+committed and built into every firmware. `tools/release.sh` signs with it and
+stops if the signature wouldn't be accepted, or if the key is missing.
+
+**Back up the private key** (a password manager is fine) and never commit or
+share it. To release from another computer, copy it there, or point
+`BEACHDAY_SIGNING_KEY` at it. If it is lost, the boards can't be updated over
+Wi-Fi again: each needs `./flash.sh release` over USB with firmware built for
+a new key (`tools/make-signing-key.sh`, after deleting the old public key).
+If it leaks, do the same.
 
 **When the boards pick it up:** each board checks once a day, and only if its
 battery is at 30% or more. To make one board update now, **hold Right Nav for
@@ -178,7 +184,6 @@ cd reterminal-e1001
 | `./flash.sh release e1001` | Your everyday firmware for the black-and-white board. Keeps saved settings. |
 | `./flash.sh release e1002` | The same, for the colour board. |
 | `./flash.sh dev e1001` | Bench build: stays awake, and the buttons cycle through outcomes. |
-| `./flash.sh rules e1001` | Puts only the rules file on the board; the firmware is left alone. |
 | `./flash.sh erase e1001` | Wipes saved settings (Wi-Fi, location, reminders), then flashes. |
 | `./flash.sh gift e1001` | For a board you're giving away: erases it and builds with no Wi-Fi or location. |
 | `./flash.sh test` | Runs the rules tests. No board needed. |
@@ -252,10 +257,13 @@ reterminal-e1001/
   src/main.cpp                wake → fetch → decide → draw → sleep
   src/render.cpp              the screen layout
   src/portal.cpp              the setup page
-  lib/dayrules/               the rules engine, its checks, and the day/night figures
+  lib/dayrules/               the rules engine, its checks, and the day/evening figures
   lib/beachrules/             street cleaning and the weekly reminder
   test/test_dayrules/         the tests behind ./flash.sh test
-  tools/release.sh            OTA publish
+  tools/release.sh            OTA publish, signed
+  tools/make-signing-key.sh   makes the release signing key (once, ever)
+  keys/release-signing.pub.pem  the public key every update must be signed with
+  lib/otasig/                 the board's signature check
   tools/preview.sh            render the screens to PNGs
   tools/replay.sh             replay real forecasts through the rules
   tools/gen_icons.py          the icon drawings

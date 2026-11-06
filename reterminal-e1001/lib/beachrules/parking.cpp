@@ -36,8 +36,8 @@ void formatParkingText(const char* side, int startMin, int endMin, char* out, in
 
 ParkingAlert evaluateParking(const ParkingRule* rules, int ruleCount, const ParkingInput& in) {
   ParkingAlert a;
-  int alertFrom = (in.sunsetMinutes > 0 ? in.sunsetMinutes : PARKING_SUNSET_FALLBACK_MIN) + in.nightOffsetMin;
-  if (alertFrom > 1439) alertFrom = 1439;   // like the night start: before midnight
+  int alertFrom = (in.sunsetMinutes > 0 ? in.sunsetMinutes : PARKING_SUNSET_FALLBACK_MIN) + in.eveningOffsetMin;
+  if (alertFrom > 1439) alertFrom = 1439;   // like the evening start: before midnight
 
   for (int i = 0; i < ruleCount; i++) {
     const ParkingRule& r = rules[i];
@@ -49,7 +49,7 @@ ParkingAlert evaluateParking(const ParkingRule* rules, int ruleCount, const Park
 
     // Case 1: today is the restriction day — active from midnight until it ends.
     // Case 2: tomorrow is the restriction day — active from when the screen
-    // turns to night tonight, the same moment the wake that shows it is aimed at.
+    // turns to evening tonight, the same moment the wake that shows it is aimed at.
     if ((todayMatches && in.nowMinutes <= r.endMin) ||
         (tomorrowMatches && in.nowMinutes >= alertFrom)) {
       a.active = true;

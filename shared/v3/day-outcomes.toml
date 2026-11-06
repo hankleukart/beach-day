@@ -1,12 +1,11 @@
 # Beach Day — what the display decides and says.
 #
-# This file IS the rules. The board reads it directly: no build step, no
-# generated copy. Edit, push, and every display picks it up within a day
-# (or at once on a long press of Right Nav).
+# This file IS the rules. It is built into the firmware as-is, so a change
+# reaches the displays as a firmware release (README-publish.md, section 3).
 #
-# Before pushing:  cd reterminal-e1001 && ./flash.sh test
+# After editing:  cd reterminal-e1001 && ./flash.sh test
 # That replays this exact file through the real engine and tells you what is
-# wrong and where, instead of a board quietly keeping its old rules.
+# wrong and where. The release refuses to build while any test fails.
 
 # Every icon the firmware can draw. Adding one means adding a vector to
 # tools/gen_icons.py and rebuilding, so this list is the contract.
@@ -42,14 +41,15 @@ footer   = "Sunset {sunsetLocal}"
 # Colour panels (E1002) can also set an ink per outcome - see `color` below.
 hero_panel_default = "light"
 
-# Night runs from sunset to 3 AM by default (the setup page can move both), and
-# reads the whole night - sunset to sunrise - instead of sunrise to sunset, the same hours at every look. The
-# screen says "Thursday night", and the day name ends in Night. Anything
-# below written for daylight can carry a `night` version: here, in a stat
-# ([stat.night]), or in an outcome (night = { tagline, also, icon }).
-# Whatever a night table leaves out stays as the day has it.
-[screen.night]
-subline = "{conditionSummary} · down to {tempMinF}° by sunrise"
+# Day Mode runs from midnight by default and reads sunrise to sunset. Evening
+# Mode runs from sunset (the setup page can move both) until midnight, and
+# reads only sunset to midnight - the same hours at every look. The screen
+# says "Thursday evening", and the day name ends in Evening. Anything below
+# written for daylight can carry an `evening` version: here, in a stat
+# ([stat.evening]), or in an outcome (evening = { tagline, also, icon }).
+# Whatever an evening table leaves out stays as the day has it.
+[screen.evening]
+subline = "{conditionSummary} · down to {tempMinF}° by midnight"
 footer  = "Sunrise {sunriseLocal}"
 
 
@@ -234,19 +234,19 @@ one_in = 10
 # written band by band, top to bottom; within a band, in the order above,
 # because the first `when` that passes wins.
 #
-# The day's outcome is pinned at its first look, 3 AM by default,
-# and held all day, so a forecast high wobbling a degree across a line does
+# The day's outcome is pinned at sunrise - before then the screen follows
+# the forecast as it changes - and held all day, so a forecast high wobbling a degree across a line does
 # not repaint the day under whoever is reading it. Numbers on the tiles keep
 # updating; the outcome and its name do not. Only an outcome marked
 # `breaks_pin = true` - the rain and snow squares - can replace a pinned day,
-# because "take the raincoat after all" is worth interrupting for. A night
-# is pinned the same way, from its first look after dark.
+# because "take the raincoat after all" is worth interrupting for. An evening
+# is pinned the same way, from its first look.
 #
-# At night the same grid runs on the night's hours, so tempMax is how warm
-# the evening starts. The sunny squares carry "night = 0": sunglasses
-# and sunscreen are no use in the dark, so a clear night falls through to its
-# band's plain outcome. A swing at night runs the other way - warm now, cold
-# by morning - so the swing squares say so in their `night` lines.
+# In the evening the same grid runs on the evening's hours, so tempMax is how
+# warm the evening starts. The sunny squares carry "evening = 0": sunglasses
+# and sunscreen are no use in the dark, so a clear evening falls through to its
+# band's plain outcome. A swing in the evening runs the other way - warm now,
+# cold by midnight - so the swing squares say so in their `evening` lines.
 #
 # Every condition in a `when` must pass. The very last outcome has no `when`
 # at all - it is the catch-all - and since every band above it ends in its
@@ -262,8 +262,8 @@ one_in = 10
 #   things = ["Kite"]        what you need for something only this weather allows
 #   "*Umbrella" in `wear`    the most important thing you'll wear for the weather
 #
-# Write the bare noun; " Day" is added. At night only the starred wear items
-# name it ("Rain Jacket Night"): places and things are for daylight, so they
+# Write the bare noun; " Day" is added. In the evening only the starred wear items
+# name it ("Rain Jacket Evening"): places and things are for daylight, so they
 # stand in only for an outcome with nothing starred. A starred wear item names the day
 # after whatever its tile says today, so on a whimsy day the duck umbrella
 # makes it Duck Umbrella Day - and the hero shows that tile's icon. A place
@@ -302,11 +302,11 @@ tagline = "CHILLY NOW, HOT LATER"
 icon    = "backpack"
 wear    = ["T-shirt", "Shorts", "*Light hoodie", "Backpack"]
 also    = "Also grab: hoodie on for the walk, in the backpack by lunch. {tempMin}° to {tempMax}°."
-night   = { tagline = "WARM NOW, COOL LATER", also = "Also grab: the hoodie, for when it cools off. Down to {tempMin}° by morning." }
+evening = { tagline = "WARM NOW, COOL LATER", also = "Also grab: the hoodie, for when it cools off. Down to {tempMin}° by midnight." }
 
 [[outcome]]
 id      = "hot_sunny"
-when    = ["tempMax >= 78", "cloud <= 15", "night = 0"]
+when    = ["tempMax >= 78", "cloud <= 15", "evening = 0"]
 places  = ["Beach", "Pool"]
 tagline = "SUN ALL DAY"
 icon    = "sun_and_waves"
@@ -324,7 +324,7 @@ tagline = "STAY COOL OUT THERE"
 icon    = "sun"
 wear    = ["T-shirt", "Shorts", "Sandals", "Water bottle"]
 also    = "Also grab: a refill. It gets to {tempMax}°."
-night   = { also = "Also grab: a refill. Still {tempMax}° out." }
+evening = { also = "Also grab: a refill. Still {tempMax}° out." }
 
 # ── WARM · 65° to 77° ──
 
@@ -354,11 +354,11 @@ tagline = "HOODIE NOW, NOT LATER"
 icon    = "hoodie"
 wear    = ["T-shirt", "Light pants", "*Hoodie", "Sneakers"]
 also    = "Also grab: the hoodie comes off by lunch. {tempMin}° to {tempMax}°."
-night   = { tagline = "HOODIE FOR LATER", also = "Also grab: the hoodie. It drops to {tempMin}° overnight." }
+evening = { tagline = "HOODIE FOR LATER", also = "Also grab: the hoodie. It drops to {tempMin}° by midnight." }
 
 [[outcome]]
 id      = "warm_sunny"
-when    = ["tempMax >= 65", "tempMax < 78", "cloud <= 15", "night = 0"]
+when    = ["tempMax >= 65", "tempMax < 78", "cloud <= 15", "evening = 0"]
 things  = ["Frisbee", "Picnic Blanket"]
 tagline = "BRIGHT ALL DAY"
 icon    = "sunglasses"
@@ -406,11 +406,11 @@ tagline = "LAYER ON, LAYER OFF"
 icon    = "jacket"
 wear    = ["T-shirt", "*Hoodie", "*Light jacket", "Long pants"]
 also    = "Also grab: hoodie and jacket on top, off one at a time. {tempMin}° to {tempMax}°."
-night   = { tagline = "LAYER ON AS IT COOLS", also = "Also grab: the jacket goes on as it cools. Down to {tempMin}° by morning." }
+evening = { tagline = "LAYER ON AS IT COOLS", also = "Also grab: the jacket goes on as it cools. Down to {tempMin}° by midnight." }
 
 [[outcome]]
 id      = "cool_sunny"
-when    = ["tempMax >= 50", "tempMax < 65", "cloud <= 15", "night = 0"]
+when    = ["tempMax >= 50", "tempMax < 65", "cloud <= 15", "evening = 0"]
 tagline = "COOL BUT BRIGHT"
 icon    = "sun"
 wear    = ["*Long sleeves", "Long pants", "*Sunglasses", "Sunscreen"]
@@ -465,11 +465,11 @@ icon    = "sweater"
 color   = "red"
 wear    = ["T-shirt", "*Sweater", "*Warm coat", "Long pants"]
 also    = "Also grab: the coat comes off when it warms up. {tempMin}° to {tempMax}°."
-night   = { tagline = "SWEATER NOW, COAT LATER", also = "Also grab: the coat, for later. It drops to {tempMin}° overnight." }
+evening = { tagline = "SWEATER NOW, COAT LATER", also = "Also grab: the coat, for later. It drops to {tempMin}° by midnight." }
 
 [[outcome]]
 id      = "cold_sunny"
-when    = ["tempMax >= 32", "tempMax < 50", "cloud <= 15", "night = 0"]
+when    = ["tempMax >= 32", "tempMax < 50", "cloud <= 15", "evening = 0"]
 tagline = "COLD BUT SHINY"
 icon    = "sunglasses"
 color   = "red"
@@ -526,11 +526,11 @@ icon    = "puffy_coat"
 color   = "red"
 wear    = ["Long sleeves", "*Sweater", "*Winter coat", "Warm hat"]
 also    = "Also grab: layers under the coat, to peel off later. {tempMin}° to {tempMax}°."
-night   = { also = "Also grab: every layer. It drops to {tempMin}° overnight." }
+evening = { also = "Also grab: every layer. It drops to {tempMin}° by midnight." }
 
 [[outcome]]
 id      = "freezing_sunny"
-when    = ["tempMax < 32", "cloud <= 15", "night = 0"]
+when    = ["tempMax < 32", "cloud <= 15", "evening = 0"]
 places  = ["Ice Rink"]
 things  = ["Ice Skates"]
 tagline = "BRIGHT AND BITTER"
@@ -582,9 +582,9 @@ word_bands = [
   { max = 24, text = "Clear" },
 ]
 
-# No sun to count at night, so the tile reads the sky instead. The sub line
+# No sun to count in the evening, so the tile reads the sky instead. The sub line
 # ("12% cloudy") is left out here, so it stays as the day has it.
-[stat.night]
+[stat.evening]
 label = "SKY"
 icon_field = "cloud"
 icon_bands = [
@@ -621,13 +621,13 @@ word_bands = [
 ]
 word_override = { field = "swing", op = ">=", value = 22, text = "Big swing" }
 
-# At night the low is what matters: how cold it gets before morning.
-[stat.night]
+# In the evening the low is what matters: how cold it gets by midnight.
+[stat.evening]
 word_field = "tempMin"
 word_bands = [
   { max = 32, text = "Freezing" },
-  { max = 45, text = "Cold all night" },
-  { max = 55, text = "Cool all night" },
+  { max = 45, text = "Cold all evening" },
+  { max = 55, text = "Cool all evening" },
   { max = 65, text = "Mild" },
   { max = 200, text = "Warm" },
 ]

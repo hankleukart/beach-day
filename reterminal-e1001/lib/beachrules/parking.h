@@ -24,7 +24,7 @@ struct ParkingInput {
   int8_t  tomorrowDow;
   int8_t  tomorrowDom;
   int16_t sunsetMinutes;   // 0 = unavailable
-  int16_t nightOffsetMin = 0;   // the screen turns to night this long after sunset
+  int16_t eveningOffsetMin = 0;   // the screen turns to evening this long after sunset
 };
 
 struct ParkingAlert {
