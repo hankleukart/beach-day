@@ -42,6 +42,7 @@ button{width:100%;font-size:18px;font-weight:700;padding:14px;border:0;border-ra
 details{margin-top:22px;border:1px solid #ddd;border-radius:10px;padding:10px 14px;background:#fff}
 summary{font-weight:700;cursor:pointer}
 fieldset{border:0;padding:0;margin:14px 0 0}legend{font-weight:700;margin-bottom:4px}
+.adv fieldset{margin-top:22px}.adv fieldset:first-of-type{margin-top:12px}.adv legend{font-size:1.05em}
 .row{display:flex;gap:10px}.row>div{flex:1}
 .wk label{display:inline-block;font-weight:400;margin:4px 12px 0 0}.wk input{width:auto;margin-right:4px}
 .chk label{display:inline;font-weight:600}.chk input{width:auto;margin-right:6px}
@@ -63,25 +64,28 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <input id="cc" name="cc" maxlength="2" placeholder="US" value="%CC%"><small>2-letter code. Helps with postal codes.</small></div>
 <div><label for="label">Label on screen</label>
 <input id="label" name="label" maxlength="22" placeholder="%LABELHINT%" value="%LABEL%"></div></div>
-<details><summary>Day and evening</summary>
-<small style="margin-top:8px">When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and decides the day at sunrise. Evening Mode reads sunset to midnight.</small>
-%MODES%
+<details><summary>Trash reminders</summary>
+<small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick. When each starts is under Advanced settings. If street cleaning is due too, that shows first.</small>
+%REMINDER%
 </details>
-<details><summary>Street-cleaning parking reminders</summary>
-<small style="margin-top:8px">Shows a NO PARKING bar from the start of Evening Mode the evening before until the restriction ends.</small>
+<details><summary>Parking reminders</summary>
+<small style="margin-top:8px">For street cleaning: shows a NO PARKING bar from the start of Evening Mode the evening before until the restriction ends.</small>
 %PARKING%
 </details>
-<details><summary>Display panel</summary>
-<small style="margin-top:8px">Which reTerminal this is. Set when it was flashed; change it only if the screen stays blank.</small>
-<select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
-</details>
-<details><summary>Software updates</summary>
-<small style="margin-top:8px">How often the display checks for new Beach Day software. Holding Right Nav for 3 seconds checks right away, whatever this says.</small>
+<details class="adv"><summary>Advanced settings</summary>
+<fieldset><legend>Software updates</legend>
+<small>How often the display checks for new Beach Day software. Holding Right Nav for 3 seconds checks right away, whatever this says.</small>
 %UPDATES%
-</details>
-<details><summary>Trash reminder</summary>
-<small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick, as Day and evening above sets them. If street cleaning is due too, that shows first.</small>
-%REMINDER%
+</fieldset>
+<fieldset><legend>Day and evening times</legend>
+<small>When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and decides the day at sunrise. Evening Mode reads sunset to midnight.</small>
+%MODES%
+</fieldset>
+<fieldset><legend>Display model</legend>
+<small>Which reTerminal this is. Set when it was flashed; change it only if the screen stays blank.</small>
+<label for="panel">Model</label>
+<select id="panel" name="panel">%PANEL%</select>
+</fieldset>
 </details>
 <button type="submit">Save and restart</button>
 </form>
