@@ -42,7 +42,7 @@ button{width:100%;font-size:18px;font-weight:700;padding:14px;border:0;border-ra
 details{margin-top:22px;border:1px solid #ddd;border-radius:10px;padding:10px 14px;background:#fff}
 summary{font-weight:700;cursor:pointer}
 fieldset{border:0;padding:0;margin:14px 0 0}legend{font-weight:700;margin-bottom:4px}
-.adv fieldset{margin-top:22px}.adv fieldset:first-of-type{margin-top:12px}.adv legend{font-size:1.05em}
+.adv fieldset{margin-top:36px}.adv fieldset:first-of-type{margin-top:30px}.adv legend{font-size:1.05em}
 .row{display:flex;gap:10px}.row>div{flex:1}
 .wk label{display:inline-block;font-weight:400;margin:4px 12px 0 0}.wk input{width:auto;margin-right:4px}
 .chk label{display:inline;font-weight:600}.chk input{width:auto;margin-right:6px}
