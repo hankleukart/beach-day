@@ -440,6 +440,12 @@ def i_sled(c):
     c.line([(12, 25), (12, 34)]); c.line([(30, 25), (30, 34)])
     c.line([(5, 34), (37, 34)]); c.arc(37, 29, 5, -90, 90)
     c.line([(35, 21), (44, 13)])
+def i_ski(c):
+    # a crossed pair, pointed tips up; the second laid over the first
+    for ang in (-30, 30):
+        body = rot([(20.5, 12), (24, 4), (27.5, 12), (27.5, 44), (20.5, 44)], 24, 26, ang)
+        c.poly(body, WARM, fill=True); c.poly(body)
+        c.poly(rot([(20.5, 34), (27.5, 34), (27.5, 37.5), (20.5, 37.5)], 24, 26, ang), INK, fill=True)
 def i_ice_skate(c):
     boot = [(13, 5), (25, 5), (25, 20), (35, 24), (38, 28), (38, 32), (11, 32), (11, 5)]
     c.poly(boot, WATER, fill=True); c.poly(boot)
@@ -460,7 +466,7 @@ ICONS = {
     "beach": i_beach, "pool": i_pool, "splash_pad": i_splash_pad, "sledding_hill": i_sledding_hill,
     "ice_rink": i_ice_rink, "paper_boat": i_paper_boat, "kite": i_kite, "sailboat": i_sailboat,
     "sprinkler": i_sprinkler, "water_balloon": i_water_balloon, "pinwheel": i_pinwheel, "frisbee": i_frisbee,
-    "picnic_blanket": i_picnic_blanket, "sidewalk_chalk": i_sidewalk_chalk, "sled": i_sled, "ice_skate": i_ice_skate,
+    "picnic_blanket": i_picnic_blanket, "sidewalk_chalk": i_sidewalk_chalk, "sled": i_sled, "ski": i_ski, "ice_skate": i_ice_skate,
 }
 
 

@@ -7,7 +7,8 @@
 #
 # Scenarios live in tools/preview/preview.cpp: beach, rain, winter, smoke,
 # stress (the worst-case copy that squeezes the stat band), snow, and whimsy
-# (a date that swaps one tile), evening and eveningrain (Evening Mode).
+# (a date that swaps one tile), evening and eveningrain (Evening Mode), and
+# setup (the screen shown while the setup hotspot is up).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -33,7 +34,7 @@ if [ ! -x "$BUILD/preview" ] || [ -n "$(find "${SRC[@]}" src/*.h lib -newer "$BU
 fi
 
 scenarios=("${1:-all}")
-[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain hoodie winter smoke stress snow whimsy trash kite evening eveningrain)
+[ "${scenarios[0]}" = "all" ] && scenarios=(beach rain hoodie winter smoke stress snow whimsy trash kite evening eveningrain setup)
 panels=("${2:-all}")
 [ "${panels[0]}" = "all" ] && panels=(mono color)
 
@@ -41,10 +42,11 @@ for s in "${scenarios[@]}"; do
   for p in "${panels[@]}"; do
     "$BUILD/preview" "$s" "$p" "$BUILD/d.ppm" "$BUILD/r.ppm"
     .venv/bin/python - "$BUILD/d.ppm" "$OUT/$s-$p.png" "$BUILD/r.ppm" "$OUT/$s-$p-readings.png" <<'PY'
-import sys
+import os, sys
 from PIL import Image
 for src, dst in ((sys.argv[1], sys.argv[2]), (sys.argv[3], sys.argv[4])):
-    Image.open(src).save(dst)
+    if os.path.exists(src):          # setup has no readings screen
+        Image.open(src).save(dst)
 PY
   done
 done

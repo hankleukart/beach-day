@@ -200,6 +200,12 @@ const Settings& loadSettings() {
       loadParkingRule(prefs, "R", g.parking[1]);
       loadReminder(prefs, g.reminder);
       loadModes(prefs, g.modes);
+      // How often to look for updates. A value the page doesn't offer keeps
+      // the config file's.
+      if (prefs.isKey("otaHours")) {
+        const int h = prefs.getUShort("otaHours", g.otaCheckHours);
+        if (beach::isUpdateCheckOption(h)) g.otaCheckHours = (uint16_t)h;
+      }
 
 #ifdef BEACHDAY_CONFIG_WIFI
       // Bench builds: hand Wi-Fi back to the config file if it has real
@@ -243,6 +249,7 @@ bool savePortalInput(const PortalInput& in) {
   storeParkingRule(prefs, "R", in.parking[1]);
   storeReminder(prefs, in.reminder);
   storeModes(prefs, in.modes);
+  prefs.putUShort("otaHours", in.otaCheckHours);
   prefs.end();
   loaded = false;              // force a re-read on next loadSettings()
   return true;

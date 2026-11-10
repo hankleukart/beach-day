@@ -39,7 +39,7 @@ section.
 ## Setting one up
 
 On first boot the board has no Wi-Fi, so it raises its own hotspot and shows
-the instructions on screen:
+a welcome screen: what Beach Day is, and the three steps below.
 
 1. Join the Wi-Fi network **BeachDay-Setup-xxxx** on a phone (the name is on
    the screen).
@@ -47,7 +47,8 @@ the instructions on screen:
 3. Pick a Wi-Fi network, type the password, and type where the beach is: a
    **postal code** (`90401`), a **town** (`Santa Monica`) or **town, state**
    (`Springfield, IL`). Optionally: a short label for the screen, when day and
-   evening start, the street-cleaning schedule, and the trash reminder. Tap **Save and restart**.
+   evening start, the street-cleaning schedule, how often to check for
+   updates, and the trash reminder. Tap **Save and restart**.
 
 The board restarts, joins the Wi-Fi, looks the place up, and draws the
 forecast. The place it found appears at the top of the left panel — that is
@@ -331,8 +332,10 @@ air-quality request fails, the forecast still draws and AQI reads 0.
 
 ## Updates
 
-The board checks once a day for new firmware, and the long press of Right
-Nav checks right away.
+The board checks for new firmware once a day by default. The setup page can
+make that weekly, monthly or never. The long press of Right Nav checks right
+away whatever it is set to, and a board in safe mode (below) keeps looking
+every 30 minutes even when set to never.
 
 - **Rules** (`shared/v3/day-outcomes.toml`) are built into the firmware, so a
   rules change goes out as a firmware release like any other. The tests run

@@ -507,6 +507,15 @@ static const IcCmd IC_sled[] PROGMEM = {
   { IC_ARC, 0, 5, IC_sled_v + 22 },
   { IC_LINE, 0, 4, IC_sled_v + 27 },
 };
+static const int16_t IC_ski_v[] PROGMEM = { 28, 31, 26, 14, 40, 24, 72, 80, 60, 87, 28, 31, 26, 14, 40, 24, 72, 80, 60, 87, 50, 69, 62, 62, 66, 68, 53, 75, 56, 24, 70, 14, 68, 31, 36, 87, 24, 80, 56, 24, 70, 14, 68, 31, 36, 87, 24, 80, 34, 62, 46, 69, 43, 75, 30, 68 };
+static const IcCmd IC_ski[] PROGMEM = {
+  { IC_POLY_FILL, 5, 10, IC_ski_v + 0 },
+  { IC_POLY, 0, 10, IC_ski_v + 10 },
+  { IC_POLY_FILL, 0, 8, IC_ski_v + 20 },
+  { IC_POLY_FILL, 5, 10, IC_ski_v + 28 },
+  { IC_POLY, 0, 10, IC_ski_v + 38 },
+  { IC_POLY_FILL, 0, 8, IC_ski_v + 48 },
+};
 static const int16_t IC_ice_skate_v[] PROGMEM = { 26, 10, 50, 10, 50, 40, 70, 48, 76, 56, 76, 64, 22, 64, 22, 10, 26, 10, 50, 10, 50, 40, 70, 48, 76, 56, 76, 64, 22, 64, 22, 10, 34, 22, 46, 22, 34, 32, 46, 32, 30, 64, 30, 78, 66, 64, 66, 78, 12, 78, 78, 78, 78, 72, 6, -90, 90 };
 static const IcCmd IC_ice_skate[] PROGMEM = {
   { IC_POLY_FILL, 3, 16, IC_ice_skate_v + 0 },
@@ -573,6 +582,7 @@ static const IconDef ICON_DEFS[] PROGMEM = {
   { "picnic_blanket", IC_picnic_blanket, 12 },
   { "sidewalk_chalk", IC_sidewalk_chalk, 4 },
   { "sled", IC_sled, 7 },
+  { "ski", IC_ski, 6 },
   { "ice_skate", IC_ice_skate, 8 },
 };
 static const int ICON_DEF_COUNT = sizeof(ICON_DEFS) / sizeof(ICON_DEFS[0]);

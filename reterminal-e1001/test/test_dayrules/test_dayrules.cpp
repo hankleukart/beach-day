@@ -11,6 +11,7 @@
 #include "derive.h"
 #include "reminder.h"
 #include "portalform.h"
+#include "updatecheck.h"
 
 #ifndef DAYRULES_SPEC_PATH
 #define DAYRULES_SPEC_PATH "../shared/v3/day-outcomes.toml"
@@ -258,6 +259,7 @@ void test_real_rules_hero_matches_the_name() {
       { "Water Balloon Day", "water_balloon" }, { "Pinwheel Day", "pinwheel" }, { "Frisbee Day", "frisbee" },
       { "Picnic Blanket Day", "picnic_blanket" }, { "Sidewalk Chalk Day", "sidewalk_chalk" },
       { "Sled Day", "sled" }, { "Ice Skates Day", "ice_skate" },
+      { "Ski Day", "ski" }, { "Snow Day", "snowflake" },
     };
     bool noun = false;
     for (auto& ni : NOUN_ICONS) if (!strcmp(sc.outcome.title, ni[0])) { noun = true; TEST_ASSERT_EQUAL_STRING_MESSAGE(ni[1], sc.outcome.heroIcon, ni[0]); }
@@ -1008,6 +1010,20 @@ void test_setup_page_keeps_what_was_not_changed() {
   TEST_ASSERT_FALSE(beach::keepSavedPlace(false, "90291", "90291", "US", "US"));
 }
 
+// The setup page's update choices: daily first and the default, and "Never"
+// is a real choice (0 hours), not a missing value.
+void test_update_check_options() {
+  TEST_ASSERT_EQUAL_INT(4, (int)(sizeof(beach::UPDATE_CHECK_OPTIONS) / sizeof(beach::UPDATE_CHECK_OPTIONS[0])));
+  TEST_ASSERT_EQUAL_STRING("Daily", beach::UPDATE_CHECK_OPTIONS[0].label);
+  TEST_ASSERT_EQUAL_INT(beach::UPDATE_CHECK_DEFAULT_HOURS, beach::UPDATE_CHECK_OPTIONS[0].hours);
+  TEST_ASSERT_TRUE(beach::isUpdateCheckOption(24));
+  TEST_ASSERT_TRUE(beach::isUpdateCheckOption(168));
+  TEST_ASSERT_TRUE(beach::isUpdateCheckOption(720));
+  TEST_ASSERT_TRUE_MESSAGE(beach::isUpdateCheckOption(0), "Never");
+  TEST_ASSERT_FALSE(beach::isUpdateCheckOption(12));
+  TEST_ASSERT_FALSE(beach::isUpdateCheckOption(-24));
+}
+
 // The defaults: day from midnight until sunset, evening from sunset until
 // midnight.
 void test_day_and_evening_on_screen() {
@@ -1272,6 +1288,7 @@ int main(int, char**) {
   RUN_TEST(test_evening_wording);
   RUN_TEST(test_real_rules_at_evening);
   RUN_TEST(test_setup_page_keeps_what_was_not_changed);
+  RUN_TEST(test_update_check_options);
   RUN_TEST(test_day_and_evening_on_screen);
   RUN_TEST(test_day_is_pinned_at_sunrise);
   RUN_TEST(test_mode_start_options);

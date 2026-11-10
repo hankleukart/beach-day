@@ -6,6 +6,7 @@
 #include "parking.h"
 #include "reminder.h"
 #include "derive.h"
+#include "updatecheck.h"
 
 struct Settings {
   char   ssid[33]     = "";
@@ -50,6 +51,7 @@ struct PortalInput {
   beach::ParkingRule parking[2] = {};
   beach::Reminder reminder;
   day::ModeStarts modes;
+  uint16_t otaCheckHours = 24;      // one of beach::UPDATE_CHECK_OPTIONS
   bool   keepPlace = false;         // same place: keep these, no new lookup
   double latitude = 0, longitude = 0;
 };

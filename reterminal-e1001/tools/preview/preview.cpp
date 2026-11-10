@@ -179,6 +179,19 @@ int main(int argc, char** argv) {
   const char* outDash = argc > 3 ? argv[3] : "preview-dashboard.ppm";
   const char* outRead = argc > 4 ? argv[4] : "preview-readings.ppm";
 
+  // The screen a board shows while its setup hotspot is up. It has no
+  // readings screen, so there is no second image.
+  if (!std::strcmp(want, "setup")) {
+    previewSetColor(color);
+    renderBegin();
+    renderSetup("BeachDay-Setup-3F2A", "192.168.4.1");
+    if (!previewSave(outDash)) { std::fprintf(stderr, "cannot write %s\n", outDash); return 1; }
+    renderEnd();
+    std::remove(outRead);
+    std::fprintf(stderr, "%-7s %-5s  %s\n", want, color ? "color" : "mono", outDash);
+    return 0;
+  }
+
   const Scenario* sc = nullptr;
   for (const auto& s : SCENARIOS) if (!std::strcmp(s.name, want)) sc = &s;
   if (!sc) { std::fprintf(stderr, "unknown scenario '%s'\n", want); return 2; }

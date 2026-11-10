@@ -75,6 +75,10 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <small style="margin-top:8px">Which reTerminal this is. Set when it was flashed; change it only if the screen stays blank.</small>
 <select id="panel" name="panel" style="margin-top:8px">%PANEL%</select>
 </details>
+<details><summary>Software updates</summary>
+<small style="margin-top:8px">How often the display checks for new Beach Day software. Holding Right Nav for 3 seconds checks right away, whatever this says.</small>
+%UPDATES%
+</details>
 <details><summary>Trash reminder</summary>
 <small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick, as Day and evening above sets them. If street cleaning is due too, that shows first.</small>
 %REMINDER%
@@ -151,6 +155,14 @@ String modeSelect(const char* name, const char* title, const day::ModeOption (&o
   return h + "</select>";
 }
 
+String updateSelect(uint16_t selected) {
+  String h = "<label for=\"updates\">Check for updates</label><select id=\"updates\" name=\"updates\">";
+  for (const beach::UpdateCheckOption& o : beach::UPDATE_CHECK_OPTIONS) {
+    h += "<option value=\"" + String(o.hours) + "\"" + (o.hours == selected ? " selected" : "") + ">" + o.label + "</option>";
+  }
+  return h + "</select>";
+}
+
 // A board set up from the config file has a place name but never typed a query.
 const char* shownPlace() { return current.locationQuery[0] ? current.locationQuery : current.locationName; }
 const char* shownCountry() { return current.countryCode[0] ? current.countryCode : "US"; }
@@ -174,6 +186,7 @@ void handleRoot() {
   mid.replace("%REMINDER%", reminderFieldset(current.reminder));
   mid.replace("%MODES%", modeSelect("daystart", "Day Mode start", day::DAY_START_OPTIONS, current.modes.day) +
                          modeSelect("eveningstart", "Evening Mode start", day::EVENING_START_OPTIONS, current.modes.evening));
+  mid.replace("%UPDATES%", updateSelect(current.otaCheckHours));
   {
     String opts;
     for (PanelModel m : { PanelModel::E1001, PanelModel::E1002 }) {
@@ -258,6 +271,11 @@ void handleSave() {
   readReminder(in.reminder, current.reminder);
   in.modes.day = readMode("daystart", day::DAY_START_OPTIONS, current.modes.day);
   in.modes.evening = readMode("eveningstart", day::EVENING_START_OPTIONS, current.modes.evening);
+  in.otaCheckHours = current.otaCheckHours;
+  if (server.hasArg("updates")) {
+    const int h = server.arg("updates").toInt();
+    if (beach::isUpdateCheckOption(h)) in.otaCheckHours = (uint16_t)h;
+  }
   // Kept apart from the other settings (its own NVS namespace), so it is
   // saved directly rather than through PortalInput.
   if (server.hasArg("panel")) {

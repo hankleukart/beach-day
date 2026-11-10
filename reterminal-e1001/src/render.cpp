@@ -44,7 +44,6 @@ const TextStyle T_STATUNIT_PCT  { Face::Body,      18, 0,    Role::Ink };
 const TextStyle T_STATUNIT_WORD { Face::Body,      16, 0,    Role::Ink };
 const TextStyle T_STATSUB       { Face::BodyLight, 14, 0,    Role::Ink };
 const TextStyle T_FOOTER        { Face::Body,      14, 0,    Role::Ink };
-const TextStyle T_STATUS        { Face::BodyLight, 10, 0,    Role::Caption };
 const TextStyle T_MSG_H         { Face::Display,   34, 0,    Role::Ink };
 const TextStyle T_MSG_B         { Face::BodyLight, 16, 0,    Role::Ink };
 
@@ -463,38 +462,65 @@ void renderSetup(const char* apName, const char* ip) {
   panelFirstPage();
   do {
     panelFill(panelPaper());
-    frame();
-    const int x0 = 60;
-    int y = 84;
-    textDraw(TextStyle{ Face::Display, 34, 0, Role::Ink }, x0, y, "Beach Day setup");
-    y += 26;
-    textDraw(T_MSG_B, x0, y, "Three steps on your phone. Takes about a minute.");
 
-    const TextStyle step { Face::Body, 17, 0, Role::Ink };
-    const TextStyle num  { Face::Display, 18, 0, Role::Paper };
-    y += 52;
-    // 1
-    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "1");
-    textDraw(step, x0 + 48, y, "Join the Wi-Fi network");
-    const TextStyle ap { Face::Display, 30, 0.5f, Role::Paper };
-    int apW = textWidth(ap, apName) + 30;
-    paintRoundRect(x0 + 48, y + 14, apW, 46, 8, Role::Ink);
-    textDraw(ap, x0 + 63, y + 47, apName);
-    y += 96;
-    // 2
-    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "2");
-    textDraw(step, x0 + 48, y, "A setup page opens by itself.");
-    textDraw(T_MSG_B, x0 + 48, y + 26, "If it doesn't, open a browser and go to:");
+    // Left: what this is, in the dashboard's own hero panel - the beach day's
+    // look, black on mono and yellow on colour.
+    const HeroSurface hero = paintHeroSurface(Tint::Yellow, false);
+    paintRect(0, 0, LEFT_W, H, hero.bg);
+    const int cx = LEFT_W / 2;
+    TextStyle eyebrow = T_EYEBROW; eyebrow.role = hero.fg;
+    textDrawCentered(eyebrow, cx, 30 + textCapHeight(eyebrow), "WELCOME TO");
+
+    IconStyle iconStyle;
+    iconStyle.ink = hero.fg;
+    iconStyle.paper = hero.bg;
+    iconStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(104));
+    drawIcon("sun_and_waves", cx, 128, 104, iconStyle);
+
+    TextStyle title = T_HEADLINE; title.px = 60; title.role = hero.fg;
+    const int titleCap = textCapHeight(title);
+    textDrawCentered(title, cx, 214 + titleCap, "Beach");
+    textDrawCentered(title, cx, 214 + titleCap + 58, "Day");
+
+    TextStyle about { Face::BodyLight, 15, 0, hero.fg };
+    char lines[6][160];
+    const int n = textWrap(about, "A forecast that answers one question: what kind of day is it? "
+                                  "It reads the weather where you live and tells you what to wear.",
+                           LEFT_W - 56, lines, 6);
+    int y = H - 30 - (n - 1) * 21;
+    for (int i = 0; i < n; i++, y += 21) textDrawCentered(about, cx, y, lines[i]);
+
+    // Right: three steps, under the dashboard's section header and rule.
+    textDraw(T_SECTION, COL_X0, 30 + textCapHeight(T_SECTION), "SET UP ON YOUR PHONE  \xC2\xB7  ABOUT A MINUTE");
+    paintHLine(COL_X0, COL_X1, 54, 3, Role::Ink);
+
+    const TextStyle stepTitle { Face::Body, 18, 0, Role::Ink };
+    const TextStyle stepNote  { Face::BodyLight, 15, 0, Role::Ink };
+    const TextStyle stepBold  { Face::Body, 15, 0, Role::Ink };
+    const TextStyle num       { Face::Display, 17, 0, Role::Paper };
+    const int tx = COL_X0 + 44;
+    auto step = [&](int baseline, const char* digit, const char* text) {
+      paintDisc(COL_X0 + 15, baseline - 6, 15, Role::Ink);
+      textDrawCentered(num, COL_X0 + 15, baseline, digit);
+      textDraw(stepTitle, tx, baseline, text);
+    };
+
+    step(110, "1", "Join this Wi-Fi network");
+    const TextStyle ap { Face::Display, 28, 0.5f, Role::Paper };
+    const int apW = textWidth(ap, apName) + 32;
+    paintRoundRect(tx, 126, apW, 46, 8, Role::Ink);
+    textDraw(ap, tx + 16, 159, apName);
+
+    step(238, "2", "A setup page opens by itself");
+    textDraw(stepNote, tx, 264, "If it doesn't, open a browser and go to");
     char url[48]; snprintf(url, sizeof(url), "http://%s", ip);
-    textDraw(TextStyle{ Face::Body, 20, 0, Role::Ink }, x0 + 48, y + 56, url);
-    y += 98;
-    // 3
-    paintDisc(x0 + 16, y - 6, 17, Role::Ink); textDrawCentered(num, x0 + 16, y, "3");
-    textDraw(step, x0 + 48, y, "Enter your Wi-Fi and your beach town, then tap Save.");
-    textDraw(T_MSG_B, x0 + 48, y + 26, "The forecast appears about a minute later.");
+    textDraw(stepBold, tx + textWidth(stepNote, "If it doesn't, open a browser and go to "), 264, url);
 
-    textDrawCentered(T_STATUS, W / 2, H - 42, "Press Green to cancel and return to the forecast.");
-    textDrawCentered(T_STATUS, W / 2, H - 28, "This screen turns off automatically after 10 minutes.");
+    step(342, "3", "Enter your Wi-Fi and where you are");
+    textDraw(stepNote, tx, 368, "Tap Save. The forecast appears about a minute later.");
+
+    paintHLine(COL_X0, COL_X1, H - 62, 1, Role::Ink);
+    textDraw(stepNote, COL_X0, H - 34, "Green (Refresh) cancels. This screen turns off after 10 minutes.");
   } while (panelNextPage());
 }
 

@@ -152,8 +152,9 @@ Wi-Fi again: each needs `./flash.sh release` over USB with firmware built for
 a new key (`tools/make-signing-key.sh`, after deleting the old public key).
 If it leaks, do the same.
 
-**When the boards pick it up:** each board checks once a day, and only if its
-battery is at 30% or more. To make one board update now, **hold Right Nav for
+**When the boards pick it up:** each board checks once a day (unless its
+setup page says weekly, monthly or never), and only if its battery is at 30%
+or more. To make one board update now, **hold Right Nav for
 about 3 seconds**, until the LED comes on, and then let go. The screen says
 "Checking for updates" and the board restarts on the new version within a
 minute. Tap Right Nav to see the readings screen, whose footer shows the
