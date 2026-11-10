@@ -508,6 +508,7 @@ void renderSetup(const char* apName, const char* ip) {
     // Step 1 is for a board shipped switched off: e-paper keeps this screen
     // with no power, so the first thing it asks is to be turned on.
     step(108, "1", "Flip the backside power switch to On.");
+    textDraw(stepNote, tx, 134, "If light doesn't turn on, charge using USB cable.");
 
     step(190, "2", "Join this Wi-Fi network:");
     const TextStyle ap { Face::Display, 28, 0.5f, Role::Paper };
