@@ -184,7 +184,7 @@ int main(int argc, char** argv) {
   if (!std::strcmp(want, "setup")) {
     previewSetColor(color);
     renderBegin();
-    renderSetup("BeachDay-Setup-3F2A", "192.168.4.1");
+    renderSetup("BeachDay-Setup-3F2A", "192.168.4.1", 96);
     if (!previewSave(outDash)) { std::fprintf(stderr, "cannot write %s\n", outDash); return 1; }
     renderEnd();
     std::remove(outRead);

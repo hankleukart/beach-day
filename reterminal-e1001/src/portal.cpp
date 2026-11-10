@@ -59,11 +59,11 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <input id="pass" name="pass" type="password" autocomplete="off" placeholder="%PASSHINT%">
 <label for="loc">Weather forecast location</label>
 <input id="loc" name="loc" required placeholder="ZIP / postal code, or a town" value="%LOC%">
-<small>Examples: <b>90401</b>, <b>Santa Monica</b>, <b>Springfield, IL</b>. The display looks it up once it's online and shows the name it found.</small>
+<small>Examples: <b>90401</b>, <b>Santa Monica</b>, <b>Springfield, IL</b>.</small>
 <div class="row"><div><label for="cc">Country</label>
 <input id="cc" name="cc" maxlength="2" placeholder="US" value="%CC%"><small>2-letter code. Helps with postal codes.</small></div>
 <div><label for="label">Label on screen</label>
-<input id="label" name="label" maxlength="22" placeholder="%LABELHINT%" value="%LABEL%"></div></div>
+<input id="label" name="label" maxlength="22" placeholder="Venice Beach" value="%LABEL%"></div></div>
 <details><summary>Trash reminders</summary>
 <small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick. When each starts is under Advanced settings. If street cleaning is due too, that shows first.</small>
 %REMINDER%
@@ -87,7 +87,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <select id="panel" name="panel">%PANEL%</select>
 </fieldset>
 </details>
-<button type="submit">Save and restart</button>
+<button type="submit">Save</button>
 </form>
 <footer>Beach Day firmware %VER% &middot; <a href="/reset" onclick="return confirm('Erase Wi-Fi, location and reminder settings from this display?')">Erase all settings</a></footer>
 </main></body></html>)HTML";
@@ -182,9 +182,6 @@ void handleRoot() {
   mid.replace("%LOC%",   htmlEscape(shownPlace()));
   mid.replace("%CC%",    htmlEscape(shownCountry()));
   mid.replace("%LABEL%", htmlEscape(current.fromPortal ? current.label : current.locationName));
-  mid.replace("%LABELHINT%", current.fromPortal && !current.label[0] && current.locationName[0]
-                                 ? "(uses " + htmlEscape(current.locationName) + ")"
-                                 : String("(uses the town name)"));
   mid.replace("%PARKING%", parkingFieldset("L", "Left side of the street", current.parking[0]) +
                            parkingFieldset("R", "Right side of the street", current.parking[1]));
   mid.replace("%REMINDER%", reminderFieldset(current.reminder));
@@ -375,7 +372,7 @@ void runSetupPortal(const Settings& s) {
   server.onNotFound(handleNotFound);
   server.begin();
 
-  renderSetup(apName, ip.toString().c_str());
+  renderSetup(apName, ip.toString().c_str(), batteryPercent(batteryVolts()));
   Serial.printf("[portal] http://%s/  (timeout %lu min)\n", ip.toString().c_str(), (unsigned long)(PORTAL_TIMEOUT_MS / 60000));
 
   pinMode(PIN_LED, OUTPUT);

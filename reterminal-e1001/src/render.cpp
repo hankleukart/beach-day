@@ -34,6 +34,16 @@ void batteryGlyph(int x, int y, int pct) {
   const int fill = (inner * pct + 50) / 100;
   if (fill > 0) paintRect(x + 3, y + 3, fill, BATT_H - 6, Role::Ink);
 }
+// "96%" with the pictogram to its left, right-aligned at COL_X1. Nothing when
+// the charge is unknown (pct < 0).
+void batteryCorner(int baseline, int pct) {
+  if (pct < 0) return;
+  char txt[8];
+  snprintf(txt, sizeof(txt), "%d%%", pct);
+  const int x = COL_X1 - textWidth(T_CORNER, txt);
+  textDraw(T_CORNER, x, baseline, txt);
+  batteryGlyph(x - 6 - BATT_W, baseline - BATT_H + 1, pct);
+}
 const TextStyle T_SECTION       { Face::Body,      12, 1.7f, Role::Ink };
 const TextStyle T_TILE          { Face::Body,      15, 0,    Role::Ink };
 const TextStyle T_ALSO_BOLD     { Face::Body,      14, 0,    Role::Ink };
@@ -243,14 +253,7 @@ void drawRight(const ViewModel& vm) {
   textDraw(T_WEEKDAY, COL_X0, 52, s.weekday);
   {
     if (vm.updatedText[0]) textDrawRight(T_CORNER, COL_X1, 35, vm.updatedText);
-    if (vm.batteryPct >= 0) {
-      const int baseline = 53;
-      char pct[8];
-      snprintf(pct, sizeof(pct), "%d%%", vm.batteryPct);
-      int x = COL_X1 - textWidth(T_CORNER, pct);
-      textDraw(T_CORNER, x, baseline, pct);
-      batteryGlyph(x - 6 - BATT_W, baseline - BATT_H + 1, vm.batteryPct);
-    }
+    batteryCorner(53, vm.batteryPct);
   }
 
   const int ruleY = 67;
@@ -458,7 +461,7 @@ void renderMessage(const char* title, const char* line1, const char* line2) {
   } while (panelNextPage());
 }
 
-void renderSetup(const char* apName, const char* ip) {
+void renderSetup(const char* apName, const char* ip, int batteryPct) {
   panelFirstPage();
   do {
     panelFill(panelPaper());
@@ -491,7 +494,9 @@ void renderSetup(const char* apName, const char* ip) {
     for (int i = 0; i < n; i++, y += 21) textDrawCentered(about, cx, y, lines[i]);
 
     // Right: three steps, under the dashboard's section header and rule.
-    textDraw(T_SECTION, COL_X0, 30 + textCapHeight(T_SECTION), "SET UP ON YOUR PHONE  \xC2\xB7  ABOUT A MINUTE");
+    const int headBase = 30 + textCapHeight(T_SECTION);
+    textDraw(T_SECTION, COL_X0, headBase, "SET UP ON YOUR PHONE  \xC2\xB7  ABOUT A MINUTE");
+    batteryCorner(headBase + 1, batteryPct);
     paintHLine(COL_X0, COL_X1, 54, 3, Role::Ink);
 
     const TextStyle stepTitle { Face::Body, 18, 0, Role::Ink };
@@ -515,13 +520,13 @@ void renderSetup(const char* apName, const char* ip) {
     const int apW = textWidth(ap, apName) + 32;
     paintRoundRect(tx, 206, apW, 46, 8, Role::Ink);
     textDraw(ap, tx + 16, 239, apName);
-
-    step(318, "3", "Enter Wi-Fi and location info, then tap Save.");
-    textDraw(stepNote, tx, 344, "Forecast will appear in about a minute.");
     const char* const missing = "If setup page doesn't appear, go to ";
-    textDraw(stepNote, tx, 366, missing);
+    textDraw(stepNote, tx, 278, missing);
     char url[48]; snprintf(url, sizeof(url), "http://%s", ip);
-    textDraw(stepBold, tx + textWidth(stepNote, missing), 366, url);
+    textDraw(stepBold, tx + textWidth(stepNote, missing), 278, url);
+
+    step(336, "3", "Enter Wi-Fi and location info, then tap Save.");
+    textDraw(stepNote, tx, 362, "Forecast will appear in about a minute.");
 
     paintHLine(COL_X0, COL_X1, H - 62, 1, Role::Ink);
     textDraw(stepNote, COL_X0, H - 34, "Push Green (Refresh) button to cancel or restart setup.");

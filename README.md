@@ -48,7 +48,7 @@ a welcome screen: what Beach Day is, and the three steps below.
    **postal code** (`90401`), a **town** (`Santa Monica`) or **town, state**
    (`Springfield, IL`). Optionally: a short label for the screen, when day and
    evening start, the street-cleaning schedule, how often to check for
-   updates, and the trash reminder. Tap **Save and restart**.
+   updates, and the trash reminder. Tap **Save**.
 
 The board restarts, joins the Wi-Fi, looks the place up, and draws the
 forecast. The place it found appears at the top of the left panel — that is

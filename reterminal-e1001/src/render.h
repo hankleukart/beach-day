@@ -24,7 +24,7 @@ struct ViewModel {
 void renderBegin();
 void renderScreen(const ViewModel& vm);
 void renderMessage(const char* title, const char* line1, const char* line2);
-void renderSetup(const char* apName, const char* ip);
+void renderSetup(const char* apName, const char* ip, int batteryPct);   // pct < 0: unknown, not shown
 
 // The numbers behind the dashboard: every hourly row inside the window the
 // rules read - the day's daylight, or the evening until midnight - and the
