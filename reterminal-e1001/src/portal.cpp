@@ -48,7 +48,7 @@ fieldset{border:0;padding:0;margin:14px 0 0}legend{font-weight:700;margin-bottom
 .chk label{display:inline;font-weight:600}.chk input{width:auto;margin-right:6px}
 footer{margin-top:36px;font-size:13px;color:#777;text-align:center}footer a{color:#b00}
 </style></head><body><main>
-<h1>Beach Day setup</h1><p class="sub">Tell this display which Wi-Fi to use and where the beach is.</p>
+<h1>Beach Day setup</h1>
 <form method="POST" action="/save">
 <label for="ssid">Wi-Fi network</label>
 <select id="ssid" name="ssid" onchange="o.style.display=this.value=='__other__'?'block':'none'">)HTML";
@@ -65,7 +65,7 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 <div><label for="label">Label on screen</label>
 <input id="label" name="label" maxlength="22" placeholder="Venice Beach" value="%LABEL%"></div></div>
 <details><summary>Trash reminders</summary>
-<small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick. When each starts is under Advanced settings. If street cleaning is due too, that shows first.</small>
+<small style="margin-top:8px">Shows a reminder bar on the evening or the day you pick.</small>
 %REMINDER%
 </details>
 <details><summary>Parking reminders</summary>
@@ -74,15 +74,15 @@ const char PAGE_MID[] PROGMEM = R"HTML(<option value="__other__">Other / hidden 
 </details>
 <details class="adv"><summary>Advanced settings</summary>
 <fieldset><legend>Software updates</legend>
-<small>How often the display checks for new Beach Day software. Holding Right Nav for 3 seconds checks right away, whatever this says.</small>
+<small>How often the display checks for new Beach Day software. Holding Right Nav for 3 seconds checks right away.</small>
 %UPDATES%
 </fieldset>
 <fieldset><legend>Day and evening times</legend>
-<small>When the screen switches. Day Mode always reads the forecast from sunrise to sunset, and decides the day at sunrise. Evening Mode reads sunset to midnight.</small>
+<small>When the screen switches from "Day" to "Evening." Day Mode always show the sunrise-to-sunset forecast. Evening Mode always shows the sunset-to-midnight forecast.</small>
 %MODES%
 </fieldset>
 <fieldset><legend>Display model</legend>
-<small>Which reTerminal this is. Set when it was flashed; change it only if the screen stays blank.</small>
+<small>reTerminal model. Change only if the screen stays blank after restart.</small>
 <label for="panel">Model</label>
 <select id="panel" name="panel">%PANEL%</select>
 </fieldset>

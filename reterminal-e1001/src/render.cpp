@@ -477,19 +477,20 @@ void renderSetup(const char* apName, const char* ip, int batteryPct) {
     IconStyle iconStyle;
     iconStyle.ink = hero.fg;
     iconStyle.paper = hero.bg;
-    iconStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(104));
-    drawIcon("sun_and_waves", cx, 128, 104, iconStyle);
+    iconStyle.accents = hero.accents && (panelIsColor() || paintAccentsLegibleAt(96));
+    drawIcon("sun_and_waves", cx, 110, 96, iconStyle);
 
     TextStyle title = T_HEADLINE; title.px = 60; title.role = hero.fg;
     const int titleCap = textCapHeight(title);
-    textDrawCentered(title, cx, 214 + titleCap, "Beach");
-    textDrawCentered(title, cx, 214 + titleCap + 58, "Day");
+    textDrawCentered(title, cx, 180 + titleCap, "Beach");
+    textDrawCentered(title, cx, 180 + titleCap + 58, "Day");
 
     TextStyle about { Face::BodyLight, 15, 0, hero.fg };
-    char lines[6][160];
-    const int n = textWrap(about, "A forecast that answers one question: what kind of day is it? "
-                                  "It reads the weather where you live and tells you what to wear.",
-                           LEFT_W - 56, lines, 6);
+    char lines[8][160];
+    const int n = textWrap(about, "A weather forecast display which answers the question: is this the "
+                                  "perfect day to go to the beach? (And, if not, what should you wear "
+                                  "and do today?)",
+                           LEFT_W - 40, lines, 8);
     int y = H - 30 - (n - 1) * 21;
     for (int i = 0; i < n; i++, y += 21) textDrawCentered(about, cx, y, lines[i]);
 
