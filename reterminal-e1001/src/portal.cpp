@@ -382,12 +382,18 @@ void runSetupPortal(const Settings& s) {
   pinMode(PIN_KEY0, INPUT_PULLUP);
   uint32_t started = millis(), lastBlink = 0;
   bool led = false;
+  bool greenArmed = false;     // Green counts only once it has been seen released
   for (;;) {
     dns.processNextRequest();
     server.handleClient();
 
-    if (current.configured() && digitalRead(PIN_KEY0) == LOW) {
-      Serial.println(F("[portal] cancelled by Green (KEY0)"));
+    // Green restarts the board: one that is set up goes back to its forecast
+    // (cancel); one that isn't comes straight back here with a fresh 10
+    // minutes (restart setup), as the setup screen's footer says.
+    const bool greenDown = digitalRead(PIN_KEY0) == LOW;
+    if (!greenDown) greenArmed = true;
+    if (greenArmed && greenDown) {
+      Serial.println(F("[portal] Green (KEY0): restarting"));
       Serial.flush();
       ESP.restart();
     }

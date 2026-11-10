@@ -505,22 +505,25 @@ void renderSetup(const char* apName, const char* ip) {
       textDraw(stepTitle, tx, baseline, text);
     };
 
-    step(110, "1", "Join this Wi-Fi network");
+    // Step 1 is for a board shipped switched off: e-paper keeps this screen
+    // with no power, so the first thing it asks is to be turned on.
+    step(108, "1", "Flip the backside power switch to On.");
+
+    step(190, "2", "Join this Wi-Fi network:");
     const TextStyle ap { Face::Display, 28, 0.5f, Role::Paper };
     const int apW = textWidth(ap, apName) + 32;
-    paintRoundRect(tx, 126, apW, 46, 8, Role::Ink);
-    textDraw(ap, tx + 16, 159, apName);
+    paintRoundRect(tx, 206, apW, 46, 8, Role::Ink);
+    textDraw(ap, tx + 16, 239, apName);
 
-    step(238, "2", "A setup page opens by itself");
-    textDraw(stepNote, tx, 264, "If it doesn't, open a browser and go to");
+    step(318, "3", "Enter Wi-Fi and location info, then tap Save.");
+    textDraw(stepNote, tx, 344, "Forecast will appear in about a minute.");
+    const char* const missing = "If setup page doesn't appear, go to ";
+    textDraw(stepNote, tx, 366, missing);
     char url[48]; snprintf(url, sizeof(url), "http://%s", ip);
-    textDraw(stepBold, tx + textWidth(stepNote, "If it doesn't, open a browser and go to "), 264, url);
-
-    step(342, "3", "Enter your Wi-Fi and where you are");
-    textDraw(stepNote, tx, 368, "Tap Save. The forecast appears about a minute later.");
+    textDraw(stepBold, tx + textWidth(stepNote, missing), 366, url);
 
     paintHLine(COL_X0, COL_X1, H - 62, 1, Role::Ink);
-    textDraw(stepNote, COL_X0, H - 34, "Green (Refresh) cancels. This screen turns off after 10 minutes.");
+    textDraw(stepNote, COL_X0, H - 34, "Push Green (Refresh) button to cancel or restart setup.");
   } while (panelNextPage());
 }
 

@@ -200,6 +200,13 @@ Your Wi-Fi password is saved on the board and survives a normal reflash.
 `gift` is the one for a batch: plug in, run, unplug, repeat. Each board then
 starts as its own `BeachDay-Setup-xxxx` hotspot for its new owner.
 
+**Shipping one:** charge it, flash it with `gift`, wait for the welcome
+screen, then flip the power switch on the back to Off. The screen keeps its
+picture without power, so it arrives showing the setup steps, and step 1
+tells them to switch it on. Left on, a board that hasn't been set up reopens
+its setup hotspot for 10 minutes every hour, which would run the battery down
+in the box.
+
 **If the upload can't find the board:** check the cable is a data cable,
 the power switch is on, and press Green (Refresh) to wake it, then run the
 command again.
